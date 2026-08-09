@@ -79,20 +79,22 @@ const CAPABILITIES = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AutopilotGEO — 30 days of AI content, auto-published" },
+      { title: "AutopilotGEO — 30 Days of AI SEO Content, Auto-Published" },
       {
         name: "description",
         content:
           "A rolling 30-day calendar of GEO, SEO and AEO content written by DeepSeek and published automatically to WordPress, WooCommerce, PrestaShop, Shopify and your own site.",
       },
-      { property: "og:title", content: "AutopilotGEO — 30 days of AI content, auto-published" },
+      { property: "og:title", content: "AutopilotGEO — 30 Days of AI SEO Content, Auto-Published" },
       {
         property: "og:description",
         content: "Plan, write and publish a month of generative-search content on autopilot.",
       },
-      { property: "og:url", content: "/" },
+      { property: "og:url", content: "https://autopilotgeo.com/" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary_large_image" },
     ],
-    links: [{ rel: "canonical", href: "/" }],
+    links: [{ rel: "canonical", href: "https://autopilotgeo.com/" }],
     scripts: [
       {
         type: "application/ld+json",
