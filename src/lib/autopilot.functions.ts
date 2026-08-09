@@ -168,8 +168,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { writeArticle } = await import("./plan.server");
     const { DEFAULT_MODEL } = await import("./ai.server");
-    const { generateImageBytes, storeImage, coverPrompt, sectionPrompt, injectImages, headings } =
-      await import("./images.server");
+    const { generateImageBytes, storeImage, coverPrompt } = await import("./images.server");
     const { supabase, userId } = context;
 
     const { data: project } = await supabase
@@ -229,27 +228,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
       // an article without its cover is still shippable
     }
 
-    // Inline section illustrations (best effort).
-    try {
-      const inline: { heading: string; url: string }[] = [];
-      for (const [i, heading] of headings(geo.body_md).slice(0, 2).entries()) {
-        try {
-          const bytes = await generateImageBytes(sectionPrompt(heading, geo.title));
-          inline.push({ heading, url: await storeImage(userId, `${first.id}-s${i}`, bytes, data.origin) });
-        } catch {
-          // keep going without this section image
-        }
-      }
-      if (inline.length) {
-        await supabase
-          .from("content_items")
-          .update({ body_md: injectImages(geo.body_md, inline) })
-          .eq("id", first.id);
-      }
-    } catch {
-      // images are optional
-    }
-
+    // One image per article: the cover only.
     // Publish day 1 immediately to every connected destination (Supabase, WordPress, Shopify…).
     let published = 0;
     try {
