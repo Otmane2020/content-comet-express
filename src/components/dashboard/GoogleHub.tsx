@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Unplug } from "lucide-react";
+import { Bot, Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Sparkles, Unplug } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { scanAiMentions } from "@/lib/mentions.functions";
 import {
   disconnectGoogle,
   listGoogleResources,
@@ -191,9 +192,6 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                     )}
                   </div>
                   <p className="mt-1 text-[12.5px] text-muted-foreground">{meta.blurb}</p>
-                  {conn?.account_email && (
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">{conn.account_email}</p>
-                  )}
                   {conn?.resource_name && (
                     <p className="mt-2 flex items-center gap-1.5 text-[12.5px] font-medium">
                       <meta.icon className="size-3.5 text-primary" /> {conn.resource_name}
