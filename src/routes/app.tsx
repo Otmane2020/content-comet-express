@@ -155,15 +155,23 @@ function Dashboard() {
             </button>
           ))}
         </nav>
-        <div className="mt-auto space-y-2 px-1 text-[12px] text-sidebar-foreground/70">
-          <p className="truncate">{user.email}</p>
+        <div className="mt-auto space-y-1 px-1 text-[12px] text-sidebar-foreground/70">
+          <button
+            type="button"
+            onClick={() => setTab("help")}
+            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors ${
+              tab === "help" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60"
+            }`}
+          >
+            <LifeBuoy className="size-3.5" /> Help
+          </button>
           <button
             type="button"
             onClick={async () => {
               await supabase.auth.signOut();
               navigate({ to: "/", replace: true });
             }}
-            className="flex items-center gap-2 hover:text-sidebar-primary"
+            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-primary"
           >
             <LogOut className="size-3.5" /> Sign out
           </button>
