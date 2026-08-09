@@ -73,7 +73,10 @@ export function Calendar({ projectId }: { projectId: string }) {
       .from("content_items")
       .update({ title: draft.title, body_md: draft.body })
       .eq("id", open.id);
-    if (error) return toast.error(error.message);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
     toast.success("Draft saved.");
     void qc.invalidateQueries({ queryKey: ["content", projectId] });
   }
