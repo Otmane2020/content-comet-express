@@ -6,6 +6,8 @@ export type PlatformGuide = {
   steps: { title: string; detail: string }[];
   tips?: string[];
   docUrl?: string;
+  /** Ready-to-paste prompt for AI builders (Lovable, Bolt, Replit…). */
+  prompt?: string;
 };
 
 export const PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
