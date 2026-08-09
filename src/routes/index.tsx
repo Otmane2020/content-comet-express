@@ -290,8 +290,12 @@ function Landing() {
                 key={id}
                 className="surface group flex items-start gap-4 p-5 transition-all hover:border-primary/40 hover:shadow-sm"
               >
-                <span className="inline-flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background shadow-sm transition-transform group-hover:scale-105">
-                  <PlatformLogo platform={id} className="size-7" />
+                <span className="inline-flex h-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background px-3 shadow-sm transition-transform group-hover:scale-105">
+                  {id === "webhook" ? (
+                    <CustomSiteLogos className="size-6" />
+                  ) : (
+                    <PlatformLogo platform={id} className="size-7" />
+                  )}
                 </span>
                 <div>
                   <p className="font-display font-semibold">{meta.label}</p>
