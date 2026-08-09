@@ -448,6 +448,80 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       ))}
                     </div>
 
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3.5">
+                      <Button
+                        type="button"
+                        onClick={autodetectMarket}
+                        disabled={scanningMarket}
+                        className="bg-deep text-background hover:bg-deep/90"
+                      >
+                        {scanningMarket ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Radar className="mr-1.5 size-4" />}
+                        {scanningMarket ? "Scanning market…" : "Auto-detect competitors & keywords"}
+                      </Button>
+                      <p className="text-[11.5px] leading-snug text-muted-foreground">
+                        Live SEO metrics from DataForSEO, with AI estimates as backup.
+                      </p>
+                      {market && (
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                            market.source === "dataforseo"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-gold-soft text-foreground/70"
+                          }`}
+                        >
+                          {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
+                        </span>
+                      )}
+                    </div>
+
+                    {market && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="rounded-xl border border-border p-3.5">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            Competitors found
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {market.competitors.map((d) => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => addCompetitor(d)}
+                                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                              >
+                                <Plus className="size-3 text-primary" /> {d}
+                              </button>
+                            ))}
+                            {!market.competitors.length && (
+                              <span className="text-[11.5px] text-muted-foreground">None found.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-border p-3.5">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            Keyword opportunities
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {market.keywords.slice(0, 12).map((k) => (
+                              <button
+                                key={k.keyword}
+                                type="button"
+                                onClick={() => addKeyword(k.keyword)}
+                                className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                              >
+                                <Plus className="size-3 text-primary" /> {k.keyword}
+                                {k.volume != null && (
+                                  <span className="text-[10.5px] text-muted-foreground">{k.volume}/mo</span>
+                                )}
+                              </button>
+                            ))}
+                            {!market.keywords.length && (
+                              <span className="text-[11.5px] text-muted-foreground">None found.</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
                     <div>
                       <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
                       <Textarea
