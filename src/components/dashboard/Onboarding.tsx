@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
@@ -14,10 +14,13 @@ import {
   Rocket,
   Send,
   Sparkles,
+  ShieldCheck,
+  Tag,
   Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
+import { createCheckout, getSubscription } from "@/lib/billing.functions";
 import { detectBusiness, detectMarket } from "@/lib/detect.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
@@ -76,7 +79,11 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const kickstart = useServerFn(kickstartFirstDay);
   const detectBiz = useServerFn(detectBusiness);
   const detectMkt = useServerFn(detectMarket);
+  const checkout = useServerFn(createCheckout);
+  const fetchSub = useServerFn(getSubscription);
   const [busy, setBusy] = useState(false);
+  const [subActive, setSubActive] = useState<boolean | null>(null);
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [scanning, setScanning] = useState(false);
   const [scanningMarket, setScanningMarket] = useState(false);
   const [detected, setDetected] = useState<string | null>(null);
@@ -96,6 +103,45 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     keywords: "",
     competitors: "",
   });
+
+  const DRAFT_KEY = "apgeo_onboarding_draft";
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as typeof form;
+        setForm((f) => ({ ...f, ...saved }));
+        if (new URLSearchParams(window.location.search).get("checkout") === "success") setStep(2);
+      }
+    } catch {
+      /* ignore */
+    }
+    fetchSub()
+      .then((s) => setSubActive(s.active))
+      .catch(() => setSubActive(false));
+  }, []);
+
+  async function startCheckout() {
+    setBusy(true);
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+      const { data: auth } = await supabase.auth.getUser();
+      const { url } = await checkout({
+        data: {
+          cycle,
+          origin: window.location.origin,
+          userId,
+          email: auth.user?.email ?? undefined,
+          next: "/app",
+        },
+      });
+      window.location.href = url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Checkout failed");
+      setBusy(false);
+    }
+  }
 
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
