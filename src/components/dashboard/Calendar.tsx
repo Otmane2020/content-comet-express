@@ -61,16 +61,30 @@ export function Calendar({ projectId }: { projectId: string }) {
 
   const open = useMemo(() => items.find((i) => i.id === openId) ?? null, [items, openId]);
 
-  const { data: gmbConnected = false } = useQuery({
-    queryKey: ["gmb-connected", projectId],
+  // GMB is only relevant when the user connected a location AND kept sharing on.
+  const { data: gmbSharing = false } = useQuery({
+    queryKey: ["gmb-sharing", projectId],
     queryFn: async () => {
       const { data } = await supabase
         .from("google_connections")
-        .select("resource_id")
+        .select("resource_id, auto_publish, status")
         .eq("project_id", projectId)
         .eq("service", "gmb")
         .maybeSingle();
-      return Boolean(data?.resource_id);
+      return Boolean(data?.resource_id && data.auto_publish && data.status === "connected");
+    },
+  });
+
+  // Items already shared on the listing keep the badge even if sharing is later turned off.
+  const { data: gmbPostedIds = [] } = useQuery({
+    queryKey: ["gmb-posted", projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("publish_logs")
+        .select("content_item_id")
+        .eq("platform", "gmb")
+        .eq("success", true);
+      return (data ?? []).map((r) => r.content_item_id as string);
     },
   });
 
