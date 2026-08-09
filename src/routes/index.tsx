@@ -243,9 +243,17 @@ function Landing() {
           </div>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(PLATFORM_META).map(([id, meta]) => (
-              <div key={id} className="surface p-5">
-                <p className="font-display font-semibold">{meta.label}</p>
-                <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.hint}</p>
+              <div
+                key={id}
+                className="surface group flex items-start gap-4 p-5 transition-all hover:border-primary/40 hover:shadow-sm"
+              >
+                <span className="inline-flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background shadow-sm transition-transform group-hover:scale-105">
+                  <PlatformLogo platform={id} className="size-7" />
+                </span>
+                <div>
+                  <p className="font-display font-semibold">{meta.label}</p>
+                  <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.hint}</p>
+                </div>
               </div>
             ))}
           </div>
