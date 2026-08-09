@@ -115,9 +115,15 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   if (cacheUsable) {
     domains = dedupeDomains(cachedRows.map((r) => r.domain), self, QUOTA.competitors);
   } else if (project.website_url) {
-    const found = await competitorDomains(project.website_url, opts, QUOTA.competitors);
-    domains = dedupeDomains(found.map((r) => r.domain), self, QUOTA.competitors);
+    // Over-fetch: platforms/aggregators are stripped out, so ask for more than we keep.
+    const raw = await competitorDomains(project.website_url, opts, QUOTA.competitors * 5);
+    domains = dedupeDomains(raw.map((r) => r.domain), self, QUOTA.competitors);
+    const found = domains
+      .map((d) => raw.find((r) => r.domain.replace(/^www\./, "").toLowerCase() === d))
+      .filter(Boolean) as typeof raw;
     if (found.length) {
+      // Drop rivals stored by an earlier, unfiltered scan.
+      await supabase.from("competitors").delete().eq("project_id", projectId);
       await supabase.from("competitors").upsert(
         found.slice(0, QUOTA.competitors).map((r) => ({
           user_id: userId,
