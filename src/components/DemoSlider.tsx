@@ -89,21 +89,16 @@ export function DemoSlider() {
               <span className="size-2.5 rounded-full bg-gold/70" />
               <span className="size-2.5 rounded-full bg-success/60" />
               <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">
-                app.autopilotgeo.com/{active.label.toLowerCase().replace(/[^a-z]+/g, "-")}
+                app.autopilotgeo.com/{active.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
               </span>
             </div>
             <div className="relative overflow-hidden rounded-xl border border-border bg-background">
-              {SLIDES.map((slide, i) => (
-                <img
-                  key={slide.label}
-                  src={slide.src}
-                  alt={`${slide.label} screen of the AutopilotGEO dashboard`}
-                  loading={i === 0 ? "eager" : "lazy"}
-                  className={`w-full transition-opacity duration-500 ${
-                    i === index ? "opacity-100" : "absolute inset-0 opacity-0"
-                  }`}
-                />
-              ))}
+              <img
+                key={active.label}
+                src={active.src}
+                alt={`${active.label} screen of the AutopilotGEO dashboard`}
+                className="w-full animate-in fade-in duration-500"
+              />
             </div>
           </div>
 
