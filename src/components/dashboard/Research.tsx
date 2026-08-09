@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
+import { ChevronDown, Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeCompetitor, autoResearch, discoverCompetitors, researchKeywords } from "@/lib/research.functions";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   const auto = useServerFn(autoResearch);
   const started = useRef(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [kwShown, setKwShown] = useState(5);
+  const [compShown, setCompShown] = useState(5);
 
   const { data: keywords = [], isLoading: kwLoading } = useQuery({
     queryKey: ["keywords", projectId],
