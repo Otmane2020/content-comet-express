@@ -62,8 +62,9 @@ export const generateArticle = createServerFn({ method: "POST" })
           .in("platform", CATALOG_PLATFORMS as unknown as string[]);
         products = await fetchCatalog((stores ?? []) as never);
       }
+      const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
       const article = await writeArticle(
-        { ...project, keywords: project.keywords ?? [] },
+        { ...project, keywords: target ? [target] : (project.keywords ?? []) },
         { content_type: item.content_type as ContentType, topic: item.topic },
         { products },
       );
