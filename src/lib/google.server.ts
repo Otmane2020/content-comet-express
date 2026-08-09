@@ -186,7 +186,7 @@ export async function listGmbLocations(token: string): Promise<GmbLocation[]> {
 export async function createGmbPost(
   token: string,
   locationName: string,
-  post: { summary: string; url?: string | null; ctaLabel?: string },
+  post: { summary: string; url?: string | null; ctaLabel?: string; imageUrl?: string | null },
 ) {
   // Google rejects a Standard local post without a summary, and it also refuses
   // markdown noise, so normalise the text before sending it.
@@ -208,6 +208,10 @@ export async function createGmbPost(
   const url = (post.url ?? "").trim();
   if (/^https?:\/\//i.test(url)) {
     body["callToAction"] = { actionType: post.ctaLabel === "BOOK" ? "BOOK" : "LEARN_MORE", url };
+  }
+  const imageUrl = (post.imageUrl ?? "").trim();
+  if (/^https?:\/\//i.test(imageUrl)) {
+    body["media"] = [{ mediaFormat: "PHOTO", sourceUrl: imageUrl }];
   }
   return gfetch(`https://mybusiness.googleapis.com/v4/${locationName}/localPosts`, token, {
     method: "POST",

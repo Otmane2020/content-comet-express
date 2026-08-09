@@ -231,9 +231,32 @@ export function GoogleHub({ projectId }: { projectId: string }) {
   const aiSessions = aiTraffic.reduce((a, r) => a + Number(r.sessions), 0);
   const aiConversions = aiTraffic.reduce((a, r) => a + Number(r.conversions), 0);
 
+  const gmbConn = connections.find((c) => c.service === "gmb");
+  const { data: articles = [] } = useQuery({
+    queryKey: ["gmb-articles", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("content_items")
+        .select("id, title, excerpt, slug, scheduled_date, published_url")
+        .eq("project_id", projectId)
+        .not("title", "is", null)
+        .order("scheduled_date", { ascending: false })
+        .limit(12);
+      if (error) throw error;
+      return data as {
+        id: string;
+        title: string | null;
+        excerpt: string | null;
+        slug: string | null;
+        scheduled_date: string | null;
+        published_url: string | null;
+      }[];
+    },
+  });
+
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {(["gmb", "gsc", "ga4"] as Service[]).map((service) => {
           const conn = connections.find((c) => c.service === service);
           const meta = META[service];
@@ -263,7 +286,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                 </div>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-2">
+              <div className="mt-4 flex flex-wrap items-center gap-2">
                 {!conn && (
                   <Button
                     size="sm"
@@ -321,28 +344,10 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                         <RefreshCw className="size-4" /> Sync 28 days
                       </Button>
                     )}
-                    {service === "gmb" && conn.resource_id && (
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={async () => {
-                          setBusy(conn.id);
-                          try {
-                            const res = await post({ data: { projectId } });
-                            toast.success(`Posted “${res.title}” to your listing.`);
-                          } catch (e) {
-                            toast.error(e instanceof Error ? e.message : "Post failed");
-                          } finally {
-                            setBusy(null);
-                          }
-                        }}
-                      >
-                        <Send className="size-4" /> Post latest article
-                      </Button>
-                    )}
                     <Button
                       size="sm"
                       variant="ghost"
+                      className="ml-auto text-muted-foreground"
                       onClick={async () => {
                         await cut({ data: { connectionId: conn.id } });
                         void qc.invalidateQueries({ queryKey: ["google", projectId] });
@@ -357,18 +362,18 @@ export function GoogleHub({ projectId }: { projectId: string }) {
               {conn && opts.length > 0 && (
                 <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
                   <p className="text-[12px] font-medium text-muted-foreground">{meta.pick}</p>
-                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                  <div className="mt-2 flex flex-col gap-2">
                     <Select
                       value={draft[conn.id] ?? conn.resource_id ?? ""}
                       onValueChange={(v) => setDraft((d) => ({ ...d, [conn.id]: v }))}
                     >
-                      <SelectTrigger className="h-9 flex-1 bg-card text-[13px]">
+                      <SelectTrigger className="h-9 w-full min-w-0 bg-card text-[13px]">
                         <SelectValue placeholder={service === "gmb" ? "Select a location" : "Select a property"} />
                       </SelectTrigger>
                       <SelectContent className="max-h-72">
                         {opts.map((opt) => (
                           <SelectItem key={opt.id} value={opt.id} className="text-[13px]">
-                            <span className="flex min-w-0 items-center gap-2">
+                            <span className="flex min-w-0 max-w-[320px] items-center gap-2">
                               <meta.icon className="size-3.5 shrink-0 text-primary" />
                               <span className="truncate">{opt.label}</span>
                               <span className="truncate font-mono text-[10.5px] text-muted-foreground">{opt.sub}</span>
@@ -379,7 +384,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                     </Select>
                     <Button
                       size="sm"
-                      className="h-9 bg-deep text-background hover:bg-deep/90"
+                      className="h-9 w-full bg-deep text-background hover:bg-deep/90"
                       disabled={
                         !draft[conn.id] || draft[conn.id] === conn.resource_id || busy === `pick-${conn.id}`
                       }
@@ -409,6 +414,61 @@ export function GoogleHub({ projectId }: { projectId: string }) {
           );
         })}
       </div>
+
+      {gmbConn?.resource_id && (
+        <div className="surface p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
+                <MapPin className="size-4 text-primary" /> Local posts
+              </h3>
+              <p className="max-w-xl text-[12.5px] text-muted-foreground">
+                Each article is shared on its own: title, description and a “Learn more” button linking straight to the
+                article — never a bare headline.
+              </p>
+            </div>
+          </div>
+
+          {articles.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">No written article yet.</p>
+          ) : (
+            <ul className="mt-4 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+              {articles.map((a) => (
+                <li key={a.id} className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-primary/5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-medium">{a.title ?? "Untitled"}</p>
+                    <p className="truncate text-[12px] text-muted-foreground">
+                      {(a.excerpt ?? "").trim() || "No description yet"}
+                    </p>
+                  </div>
+                  <span className="hidden shrink-0 font-mono text-[11px] text-muted-foreground sm:block">
+                    {a.scheduled_date ?? ""}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={busy === a.id}
+                    onClick={async () => {
+                      setBusy(a.id);
+                      try {
+                        const res = await post({ data: { projectId, contentId: a.id } });
+                        toast.success(`Posted “${res.title}” to your listing.`);
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Post failed");
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    <Send className={`size-4 ${busy === a.id ? "animate-pulse" : ""}`} /> Post
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       <div className="surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
