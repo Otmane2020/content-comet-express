@@ -29,6 +29,13 @@ import {
 } from "@/lib/google.functions";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -37,6 +44,15 @@ import {
 } from "@/components/ui/select";
 
 type Service = "gmb" | "gsc" | "ga4";
+
+/** Show a human domain instead of "sc-domain:example.com" or "https://example.com/". */
+function prettyResource(label: string | null | undefined) {
+  if (!label) return "";
+  return label
+    .replace(/^sc-domain:/i, "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+}
 
 type Connection = {
   id: string;
