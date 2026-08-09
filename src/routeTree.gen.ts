@@ -15,10 +15,12 @@ import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as PrivacyRouteImport } from './routes/privacy'
+import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as ApiPublicArticlesRouteImport } from './routes/api/public/articles'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google/callback'
 import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/public/hooks/daily-autopilot'
 import { Route as ApiPublicHooksRefillCalendarRouteImport } from './routes/api/public/hooks/refill-calendar'
@@ -55,6 +57,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
   path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
+  id: '/sitemap.xml',
+  path: '/sitemap.xml',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
@@ -74,6 +81,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => BlogRoute,
+} as any)
+const ApiPublicArticlesRoute = ApiPublicArticlesRouteImport.update({
+  id: '/api/public/articles',
+  path: '/api/public/articles',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ApiPublicGoogleCallbackRoute = ApiPublicGoogleCallbackRouteImport.update({
   id: '/api/public/google/callback',
@@ -110,10 +122,12 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/blog': typeof BlogRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/': typeof BlogIndexRoute
+  '/api/public/articles': typeof ApiPublicArticlesRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
@@ -126,10 +140,12 @@ export interface FileRoutesByTo {
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog': typeof BlogIndexRoute
+  '/api/public/articles': typeof ApiPublicArticlesRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
@@ -144,10 +160,12 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/blog': typeof BlogRouteWithChildren
   '/privacy': typeof PrivacyRoute
+  '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
   '/auth_/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/blog/': typeof BlogIndexRoute
+  '/api/public/articles': typeof ApiPublicArticlesRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
@@ -163,10 +181,12 @@ export interface FileRouteTypes {
     | '/auth'
     | '/blog'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
     | '/auth/callback'
     | '/blog/$slug'
     | '/blog/'
+    | '/api/public/articles'
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
@@ -179,10 +199,12 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
     | '/auth/callback'
     | '/blog/$slug'
     | '/blog'
+    | '/api/public/articles'
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
@@ -196,10 +218,12 @@ export interface FileRouteTypes {
     | '/auth'
     | '/blog'
     | '/privacy'
+    | '/sitemap.xml'
     | '/terms'
     | '/auth_/callback'
     | '/blog/$slug'
     | '/blog/'
+    | '/api/public/articles'
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
@@ -214,8 +238,10 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   BlogRoute: typeof BlogRouteWithChildren
   PrivacyRoute: typeof PrivacyRoute
+  SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  ApiPublicArticlesRoute: typeof ApiPublicArticlesRoute
   ApiPublicGoogleCallbackRoute: typeof ApiPublicGoogleCallbackRoute
   ApiPublicHooksDailyAutopilotRoute: typeof ApiPublicHooksDailyAutopilotRoute
   ApiPublicHooksRefillCalendarRoute: typeof ApiPublicHooksRefillCalendarRoute
@@ -267,6 +293,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sitemap.xml': {
+      id: '/sitemap.xml'
+      path: '/sitemap.xml'
+      fullPath: '/sitemap.xml'
+      preLoaderRoute: typeof SitemapDotxmlRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -294,6 +327,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/blog/$slug'
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof BlogRoute
+    }
+    '/api/public/articles': {
+      id: '/api/public/articles'
+      path: '/api/public/articles'
+      fullPath: '/api/public/articles'
+      preLoaderRoute: typeof ApiPublicArticlesRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/api/public/google/callback': {
       id: '/api/public/google/callback'
@@ -352,8 +392,10 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   BlogRoute: BlogRouteWithChildren,
   PrivacyRoute: PrivacyRoute,
+  SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  ApiPublicArticlesRoute: ApiPublicArticlesRoute,
   ApiPublicGoogleCallbackRoute: ApiPublicGoogleCallbackRoute,
   ApiPublicHooksDailyAutopilotRoute: ApiPublicHooksDailyAutopilotRoute,
   ApiPublicHooksRefillCalendarRoute: ApiPublicHooksRefillCalendarRoute,
