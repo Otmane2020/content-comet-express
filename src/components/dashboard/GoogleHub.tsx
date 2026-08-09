@@ -497,6 +497,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
             <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
               <Sparkles className="size-4 text-primary" /> AI mentions
             </h3>
+            {/* AI visibility (mentions) — distinct from AI traffic below. */}
             <p className="max-w-xl text-[12.5px] text-muted-foreground">
               We ask ChatGPT, Perplexity and Gemini the buying questions your customers type, then check whether your
               brand is named and in which position. That is your GEO visibility — tracked right here.
