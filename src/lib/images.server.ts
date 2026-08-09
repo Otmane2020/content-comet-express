@@ -30,14 +30,27 @@ export async function generateImageBytes(prompt: string): Promise<Uint8Array> {
   return b64ToBytes(json.result.image);
 }
 
-/** Store bytes in the private article-images bucket and return a public app URL. */
-export async function storeImage(userId: string, key: string, bytes: Uint8Array, origin: string) {
+/** Canonical public origin used when an image must be absolute (external CMS). */
+export const SITE_ORIGIN = (process.env["PUBLIC_SITE_URL"] || "https://www.ranki.ai").replace(/\/$/, "");
+
+/** Make a stored image path absolute for platforms that cannot resolve relative URLs. */
+export function absoluteImageUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (url.startsWith("http")) return url;
+  return `${SITE_ORIGIN}${url.startsWith("/") ? url : `/${url}`}`;
+}
+
+/**
+ * Store bytes in the article-images bucket and return a domain-independent URL.
+ * We keep it relative so images keep working when the app domain changes.
+ */
+export async function storeImage(userId: string, key: string, bytes: Uint8Array, _origin?: string) {
   const path = `${userId}/${key}.jpg`;
   const { error } = await supabaseAdmin.storage
     .from("article-images")
     .upload(path, bytes, { contentType: "image/jpeg", upsert: true });
   if (error) throw new Error(error.message);
-  return `${origin.replace(/\/$/, "")}/api/public/img/${path}`;
+  return `/api/public/img/${path}`;
 }
 
 const NO_TEXT =

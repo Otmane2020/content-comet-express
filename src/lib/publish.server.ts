@@ -202,6 +202,7 @@ export async function runPublish(
 ) {
   const { slugify } = await import("./geo");
   const { renderMagazineHtml } = await import("./markdown");
+  const { absoluteImageUrl } = await import("./images.server");
 
   const { data: item, error } = await supabase
     .from("content_items")
@@ -227,13 +228,13 @@ export async function runPublish(
     html: renderMagazineHtml({
       title: item.title ?? item.topic ?? "Untitled",
       excerpt: item.excerpt,
-      coverUrl: item.cover_image_url,
+      coverUrl: absoluteImageUrl(item.cover_image_url),
       markdown: item.body_md,
     }),
     markdown: item.body_md,
     contentType: item.content_type,
     scheduledDate: item.scheduled_date,
-    coverUrl: item.cover_image_url ?? null,
+    coverUrl: absoluteImageUrl(item.cover_image_url),
     keywords: (item.keywords as string[] | null) ?? [],
   };
 
