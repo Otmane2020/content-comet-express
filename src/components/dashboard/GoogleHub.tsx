@@ -104,6 +104,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
   const resources = useServerFn(listGoogleResources);
   const pick = useServerFn(selectGoogleResource);
   const sync = useServerFn(syncSearchConsole);
+  const syncTraffic = useServerFn(syncAiTraffic);
   const post = useServerFn(publishToGmb);
   const cut = useServerFn(disconnectGoogle);
   const scanMentions = useServerFn(scanAiMentions);
@@ -215,10 +216,25 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     ? Math.round((mentions.filter((m) => m.mentioned).length / mentions.length) * 100)
     : 0;
 
+  const { data: aiTraffic = [] } = useQuery({
+    queryKey: ["ai-traffic", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ai_traffic")
+        .select("id, assistant, source, sessions, users, engaged_sessions, conversions")
+        .eq("project_id", projectId)
+        .order("sessions", { ascending: false });
+      if (error) throw error;
+      return data as AiTraffic[];
+    },
+  });
+  const aiSessions = aiTraffic.reduce((a, r) => a + Number(r.sessions), 0);
+  const aiConversions = aiTraffic.reduce((a, r) => a + Number(r.conversions), 0);
+
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(["gmb", "gsc"] as Service[]).map((service) => {
+      <div className="grid gap-4 lg:grid-cols-3">
+        {(["gmb", "gsc", "ga4"] as Service[]).map((service) => {
           const conn = connections.find((c) => c.service === service);
           const meta = META[service];
           const opts = conn ? options[conn.id] ?? [] : [];
@@ -265,6 +281,26 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                       <RefreshCw className={`size-4 ${busy === conn.id ? "animate-spin" : ""}`} />
                       {conn.resource_id ? "Change" : "Pick"} {service === "gmb" ? "location" : "property"}
                     </Button>
+                    {service === "ga4" && conn.resource_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          setBusy(conn.id);
+                          try {
+                            const res = await syncTraffic({ data: { projectId } });
+                            toast.success(`${res.sessions} AI assistant sessions imported.`);
+                            void qc.invalidateQueries({ queryKey: ["ai-traffic", projectId] });
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "GA4 sync failed");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                      >
+                        <RefreshCw className="size-4" /> Sync AI traffic
+                      </Button>
+                    )}
                     {service === "gsc" && conn.resource_id && (
                       <Button
                         size="sm"
