@@ -27,28 +27,31 @@ const ShopifyLogo = (p: SVGProps) => (
   </svg>
 );
 
-/** Lovable — heart mark. */
+/** Lovable — official heart mark. */
 export const LovableLogo = (p: SVGProps) => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
     <path
-      d="M12 21s-7.6-4.7-9.4-9.2C1.3 8.3 3.2 4.8 6.6 4.2c2.1-.4 4.1.6 5.4 2.3 1.3-1.7 3.3-2.7 5.4-2.3 3.4.6 5.3 4.1 4 7.6C19.6 16.3 12 21 12 21Z"
+      d="M12.015 21.5c-2.6-1.9-5.1-3.9-7.1-6.2-1.5-1.7-2.5-3.7-2.5-5.9 0-2.5 1.8-4.4 4.2-4.4 1.5 0 2.8.7 3.7 1.9.5.6 1.1.6 1.6 0 .9-1.2 2.2-1.9 3.7-1.9 2.4 0 4.2 1.9 4.2 4.4 0 2.2-1 4.2-2.5 5.9-2 2.3-4.5 4.3-7.1 6.2-.1.1-.2.1-.2.1Z"
       fill="#FF4D82"
     />
   </svg>
 );
 
-/** Bolt.new — lightning mark. */
+/** Bolt.new — official lightning bolt in a rounded square. */
 export const BoltLogo = (p: SVGProps) => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
-    <rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="#0F172A" />
-    <path d="M13.6 4 6.8 13.3h4.2L10.4 20l6.8-9.3h-4.2L13.6 4Z" fill="#FACC15" />
+    <rect x="2" y="2" width="20" height="20" rx="5" fill="#0F172A" />
+    <path d="M13.5 3.5 6.25 14h5.2L9.25 20.5 17.75 10h-5.2L13.5 3.5Z" fill="#FACC15" stroke="#FACC15" strokeWidth="1.2" strokeLinejoin="round" />
   </svg>
 );
 
-/** Replit — three offset squares. */
+/** Replit — official four-square mark. */
 export const ReplitLogo = (p: SVGProps) => (
-  <svg viewBox="0 0 24 24" fill="#F26207" xmlns="http://www.w3.org/2000/svg" {...p}>
-    <path d="M3.5 3.6c0-.6.5-1.1 1.1-1.1h6.3c.6 0 1.1.5 1.1 1.1v5.2H4.6c-.6 0-1.1-.5-1.1-1.1V3.6ZM12 9.1h6.4c.6 0 1.1.5 1.1 1.1v4.1c0 .6-.5 1.1-1.1 1.1H12V9.1ZM3.5 16.2c0-.6.5-1.1 1.1-1.1H12v5.3c0 .6-.5 1.1-1.1 1.1H4.6c-.6 0-1.1-.5-1.1-1.1v-4.2Z" />
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
+    <path
+      d="M7.5 3A1.5 1.5 0 0 0 6 4.5v5A1.5 1.5 0 0 0 7.5 11h5a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 12.5 3h-5Zm6 6A1.5 1.5 0 0 0 12 10.5v5a1.5 1.5 0 0 0 1.5 1.5h5a1.5 1.5 0 0 0 1.5-1.5v-5A1.5 1.5 0 0 0 18.5 9h-5ZM6 13.5A1.5 1.5 0 0 0 4.5 15v5A1.5 1.5 0 0 0 6 21.5h5A1.5 1.5 0 0 0 12.5 20v-5A1.5 1.5 0 0 0 11 13.5H6Z"
+      fill="#F26207"
+    />
   </svg>
 );
 
