@@ -22,13 +22,17 @@ export function mentionPrompts(input: {
   city?: string | null;
   keywords?: string[] | null;
 }): string[] {
-  const niche = input.industry?.trim() || input.brand;
+  // Buyers ask for the product category the brand sells, not for the industry
+  // of its customers — so seed keywords always win over the raw industry label.
+  const year = new Date().getUTCFullYear();
   const place = input.city?.trim();
-  const seed = (input.keywords ?? []).filter(Boolean).slice(0, 1)[0];
+  const seeds = (input.keywords ?? []).map((k) => k.trim()).filter(Boolean);
+  const niche = seeds[0] ?? input.industry?.trim() ?? input.brand;
+  const second = seeds[1] ?? niche;
   const list = [
-    `What are the best ${niche} companies${place ? ` in ${place}` : ""} in 2026?`,
-    `Which ${niche} provider should I choose and why?`,
-    seed ? `Who is the best option for ${seed}?` : `Top recommended ${niche} brands right now`,
+    `What are the best ${niche} tools${place ? ` in ${place}` : ""} in ${year}?`,
+    `Which ${second} solution should I choose and why?`,
+    `What are the top ${seeds[2] ?? niche} providers recommended right now?`,
   ];
   return list.filter(Boolean).slice(0, 3);
 }
