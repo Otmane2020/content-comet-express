@@ -170,7 +170,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             id="seeds"
             value={seeds}
             onChange={(e) => setSeeds(e.target.value)}
-            placeholder="plombier paris, dépannage fuite"
+            placeholder="plumber paris, emergency leak repair"
             className="mt-1.5"
           />
           <p className="mt-1.5 text-[11.5px] text-muted-foreground">Separate each term with a comma.</p>
