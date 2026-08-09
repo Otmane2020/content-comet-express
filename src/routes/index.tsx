@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   BarChart3,
@@ -6,6 +8,7 @@ import {
   CalendarDays,
   Check,
   Globe2,
+  Loader2,
   MapPin,
   Search,
   Send,
@@ -13,7 +16,9 @@ import {
   Zap,
 } from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
+import { PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
+import { createCheckout } from "@/lib/billing.functions";
 import { PLATFORM_META, ROTATION, TYPE_META } from "@/lib/geo";
 
 const FAQ = [
