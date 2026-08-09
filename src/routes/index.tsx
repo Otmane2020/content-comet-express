@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
 import { DemoSlider } from "@/components/DemoSlider";
+import { Footer } from "@/components/Footer";
 import { CustomSiteLogos, PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { createCheckout } from "@/lib/billing.functions";
