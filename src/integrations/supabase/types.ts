@@ -64,6 +64,56 @@ export type Database = {
           },
         ]
       }
+      ai_traffic: {
+        Row: {
+          assistant: string
+          captured_at: string
+          conversions: number
+          created_at: string
+          engaged_sessions: number
+          id: string
+          project_id: string
+          sessions: number
+          source: string
+          user_id: string
+          users: number
+        }
+        Insert: {
+          assistant: string
+          captured_at?: string
+          conversions?: number
+          created_at?: string
+          engaged_sessions?: number
+          id?: string
+          project_id: string
+          sessions?: number
+          source: string
+          user_id: string
+          users?: number
+        }
+        Update: {
+          assistant?: string
+          captured_at?: string
+          conversions?: number
+          created_at?: string
+          engaged_sessions?: number
+          id?: string
+          project_id?: string
+          sessions?: number
+          source?: string
+          user_id?: string
+          users?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_traffic_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       articles: {
         Row: {
           content_type: string | null

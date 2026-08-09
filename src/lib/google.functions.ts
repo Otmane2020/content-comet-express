@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const connectInput = z.object({
   projectId: z.string().uuid(),
-  service: z.enum(["gmb", "gsc", "all"]),
+  service: z.enum(["gmb", "gsc", "ga4", "all"]),
   origin: z.string().url(),
 });
 
@@ -37,11 +37,15 @@ export const listGoogleResources = createServerFn({ method: "POST" })
       .eq("id", data.connectionId)
       .single();
     if (error || !conn) throw new Error("Connection not found.");
-    const { accessTokenFor, listGmbLocations, listGscSites } = await import("./google.server");
+    const { accessTokenFor, listGmbLocations, listGscSites, listGa4Properties } = await import("./google.server");
     const token = await accessTokenFor(conn.id);
     if (conn.service === "gmb") {
       const locs = await listGmbLocations(token);
       return locs.map((l) => ({ id: l.name, label: l.title, sub: l.address ?? "" }));
+    }
+    if (conn.service === "ga4") {
+      const props = await listGa4Properties(token);
+      return props.map((p) => ({ id: p.name, label: p.displayName, sub: p.account }));
     }
     const sites = await listGscSites(token);
     return sites.map((s) => ({ id: s.siteUrl, label: s.siteUrl, sub: s.permissionLevel }));
@@ -119,6 +123,41 @@ export const syncSearchConsole = createServerFn({ method: "POST" })
   });
 
 const postInput = z.object({ projectId: z.string().uuid(), contentId: z.string().uuid().optional() });
+
+/** Pull AI-assistant sessions (ChatGPT, Perplexity, Gemini…) from GA4. */
+export const syncAiTraffic = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => projectInput.parse(input))
+  .handler(async ({ data, context }) => {
+    const { data: conn } = await context.supabase
+      .from("google_connections")
+      .select("id, resource_id")
+      .eq("project_id", data.projectId)
+      .eq("service", "ga4")
+      .maybeSingle();
+    if (!conn?.resource_id) throw new Error("Connect Google Analytics 4 and pick a property first.");
+    const { accessTokenFor, ga4AiTraffic } = await import("./google.server");
+    const token = await accessTokenFor(conn.id);
+    const rows = await ga4AiTraffic(token, conn.resource_id);
+    if (rows.length) {
+      const { error } = await context.supabase.from("ai_traffic").upsert(
+        rows.map((r) => ({
+          user_id: context.userId,
+          project_id: data.projectId,
+          assistant: r.assistant,
+          source: r.source,
+          sessions: Math.round(r.sessions),
+          users: Math.round(r.users),
+          engaged_sessions: Math.round(r.engagedSessions),
+          conversions: r.conversions,
+          captured_at: new Date().toISOString(),
+        })),
+        { onConflict: "project_id,source" },
+      );
+      if (error) throw new Error(error.message);
+    }
+    return { rows: rows.length, sessions: rows.reduce((a, r) => a + r.sessions, 0) };
+  });
 
 /** Publish a short local post to Google Business Profile. */
 export const publishToGmb = createServerFn({ method: "POST" })

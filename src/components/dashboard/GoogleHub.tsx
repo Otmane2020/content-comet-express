@@ -2,7 +2,19 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Bot, Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Sparkles, Unplug } from "lucide-react";
+import {
+  BarChart3,
+  Bot,
+  Check,
+  CheckCircle2,
+  ExternalLink,
+  MapPin,
+  RefreshCw,
+  Search,
+  Send,
+  Sparkles,
+  Unplug,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleGlyph } from "@/components/GoogleGlyph";
 import { scanAiMentions } from "@/lib/mentions.functions";
@@ -12,6 +24,7 @@ import {
   publishToGmb,
   selectGoogleResource,
   startGoogleConnect,
+  syncAiTraffic,
   syncSearchConsole,
 } from "@/lib/google.functions";
 import { Button } from "@/components/ui/button";
@@ -23,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Service = "gmb" | "gsc";
+type Service = "gmb" | "gsc" | "ga4";
 
 type Connection = {
   id: string;
@@ -54,6 +67,16 @@ type Mention = {
   checked_at: string;
 };
 
+type AiTraffic = {
+  id: string;
+  assistant: string;
+  source: string;
+  sessions: number;
+  users: number;
+  engaged_sessions: number;
+  conversions: number;
+};
+
 const META: Record<Service, { title: string; blurb: string; pick: string; icon: typeof MapPin }> = {
   gmb: {
     title: "Google Business Profile",
@@ -67,6 +90,12 @@ const META: Record<Service, { title: string; blurb: string; pick: string; icon: 
     pick: "Choose the verified property to track",
     icon: Search,
   },
+  ga4: {
+    title: "Google Analytics 4",
+    blurb: "AI assistant traffic — visits arriving from ChatGPT, Perplexity, Gemini, Claude and Copilot.",
+    pick: "Choose the GA4 property to read",
+    icon: BarChart3,
+  },
 };
 
 export function GoogleHub({ projectId }: { projectId: string }) {
@@ -75,6 +104,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
   const resources = useServerFn(listGoogleResources);
   const pick = useServerFn(selectGoogleResource);
   const sync = useServerFn(syncSearchConsole);
+  const syncTraffic = useServerFn(syncAiTraffic);
   const post = useServerFn(publishToGmb);
   const cut = useServerFn(disconnectGoogle);
   const scanMentions = useServerFn(scanAiMentions);
@@ -186,10 +216,25 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     ? Math.round((mentions.filter((m) => m.mentioned).length / mentions.length) * 100)
     : 0;
 
+  const { data: aiTraffic = [] } = useQuery({
+    queryKey: ["ai-traffic", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ai_traffic")
+        .select("id, assistant, source, sessions, users, engaged_sessions, conversions")
+        .eq("project_id", projectId)
+        .order("sessions", { ascending: false });
+      if (error) throw error;
+      return data as AiTraffic[];
+    },
+  });
+  const aiSessions = aiTraffic.reduce((a, r) => a + Number(r.sessions), 0);
+  const aiConversions = aiTraffic.reduce((a, r) => a + Number(r.conversions), 0);
+
   return (
     <div className="space-y-5">
-      <div className="grid gap-4 lg:grid-cols-2">
-        {(["gmb", "gsc"] as Service[]).map((service) => {
+      <div className="grid gap-4 lg:grid-cols-3">
+        {(["gmb", "gsc", "ga4"] as Service[]).map((service) => {
           const conn = connections.find((c) => c.service === service);
           const meta = META[service];
           const opts = conn ? options[conn.id] ?? [] : [];
@@ -236,6 +281,26 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                       <RefreshCw className={`size-4 ${busy === conn.id ? "animate-spin" : ""}`} />
                       {conn.resource_id ? "Change" : "Pick"} {service === "gmb" ? "location" : "property"}
                     </Button>
+                    {service === "ga4" && conn.resource_id && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={async () => {
+                          setBusy(conn.id);
+                          try {
+                            const res = await syncTraffic({ data: { projectId } });
+                            toast.success(`${res.sessions} AI assistant sessions imported.`);
+                            void qc.invalidateQueries({ queryKey: ["ai-traffic", projectId] });
+                          } catch (e) {
+                            toast.error(e instanceof Error ? e.message : "GA4 sync failed");
+                          } finally {
+                            setBusy(null);
+                          }
+                        }}
+                      >
+                        <RefreshCw className="size-4" /> Sync AI traffic
+                      </Button>
+                    )}
                     {service === "gsc" && conn.resource_id && (
                       <Button
                         size="sm"
@@ -432,6 +497,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
             <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
               <Sparkles className="size-4 text-primary" /> AI mentions
             </h3>
+            {/* AI visibility (mentions) — distinct from AI traffic below. */}
             <p className="max-w-xl text-[12.5px] text-muted-foreground">
               We ask ChatGPT, Perplexity and Gemini the buying questions your customers type, then check whether your
               brand is named and in which position. That is your GEO visibility — tracked right here.
@@ -507,6 +573,72 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                         </span>
                       )}
                     </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
+              <BarChart3 className="size-4 text-primary" /> AI traffic
+            </h3>
+            <p className="max-w-xl text-[12.5px] text-muted-foreground">
+              Real visits arriving from AI assistants, read from your Analytics property by referrer (ChatGPT,
+              Perplexity, Gemini, Claude, Copilot…). Mentions above show visibility; this shows the clicks it earns.
+            </p>
+          </div>
+          <div className="flex gap-6 font-mono text-[12px]">
+            <span>
+              <span className="block text-muted-foreground">AI sessions</span>
+              <span className="text-base font-semibold text-primary">{aiSessions}</span>
+            </span>
+            <span>
+              <span className="block text-muted-foreground">conversions</span>
+              <span className="text-base font-semibold">{Math.round(aiConversions)}</span>
+            </span>
+          </div>
+        </div>
+
+        {aiTraffic.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Nothing yet — connect Google Analytics 4 above, pick a property and run “Sync AI traffic”.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
+            <table className="w-full text-[13px]">
+              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Assistant</th>
+                  <th className="px-3 py-2 text-left font-medium">Source</th>
+                  <th className="px-3 py-2 text-right font-medium">Sessions</th>
+                  <th className="px-3 py-2 text-right font-medium">Users</th>
+                  <th className="px-3 py-2 text-right font-medium">Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aiTraffic.map((r, i) => (
+                  <tr
+                    key={r.id}
+                    className={`border-t border-border/60 transition-colors hover:bg-primary/5 ${
+                      i % 2 ? "bg-muted/15" : ""
+                    }`}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Bot className="size-3.5 text-primary" /> {r.assistant}
+                      </span>
+                    </td>
+                    <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
+                      {r.source}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-primary">{r.sessions}</td>
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">{r.users}</td>
+                    <td className="px-3 py-2 text-right font-mono">{Math.round(Number(r.conversions))}</td>
                   </tr>
                 ))}
               </tbody>
