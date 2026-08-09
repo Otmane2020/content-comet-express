@@ -114,6 +114,58 @@ export const publishItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
+    return publishHandler(data, context);
+  });
+
+export const illustrateArticle = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z.object({ itemId: z.string().uuid(), origin: z.string().url() }).parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { generateImageBytes, storeImage, coverPrompt, sectionPrompt, injectImages, headings } =
+      await import("./images.server");
+    const { supabase, userId } = context;
+
+    const { data: item, error } = await supabase
+      .from("content_items")
+      .select("*, projects(industry)")
+      .eq("id", data.itemId)
+      .single();
+    if (error || !item) throw new Error("Content item not found");
+    if (!item.body_md) throw new Error("Write the article first");
+
+    const industry =
+      ((item as unknown as { projects: { industry: string | null } | null }).projects?.industry) ?? null;
+    const topic = item.title ?? item.topic ?? "article";
+
+    const cover = await generateImageBytes(coverPrompt(topic, industry));
+    const coverUrl = await storeImage(userId, `${item.id}-cover`, cover, data.origin);
+
+    const sections = headings(item.body_md).slice(0, 2);
+    const inline: { heading: string; url: string }[] = [];
+    for (const [i, heading] of sections.entries()) {
+      try {
+        const bytes = await generateImageBytes(sectionPrompt(heading, topic));
+        const url = await storeImage(userId, `${item.id}-s${i}`, bytes, data.origin);
+        inline.push({ heading, url });
+      } catch {
+        // skip a failed section image, keep the cover
+      }
+    }
+
+    const body = injectImages(item.body_md, inline);
+    const { error: upErr } = await supabase
+      .from("content_items")
+      .update({ cover_image_url: coverUrl, body_md: body })
+      .eq("id", item.id);
+    if (upErr) throw new Error(upErr.message);
+    return { coverUrl, inline: inline.length };
+  });
+
+const publishHandlerStub = 0;
+void publishHandlerStub;
+  .handler(async ({ data, context }) => {
     const { publishTo } = await import("./publish.server");
     const { supabase, userId } = context;
 
