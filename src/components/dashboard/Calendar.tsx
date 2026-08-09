@@ -116,17 +116,38 @@ export function Calendar({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <div className="grid gap-3 sm:grid-cols-3">
-        {[
-          { label: "Days planned", value: items.length },
-          { label: "Drafts ready", value: ready },
-          { label: "Published", value: done },
-        ].map((stat) => (
-          <div key={stat.label} className="surface px-5 py-4">
-            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">{stat.label}</p>
-            <p className="mt-1 font-display text-2xl font-bold">{stat.value}</p>
+      <div className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background">
+        <div
+          className="pointer-events-none absolute -right-10 -top-24 size-56 rounded-full bg-gold/25 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative flex flex-wrap items-end justify-between gap-5">
+          <div>
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/20 px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">
+              <Sparkles className="size-3" />
+              Rolling 30 days
+            </span>
+            <h2 className="mt-3 font-display text-[24px] font-bold leading-tight">Your content calendar</h2>
+            <p className="mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-background/70">
+              One piece per day, written from your keywords and published on its own. The window
+              refills automatically so you always have 30 days ahead.
+            </p>
           </div>
-        ))}
+          <div className="flex gap-6">
+            {[
+              { label: "Planned", value: items.length },
+              { label: "Drafts", value: ready },
+              { label: "Published", value: done },
+            ].map((stat) => (
+              <div key={stat.label}>
+                <p className="font-display text-[26px] font-bold leading-none text-gold">{stat.value}</p>
+                <p className="mt-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-background/60">
+                  {stat.label}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
 
       <div className="mt-5 flex items-center justify-between gap-3">
@@ -153,10 +174,14 @@ export function Calendar({ projectId }: { projectId: string }) {
           return (
             <div
               key={item.id}
-              className="surface flex flex-wrap items-center gap-4 px-4 py-4 transition-colors hover:border-primary/40"
+              className="surface group relative flex flex-wrap items-center gap-4 overflow-hidden px-4 py-4 pl-5 transition-all hover:border-primary/40 hover:shadow-sm"
             >
-              <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-secondary/70 text-center">
-                <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+              <span
+                className="absolute inset-y-0 left-0 w-1 bg-transparent transition-colors group-hover:bg-gold"
+                aria-hidden
+              />
+              <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/10 text-center text-primary">
+                <span className="font-mono text-[10px] uppercase tracking-wide opacity-70">
                   {d.toLocaleDateString("en-US", { month: "short" })}
                 </span>
                 <span className="font-display text-lg font-bold leading-none">{d.getDate()}</span>
