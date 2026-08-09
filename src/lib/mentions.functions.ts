@@ -13,7 +13,7 @@ export const scanAiMentions = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("name, industry, locale, website_url, keywords, city")
+      .select("name, industry, locale, website_url, keywords")
       .eq("id", data.projectId)
       .maybeSingle();
     const p = (project ?? {}) as {
@@ -21,7 +21,6 @@ export const scanAiMentions = createServerFn({ method: "POST" })
       industry?: string | null;
       website_url?: string | null;
       keywords?: string[] | null;
-      city?: string | null;
     };
     const brand = p.name?.trim();
     if (!brand) throw new Error("Add your brand name in Settings first.");
@@ -29,7 +28,6 @@ export const scanAiMentions = createServerFn({ method: "POST" })
     const prompts = mentionPrompts({
       brand,
       industry: p.industry,
-      city: p.city ?? null,
       keywords: p.keywords ?? null,
     });
     const engines = Object.keys(ENGINE_MODELS) as (keyof typeof ENGINE_MODELS)[];
