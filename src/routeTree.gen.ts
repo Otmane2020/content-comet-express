@@ -26,6 +26,7 @@ import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksRefillCalendarRouteImport } from './routes/api/public/hooks/refill-calendar'
 import { Route as ApiPublicHooksStripeRouteImport } from './routes/api/public/hooks/stripe'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img/$'
+import { Route as ApiPublicShopifyBillingRouteImport } from './routes/api/public/shopify/billing'
 import { Route as ApiPublicShopifyCallbackRouteImport } from './routes/api/public/shopify/callback'
 import { Route as ApiPublicShopifyInstallRouteImport } from './routes/api/public/shopify/install'
 
@@ -116,6 +117,11 @@ const ApiPublicImgSplatRoute = ApiPublicImgSplatRouteImport.update({
   path: '/api/public/img/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicShopifyBillingRoute = ApiPublicShopifyBillingRouteImport.update({
+  id: '/api/public/shopify/billing',
+  path: '/api/public/shopify/billing',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicShopifyCallbackRoute =
   ApiPublicShopifyCallbackRouteImport.update({
     id: '/api/public/shopify/callback',
@@ -146,6 +152,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
+  '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
 }
@@ -166,6 +173,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
+  '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
 }
@@ -188,6 +196,7 @@ export interface FileRoutesById {
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
+  '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
 }
@@ -211,6 +220,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refill-calendar'
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
+    | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/install'
   fileRoutesByTo: FileRoutesByTo
@@ -231,6 +241,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refill-calendar'
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
+    | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/install'
   id:
@@ -252,6 +263,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refill-calendar'
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
+    | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/install'
   fileRoutesById: FileRoutesById
@@ -272,6 +284,7 @@ export interface RootRouteChildren {
   ApiPublicHooksRefillCalendarRoute: typeof ApiPublicHooksRefillCalendarRoute
   ApiPublicHooksStripeRoute: typeof ApiPublicHooksStripeRoute
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
+  ApiPublicShopifyBillingRoute: typeof ApiPublicShopifyBillingRoute
   ApiPublicShopifyCallbackRoute: typeof ApiPublicShopifyCallbackRoute
   ApiPublicShopifyInstallRoute: typeof ApiPublicShopifyInstallRoute
 }
@@ -397,6 +410,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicImgSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/shopify/billing': {
+      id: '/api/public/shopify/billing'
+      path: '/api/public/shopify/billing'
+      fullPath: '/api/public/shopify/billing'
+      preLoaderRoute: typeof ApiPublicShopifyBillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/shopify/callback': {
       id: '/api/public/shopify/callback'
       path: '/api/public/shopify/callback'
@@ -442,6 +462,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksRefillCalendarRoute: ApiPublicHooksRefillCalendarRoute,
   ApiPublicHooksStripeRoute: ApiPublicHooksStripeRoute,
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
+  ApiPublicShopifyBillingRoute: ApiPublicShopifyBillingRoute,
   ApiPublicShopifyCallbackRoute: ApiPublicShopifyCallbackRoute,
   ApiPublicShopifyInstallRoute: ApiPublicShopifyInstallRoute,
 }

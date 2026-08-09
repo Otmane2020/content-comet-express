@@ -30,6 +30,7 @@ function AuthPage() {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [googleBusy, setGoogleBusy] = useState(false);
+  const [shopDomain, setShopDomain] = useState("");
 
   useEffect(() => {
     if (!loading && session) navigate({ to: "/app", replace: true });
@@ -147,6 +148,33 @@ function AuthPage() {
             </svg>
             {googleBusy ? "Opening Google…" : "Continue with Google"}
           </Button>
+
+          <div className="mt-3 rounded-xl border border-border bg-secondary/30 p-3">
+            <p className="text-[12px] font-semibold">Shopify merchant?</p>
+            <p className="mt-0.5 text-[11.5px] leading-relaxed text-muted-foreground">
+              Install the app on your store — your account, project and billing are set up
+              automatically through Shopify.
+            </p>
+            <div className="mt-2.5 flex gap-2">
+              <Input
+                value={shopDomain}
+                onChange={(e) => setShopDomain(e.target.value)}
+                placeholder="mystore.myshopify.com"
+                className="h-9 bg-background text-[13px]"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                className="h-9 shrink-0"
+                disabled={!shopDomain.trim()}
+                onClick={() => {
+                  window.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shopDomain.trim())}`;
+                }}
+              >
+                Continue with Shopify
+              </Button>
+            </div>
+          </div>
 
           <button
             type="button"
