@@ -109,7 +109,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     void qc.invalidateQueries({ queryKey: ["google", projectId] });
   }, [projectId, qc]);
 
-  async function startConnect(service: Service) {
+  async function startConnect(service: Service | "all") {
     setBusy(service);
     try {
       const res = await connect({ data: { projectId, service, origin: window.location.origin } });
@@ -133,6 +133,32 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     }
   }
 
+  // After a Google consent, fetch the available properties / locations so the
+  // user can immediately pick one for both services.
+  useEffect(() => {
+    for (const conn of connections) {
+      if (conn.resource_id || options[conn.id]) continue;
+      setOptions((o) => ({ ...o, [conn.id]: [] }));
+      void resources({ data: { connectionId: conn.id } })
+        .then((res) => setOptions((o) => ({ ...o, [conn.id]: res })))
+        .catch(() => undefined);
+    }
+  }, [connections, options, resources]);
+
+  // Someone who signed in with Google is asked for Search Console + Business
+  // Profile access right away, in a single consent screen.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (sessionStorage.getItem("ranki:google-scopes") !== "1") return;
+    if (connections.length) {
+      sessionStorage.removeItem("ranki:google-scopes");
+      return;
+    }
+    sessionStorage.removeItem("ranki:google-scopes");
+    void startConnect("all");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connections.length]);
+
   async function choose(conn: Connection, opt: { id: string; label: string }) {
     await pick({ data: { connectionId: conn.id, resourceId: opt.id, resourceName: opt.label } });
     setOptions((o) => ({ ...o, [conn.id]: [] }));
@@ -151,6 +177,29 @@ export function GoogleHub({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-5">
+      <div className="surface flex flex-wrap items-center justify-between gap-4 p-5">
+        <div className="flex items-start gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-[13px] border border-border bg-card">
+            <GoogleGlyph />
+          </span>
+          <div>
+            <h3 className="font-display text-[15px] font-semibold">Authorize Google once</h3>
+            <p className="mt-1 max-w-xl text-[12.5px] text-muted-foreground">
+              One consent screen grants Search Console and Business Profile access. We then list your verified
+              properties and locations so you can pick the ones this project uses.
+            </p>
+          </div>
+        </div>
+        <Button
+          onClick={() => startConnect("all")}
+          disabled={busy === "all"}
+          className="bg-deep text-background hover:bg-deep/90"
+        >
+          <GoogleGlyph className="size-4" />
+          {busy === "all" ? "Opening Google…" : "Connect Search Console + Business Profile"}
+        </Button>
+      </div>
+
       <div className="grid gap-4 lg:grid-cols-2">
         {(["gmb", "gsc"] as Service[]).map((service) => {
           const conn = connections.find((c) => c.service === service);

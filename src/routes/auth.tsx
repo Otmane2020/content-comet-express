@@ -61,6 +61,8 @@ function AuthPage() {
   async function signInWithGoogle() {
     setGoogleBusy(true);
     try {
+      // Ask for Search Console + Business Profile access right after sign-in.
+      sessionStorage.setItem("ranki:google-scopes", "1");
       const result = await lovable.auth.signInWithOAuth("google", {
         redirect_uri: `${window.location.origin}/auth/callback`,
       });
