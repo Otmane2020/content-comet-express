@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
@@ -14,10 +14,13 @@ import {
   Rocket,
   Send,
   Sparkles,
+  ShieldCheck,
+  Tag,
   Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
+import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
 import { detectBusiness, detectMarket } from "@/lib/detect.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
@@ -76,7 +79,12 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const kickstart = useServerFn(kickstartFirstDay);
   const detectBiz = useServerFn(detectBusiness);
   const detectMkt = useServerFn(detectMarket);
+  const checkout = useServerFn(createCheckout);
+  const fetchSub = useServerFn(getSubscription);
+  const syncSub = useServerFn(syncSubscription);
   const [busy, setBusy] = useState(false);
+  const [subActive, setSubActive] = useState<boolean | null>(null);
+  const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [scanning, setScanning] = useState(false);
   const [scanningMarket, setScanningMarket] = useState(false);
   const [detected, setDetected] = useState<string | null>(null);
@@ -96,6 +104,49 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     keywords: "",
     competitors: "",
   });
+
+  const DRAFT_KEY = "apgeo_onboarding_draft";
+
+  useEffect(() => {
+    let returned = false;
+    try {
+      const raw = localStorage.getItem(DRAFT_KEY);
+      if (raw) {
+        const saved = JSON.parse(raw) as typeof form;
+        setForm((f) => ({ ...f, ...saved }));
+      }
+      if (new URLSearchParams(window.location.search).get("checkout") === "success") {
+        returned = true;
+        setStep(2);
+      }
+    } catch {
+      /* ignore */
+    }
+    (returned ? syncSub().catch(() => fetchSub()) : fetchSub())
+      .then((s) => setSubActive(s.active))
+      .catch(() => setSubActive(false));
+  }, []);
+
+  async function startCheckout() {
+    setBusy(true);
+    try {
+      localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
+      const { data: auth } = await supabase.auth.getUser();
+      const { url } = await checkout({
+        data: {
+          cycle,
+          origin: window.location.origin,
+          userId,
+          email: auth.user?.email ?? undefined,
+          next: "/app",
+        },
+      });
+      window.location.href = url;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Checkout failed");
+      setBusy(false);
+    }
+  }
 
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
@@ -233,6 +284,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
           e instanceof Error ? `Day 1 will be written shortly (${e.message})` : "Day 1 will be written shortly",
         );
       }
+      localStorage.removeItem(DRAFT_KEY);
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
@@ -617,6 +669,44 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       {form.industry ? ` · ${form.industry}` : ""} · {form.tone} tone ·{" "}
                       {form.locale.toUpperCase()} · 30 articles planned.
                     </div>
+
+                    {subActive === false && (
+                      <div className="rounded-2xl border border-gold/40 bg-gold-soft/40 p-5">
+                        <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                          <ShieldCheck className="size-4 text-gold" /> Activate your plan to launch
+                        </div>
+                        <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                          The autopilot writes, illustrates and publishes daily. Pick a billing cycle —
+                          you can enter a promo code on the secure checkout page.
+                        </p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {([
+                            { id: "monthly", price: "$9.99", per: "/month", note: "Cancel anytime" },
+                            { id: "annual", price: "$7.99", per: "/month", note: "Billed yearly · save 20%" },
+                          ] as const).map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setCycle(p.id)}
+                              className={`rounded-xl border p-4 text-left transition ${
+                                cycle === p.id
+                                  ? "border-gold bg-background shadow-sm"
+                                  : "border-border bg-background/60 hover:border-gold/50"
+                              }`}
+                            >
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-xl font-bold text-foreground">{p.price}</span>
+                                <span className="text-[12px] text-muted-foreground">{p.per}</span>
+                              </div>
+                              <p className="mt-1 text-[11.5px] text-muted-foreground">{p.note}</p>
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                          <Tag className="size-3.5 text-gold" /> Got a promo code? Apply it at checkout.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -643,11 +733,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 >
                   Continue <ArrowRight className="ml-1.5 size-4" />
                 </Button>
+              ) : subActive === false ? (
+                <Button
+                  type="button"
+                  onClick={startCheckout}
+                  disabled={busy}
+                  className="bg-deep text-background hover:bg-deep/90"
+                >
+                  {busy ? "Opening checkout…" : "Subscribe & launch"}
+                  <Rocket className="ml-1.5 size-4" />
+                </Button>
               ) : (
                 <Button
                   type="button"
                   onClick={submit}
-                  disabled={busy}
+                  disabled={busy || subActive === null}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
                   {busy ? "Planning 30 days…" : "Launch my autopilot"}

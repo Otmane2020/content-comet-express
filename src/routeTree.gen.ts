@@ -22,6 +22,7 @@ import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google/callback'
 import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/public/hooks/daily-autopilot'
 import { Route as ApiPublicHooksRefillCalendarRouteImport } from './routes/api/public/hooks/refill-calendar'
+import { Route as ApiPublicHooksStripeRouteImport } from './routes/api/public/hooks/stripe'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -91,6 +92,11 @@ const ApiPublicHooksRefillCalendarRoute =
     path: '/api/public/hooks/refill-calendar',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicHooksStripeRoute = ApiPublicHooksStripeRouteImport.update({
+  id: '/api/public/hooks/stripe',
+  path: '/api/public/hooks/stripe',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicImgSplatRoute = ApiPublicImgSplatRouteImport.update({
   id: '/api/public/img/$',
   path: '/api/public/img/$',
@@ -111,6 +117,7 @@ export interface FileRoutesByFullPath {
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
+  '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
 }
 export interface FileRoutesByTo {
@@ -126,6 +133,7 @@ export interface FileRoutesByTo {
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
+  '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
 }
 export interface FileRoutesById {
@@ -143,6 +151,7 @@ export interface FileRoutesById {
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
+  '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
 }
 export interface FileRouteTypes {
@@ -161,6 +170,7 @@ export interface FileRouteTypes {
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
+    | '/api/public/hooks/stripe'
     | '/api/public/img/$'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -176,6 +186,7 @@ export interface FileRouteTypes {
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
+    | '/api/public/hooks/stripe'
     | '/api/public/img/$'
   id:
     | '__root__'
@@ -192,6 +203,7 @@ export interface FileRouteTypes {
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
+    | '/api/public/hooks/stripe'
     | '/api/public/img/$'
   fileRoutesById: FileRoutesById
 }
@@ -207,6 +219,7 @@ export interface RootRouteChildren {
   ApiPublicGoogleCallbackRoute: typeof ApiPublicGoogleCallbackRoute
   ApiPublicHooksDailyAutopilotRoute: typeof ApiPublicHooksDailyAutopilotRoute
   ApiPublicHooksRefillCalendarRoute: typeof ApiPublicHooksRefillCalendarRoute
+  ApiPublicHooksStripeRoute: typeof ApiPublicHooksStripeRoute
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
 }
 
@@ -303,6 +316,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicHooksRefillCalendarRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/hooks/stripe': {
+      id: '/api/public/hooks/stripe'
+      path: '/api/public/hooks/stripe'
+      fullPath: '/api/public/hooks/stripe'
+      preLoaderRoute: typeof ApiPublicHooksStripeRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/img/$': {
       id: '/api/public/img/$'
       path: '/api/public/img/$'
@@ -337,18 +357,9 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicGoogleCallbackRoute: ApiPublicGoogleCallbackRoute,
   ApiPublicHooksDailyAutopilotRoute: ApiPublicHooksDailyAutopilotRoute,
   ApiPublicHooksRefillCalendarRoute: ApiPublicHooksRefillCalendarRoute,
+  ApiPublicHooksStripeRoute: ApiPublicHooksStripeRoute,
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
