@@ -43,6 +43,7 @@ export function Calendar({ projectId }: { projectId: string }) {
   const [draft, setDraft] = useState<{ title: string; body: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [page, setPage] = useState(0);
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const PER_PAGE = 5;
 
   const { data: items = [], isLoading } = useQuery({
@@ -90,6 +91,34 @@ export function Calendar({ projectId }: { projectId: string }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  async function illustrateAll() {
+    const targets = items.filter((i) => i.body_md && !i.cover_image_url);
+    if (!targets.length) {
+      toast.info(
+        items.some((i) => !i.body_md)
+          ? "Write the articles first — only written drafts can be illustrated."
+          : "Every article already has its images.",
+      );
+      return;
+    }
+    setBulk({ done: 0, total: targets.length });
+    let ok = 0;
+    let failed = 0;
+    for (const [i, item] of targets.entries()) {
+      try {
+        await illustrate({ data: { itemId: item.id, origin: window.location.origin } });
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+      setBulk({ done: i + 1, total: targets.length });
+      void qc.invalidateQueries({ queryKey: ["content", projectId] });
+    }
+    setBulk(null);
+    if (ok) toast.success(`Images generated for ${ok} article${ok > 1 ? "s" : ""}.`);
+    if (failed) toast.error(`${failed} article${failed > 1 ? "s" : ""} could not be illustrated.`);
+  }
 
   async function saveDraft() {
     if (!open || !draft) return;
@@ -152,9 +181,28 @@ export function Calendar({ projectId }: { projectId: string }) {
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <h3 className="font-display text-[15px] font-bold">Rolling schedule</h3>
-        <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-          {items.length ? `${page * PER_PAGE + 1}–${Math.min((page + 1) * PER_PAGE, items.length)} of ${items.length}` : "—"}
-        </p>
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={illustrateAll}
+            disabled={!!bulk || isLoading}
+            className="gap-1.5 border-gold/50 text-[12.5px] hover:bg-gold-soft"
+          >
+            {bulk ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Illustrating {bulk.done}/{bulk.total}
+              </>
+            ) : (
+              <>
+                <ImageIcon className="size-3.5" /> Illustrate all articles
+              </>
+            )}
+          </Button>
+          <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+            {items.length ? `${page * PER_PAGE + 1}–${Math.min((page + 1) * PER_PAGE, items.length)} of ${items.length}` : "—"}
+          </p>
+        </div>
       </div>
 
       <div className="mt-3 space-y-3">
