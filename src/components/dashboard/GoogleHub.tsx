@@ -580,6 +580,72 @@ export function GoogleHub({ projectId }: { projectId: string }) {
           </div>
         )}
       </div>
+
+      <div className="surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
+              <BarChart3 className="size-4 text-primary" /> AI traffic
+            </h3>
+            <p className="max-w-xl text-[12.5px] text-muted-foreground">
+              Real visits arriving from AI assistants, read from your Analytics property by referrer (ChatGPT,
+              Perplexity, Gemini, Claude, Copilot…). Mentions above show visibility; this shows the clicks it earns.
+            </p>
+          </div>
+          <div className="flex gap-6 font-mono text-[12px]">
+            <span>
+              <span className="block text-muted-foreground">AI sessions</span>
+              <span className="text-base font-semibold text-primary">{aiSessions}</span>
+            </span>
+            <span>
+              <span className="block text-muted-foreground">conversions</span>
+              <span className="text-base font-semibold">{Math.round(aiConversions)}</span>
+            </span>
+          </div>
+        </div>
+
+        {aiTraffic.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Nothing yet — connect Google Analytics 4 above, pick a property and run “Sync AI traffic”.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
+            <table className="w-full text-[13px]">
+              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Assistant</th>
+                  <th className="px-3 py-2 text-left font-medium">Source</th>
+                  <th className="px-3 py-2 text-right font-medium">Sessions</th>
+                  <th className="px-3 py-2 text-right font-medium">Users</th>
+                  <th className="px-3 py-2 text-right font-medium">Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                {aiTraffic.map((r, i) => (
+                  <tr
+                    key={r.id}
+                    className={`border-t border-border/60 transition-colors hover:bg-primary/5 ${
+                      i % 2 ? "bg-muted/15" : ""
+                    }`}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2 font-medium">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Bot className="size-3.5 text-primary" /> {r.assistant}
+                      </span>
+                    </td>
+                    <td className="max-w-[220px] truncate px-3 py-2 font-mono text-[11.5px] text-muted-foreground">
+                      {r.source}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono font-semibold text-primary">{r.sessions}</td>
+                    <td className="px-3 py-2 text-right font-mono text-muted-foreground">{r.users}</td>
+                    <td className="px-3 py-2 text-right font-mono">{Math.round(Number(r.conversions))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
