@@ -49,8 +49,9 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
     queryFn: async () => {
       const { data, error } = await supabase
         .from("keyword_research")
-        .select("id, keyword, search_volume, cpc, competition, difficulty, intent, competitor_domain")
+        .select("id, keyword, search_volume, cpc, competition, difficulty, intent, competitor_domain, relevance_score, origin")
         .eq("project_id", projectId)
+        .order("relevance_score", { ascending: false, nullsFirst: false })
         .order("search_volume", { ascending: false, nullsFirst: false })
         .limit(100);
       if (error) throw error;

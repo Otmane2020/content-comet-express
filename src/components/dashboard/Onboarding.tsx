@@ -536,7 +536,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         {scanningMarket ? "Scanning market…" : "Auto-detect competitors & keywords"}
                       </Button>
                       <p className="text-[11.5px] leading-snug text-muted-foreground">
-                        Live SEO metrics from DataForSEO, with AI estimates as backup.
+                        Live keyword and competitor data from DataForSEO.
                       </p>
                       {market && (
                         <span
