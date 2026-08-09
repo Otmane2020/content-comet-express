@@ -3,10 +3,11 @@ import { createHmac, timingSafeEqual } from "crypto";
 export const GOOGLE_SCOPES: Record<GoogleService, string> = {
   gmb: "openid email https://www.googleapis.com/auth/business.manage",
   gsc: "openid email https://www.googleapis.com/auth/webmasters.readonly",
+  ga4: "openid email https://www.googleapis.com/auth/analytics.readonly",
   all: "openid email https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/webmasters.readonly",
 };
 
-export type GoogleService = "gmb" | "gsc" | "all";
+export type GoogleService = "gmb" | "gsc" | "ga4" | "all";
 
 function stateKey() {
   return process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"] || "ranki";
