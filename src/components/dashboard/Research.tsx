@@ -94,12 +94,18 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
     }
   }
 
-  // Hands-free: the first time a project has no keywords, run the full
-  // research pass (seeds + competitors + their keywords) automatically.
+  // Hands-free, but ONCE per project: an empty result must not re-trigger a
+  // billed DataForSEO pass on every visit. A marker remembers the first run.
   useEffect(() => {
     if (kwLoading || started.current || keywords.length > 0) return;
     if (!source?.live) return;
+    const marker = `ranki:research-ran:${projectId}`;
+    if (typeof window !== "undefined" && window.localStorage.getItem(marker)) {
+      started.current = true;
+      return;
+    }
     started.current = true;
+    if (typeof window !== "undefined") window.localStorage.setItem(marker, new Date().toISOString());
     setAutoRunning(true);
     auto({ data: { projectId } })
       .then(() => {
