@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const connectInput = z.object({
   projectId: z.string().uuid(),
-  service: z.enum(["gmb", "gsc", "all"]),
+  service: z.enum(["gmb", "gsc", "ga4", "all"]),
   origin: z.string().url(),
 });
 
@@ -37,11 +37,15 @@ export const listGoogleResources = createServerFn({ method: "POST" })
       .eq("id", data.connectionId)
       .single();
     if (error || !conn) throw new Error("Connection not found.");
-    const { accessTokenFor, listGmbLocations, listGscSites } = await import("./google.server");
+    const { accessTokenFor, listGmbLocations, listGscSites, listGa4Properties } = await import("./google.server");
     const token = await accessTokenFor(conn.id);
     if (conn.service === "gmb") {
       const locs = await listGmbLocations(token);
       return locs.map((l) => ({ id: l.name, label: l.title, sub: l.address ?? "" }));
+    }
+    if (conn.service === "ga4") {
+      const props = await listGa4Properties(token);
+      return props.map((p) => ({ id: p.name, label: p.displayName, sub: p.account }));
     }
     const sites = await listGscSites(token);
     return sites.map((s) => ({ id: s.siteUrl, label: s.siteUrl, sub: s.permissionLevel }));
