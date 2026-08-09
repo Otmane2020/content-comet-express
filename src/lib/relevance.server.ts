@@ -42,7 +42,7 @@ and score those 0 when the other meaning is what searchers want.`;
 async function scoreBatch(profile: BusinessProfile, list: string[]): Promise<Record<string, number>> {
   const raw = await callOpenRouter({
     json: true,
-    maxTokens: 2500,
+    maxTokens: 1400,
     system:
       "You score how relevant a search keyword is to a specific business's buyers. You never invent search volume, CPC or difficulty. Answer with strict JSON only.",
     user: `${profileBlock(profile)}
@@ -77,7 +77,7 @@ export async function scoreRelevance(
   const list = Array.from(new Set(keywords.map((k) => k.trim()).filter(Boolean))).slice(0, 240);
   if (!list.length) return {};
   const batches: string[][] = [];
-  for (let i = 0; i < list.length; i += 50) batches.push(list.slice(i, i + 50));
+  for (let i = 0; i < list.length; i += 25) batches.push(list.slice(i, i + 25));
   const results = await Promise.all(
     batches.map((b) => scoreBatch(profile, b).catch(() => ({}) as Record<string, number>)),
   );
