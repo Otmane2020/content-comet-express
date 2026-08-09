@@ -28,6 +28,14 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
         const summary: { project: string; wrote: boolean; published: number }[] = [];
 
         for (const project of projects ?? []) {
+          // 0. keep keyword/competitor research fresh (no-op if already filled)
+          try {
+            const { runResearch } = await import("@/lib/research.server");
+            await runResearch(supabaseAdmin as never, project.user_id, project.id, false);
+          } catch {
+            /* research is best-effort; never block publishing */
+          }
+
           const brief = {
             name: project.name,
             website_url: project.website_url,
