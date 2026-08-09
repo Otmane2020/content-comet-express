@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { buildPlan } from "@/lib/autopilot.functions";
 import { notifySignup } from "@/lib/support.functions";
+import { startGoogleConnect } from "@/lib/google.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { Calendar } from "@/components/dashboard/Calendar";
@@ -91,6 +92,35 @@ function Dashboard() {
       return data as Project | null;
     },
   });
+
+  // Someone who just signed in with Google is asked once, right away, for
+  // Search Console + Business Profile access — wherever they land in the app.
+  const startGoogle = useServerFn(startGoogleConnect);
+  useEffect(() => {
+    if (typeof window === "undefined" || !user || !project) return;
+    if (sessionStorage.getItem("ranki:google-scopes") !== "1") return;
+    let cancelled = false;
+    void (async () => {
+      const { count } = await supabase
+        .from("google_connections")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", project.id);
+      if (cancelled) return;
+      sessionStorage.removeItem("ranki:google-scopes");
+      if (count && count > 0) return;
+      try {
+        const res = await startGoogle({
+          data: { projectId: project.id, service: "all", origin: window.location.origin },
+        });
+        window.location.href = res.url;
+      } catch {
+        /* the user can still connect from Local & Search */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, project, startGoogle]);
 
   if (loading || (user && projectLoading)) {
     return (
