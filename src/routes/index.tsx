@@ -1,8 +1,90 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Bot, CalendarDays, Check, Globe2, Send, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Bot,
+  CalendarDays,
+  Check,
+  Globe2,
+  MapPin,
+  Search,
+  Send,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { PLATFORM_META, ROTATION, TYPE_META } from "@/lib/geo";
+
+const FAQ = [
+  {
+    q: "Do I need to install a plugin?",
+    a: "No. AutopilotGEO publishes through the official APIs of WordPress, WooCommerce, PrestaShop and Shopify, or posts the article to your own endpoint.",
+  },
+  {
+    q: "Who writes the articles?",
+    a: "DeepSeek through OpenRouter writes every piece in your language and tone, using your keywords, your competitors' winning queries and your Search Console data.",
+  },
+  {
+    q: "Can I review before publishing?",
+    a: "Yes. Every slot lands as an editable draft. Turn auto-publish on per destination when you trust the output.",
+  },
+  {
+    q: "What is GEO exactly?",
+    a: "Generative Engine Optimisation: writing so ChatGPT, Perplexity, Gemini and AI Overviews quote your brand instead of a competitor.",
+  },
+];
+
+const PLANS = [
+  {
+    name: "Solo",
+    price: "29",
+    blurb: "One site, the full 30-day rotation.",
+    features: ["1 project", "30 articles / month", "2 destinations", "Keyword research"],
+  },
+  {
+    name: "Studio",
+    price: "79",
+    blurb: "For shops that live on search.",
+    features: [
+      "3 projects",
+      "Unlimited destinations",
+      "Competitor keyword mining",
+      "Google Business Profile posts",
+      "Search Console sync",
+    ],
+    featured: true,
+  },
+  {
+    name: "Agency",
+    price: "199",
+    blurb: "Run autopilot for your clients.",
+    features: ["15 projects", "Client-ready calendars", "Priority generation", "Webhook delivery"],
+  },
+];
+
+const CAPABILITIES = [
+  {
+    icon: Search,
+    title: "Keywords & rivals",
+    body: "Live volume, CPC and difficulty, plus the queries your competitors already win — mined automatically.",
+  },
+  {
+    icon: MapPin,
+    title: "Google Business Profile",
+    body: "Connect your listing and the article of the day goes out as a local post, every morning.",
+  },
+  {
+    icon: BarChart3,
+    title: "Search Console feedback",
+    body: "28-day clicks, impressions and positions flow back in, so the next articles target what actually moves.",
+  },
+  {
+    icon: Zap,
+    title: "Daily autopilot job",
+    body: "The window refills, today's piece gets written and pushed everywhere auto-publish is on. No clicks needed.",
+  },
+];
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,6 +99,22 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content: "Plan, write and publish a month of generative-search content on autopilot.",
+      },
+      { property: "og:url", content: "/" },
+    ],
+    links: [{ rel: "canonical", href: "/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: FAQ.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }),
       },
     ],
   }),
@@ -48,6 +146,18 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
           <BrandLockup />
           <div className="flex items-center gap-2">
+            <a
+              href="#capabilities"
+              className="hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Features
+            </a>
+            <a
+              href="#pricing"
+              className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Pricing
+            </a>
             <Button asChild variant="ghost" size="sm">
               <Link to="/auth">Sign in</Link>
             </Button>
@@ -150,6 +260,107 @@ function Landing() {
                 <p className="font-display font-semibold">{meta.label}</p>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.hint}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="capabilities" className="mx-auto max-w-6xl px-5 py-16">
+        <h2 className="text-2xl font-bold">Everything the autopilot handles</h2>
+        <p className="mt-2 max-w-2xl text-[15px] text-muted-foreground">
+          Research, writing, publishing and measurement live in one loop — each day feeds the next.
+        </p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {CAPABILITIES.map((c) => (
+            <div key={c.title} className="surface flex gap-4 p-6">
+              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+                <c.icon className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold">{c.title}</h3>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">{c.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-6xl px-5 py-16">
+          <h2 className="text-2xl font-bold">The five formats it rotates</h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {ROTATION.map((type) => {
+              const meta = TYPE_META[type];
+              return (
+                <div key={type} className="surface p-5">
+                  <span
+                    className={`inline-flex rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta.tone}`}
+                  >
+                    {meta.short}
+                  </span>
+                  <p className="mt-3 font-display font-semibold">{meta.label}</p>
+                  <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.blurb}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="mx-auto max-w-6xl px-5 py-16">
+        <h2 className="text-2xl font-bold">Simple pricing</h2>
+        <p className="mt-2 text-[15px] text-muted-foreground">
+          Every plan includes the rolling calendar, DeepSeek writing and auto-publishing.
+        </p>
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          {PLANS.map((plan) => (
+            <div
+              key={plan.name}
+              className={`surface flex flex-col p-6 ${plan.featured ? "ring-2 ring-gold/60" : ""}`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="font-display text-lg font-semibold">{plan.name}</p>
+                {plan.featured && (
+                  <span className="rounded-full bg-gold-soft px-2.5 py-0.5 font-mono text-[10px] font-semibold text-gold-foreground">
+                    POPULAR
+                  </span>
+                )}
+              </div>
+              <p className="mt-3">
+                <span className="font-display text-4xl font-bold">€{plan.price}</span>
+                <span className="text-[13px] text-muted-foreground"> / month</span>
+              </p>
+              <p className="mt-2 text-[13px] text-muted-foreground">{plan.blurb}</p>
+              <ul className="mt-5 space-y-2 text-[13px] text-foreground/80">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-center gap-2">
+                    <Check className="size-4 text-success" /> {f}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                asChild
+                className={`mt-6 ${plan.featured ? "bg-deep text-background hover:bg-deep/90" : ""}`}
+                variant={plan.featured ? "default" : "outline"}
+              >
+                <Link to="/auth">Start with {plan.name}</Link>
+              </Button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-3xl px-5 py-16">
+          <h2 className="text-2xl font-bold">Questions</h2>
+          <div className="mt-8 space-y-3">
+            {FAQ.map((item) => (
+              <details key={item.q} className="surface group p-5">
+                <summary className="cursor-pointer list-none font-display font-semibold marker:hidden">
+                  {item.q}
+                </summary>
+                <p className="mt-2.5 text-[14px] leading-relaxed text-muted-foreground">{item.a}</p>
+              </details>
             ))}
           </div>
         </div>
