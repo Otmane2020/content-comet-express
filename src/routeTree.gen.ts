@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/public/hooks/daily-autopilot'
 
 const IndexRoute = IndexRouteImport.update({
@@ -29,6 +30,11 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthCallbackRoute = AuthCallbackRouteImport.update({
+  id: '/auth_/callback',
+  path: '/auth/callback',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicHooksDailyAutopilotRoute =
   ApiPublicHooksDailyAutopilotRouteImport.update({
     id: '/api/public/hooks/daily-autopilot',
@@ -40,12 +46,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/auth/callback': typeof AuthCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
 }
 export interface FileRoutesById {
@@ -53,20 +61,38 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/auth_/callback': typeof AuthCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/app' | '/auth' | '/api/public/hooks/daily-autopilot'
+  fullPaths:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/auth/callback'
+    | '/api/public/hooks/daily-autopilot'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/app' | '/auth' | '/api/public/hooks/daily-autopilot'
-  id: '__root__' | '/' | '/app' | '/auth' | '/api/public/hooks/daily-autopilot'
+  to:
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/auth/callback'
+    | '/api/public/hooks/daily-autopilot'
+  id:
+    | '__root__'
+    | '/'
+    | '/app'
+    | '/auth'
+    | '/auth_/callback'
+    | '/api/public/hooks/daily-autopilot'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   AuthRoute: typeof AuthRoute
+  AuthCallbackRoute: typeof AuthCallbackRoute
   ApiPublicHooksDailyAutopilotRoute: typeof ApiPublicHooksDailyAutopilotRoute
 }
 
@@ -93,6 +119,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auth_/callback': {
+      id: '/auth_/callback'
+      path: '/auth/callback'
+      fullPath: '/auth/callback'
+      preLoaderRoute: typeof AuthCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/hooks/daily-autopilot': {
       id: '/api/public/hooks/daily-autopilot'
       path: '/api/public/hooks/daily-autopilot'
@@ -107,6 +140,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   AuthRoute: AuthRoute,
+  AuthCallbackRoute: AuthCallbackRoute,
   ApiPublicHooksDailyAutopilotRoute: ApiPublicHooksDailyAutopilotRoute,
 }
 export const routeTree = rootRouteImport
