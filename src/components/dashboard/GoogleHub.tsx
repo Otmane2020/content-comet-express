@@ -170,29 +170,6 @@ export function GoogleHub({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-5">
-      <div className="surface flex flex-wrap items-center justify-between gap-4 p-5">
-        <div className="flex items-start gap-3">
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-[13px] border border-border bg-card">
-            <GoogleGlyph />
-          </span>
-          <div>
-            <h3 className="font-display text-[15px] font-semibold">Authorize Google once</h3>
-            <p className="mt-1 max-w-xl text-[12.5px] text-muted-foreground">
-              One consent screen grants Search Console and Business Profile access. We then list your verified
-              properties and locations so you can pick the ones this project uses.
-            </p>
-          </div>
-        </div>
-        <Button
-          onClick={() => startConnect("all")}
-          disabled={busy === "all"}
-          className="bg-deep text-background hover:bg-deep/90"
-        >
-          <GoogleGlyph className="size-4" />
-          {busy === "all" ? "Opening Google…" : "Connect Search Console + Business Profile"}
-        </Button>
-      </div>
-
       <div className="grid gap-4 lg:grid-cols-2">
         {(["gmb", "gsc"] as Service[]).map((service) => {
           const conn = connections.find((c) => c.service === service);
@@ -297,23 +274,55 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                 )}
               </div>
 
-              {opts.length > 0 && conn && (
-                <div className="mt-4 space-y-1.5 rounded-xl border border-border p-2">
-                  <p className="px-1 text-[12px] text-muted-foreground">{meta.pick}</p>
-                  {opts.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => choose(conn, opt)}
-                      className="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition hover:bg-muted/60"
+              {conn && opts.length > 0 && (
+                <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
+                  <p className="text-[12px] font-medium text-muted-foreground">{meta.pick}</p>
+                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                    <Select
+                      value={draft[conn.id] ?? conn.resource_id ?? ""}
+                      onValueChange={(v) => setDraft((d) => ({ ...d, [conn.id]: v }))}
                     >
-                      <meta.icon className="size-4 shrink-0 text-primary" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-[13px] font-medium">{opt.label}</span>
-                        <span className="block truncate font-mono text-[11px] text-muted-foreground">{opt.sub}</span>
-                      </span>
-                    </button>
-                  ))}
+                      <SelectTrigger className="h-9 flex-1 bg-card text-[13px]">
+                        <SelectValue placeholder={service === "gmb" ? "Select a location" : "Select a property"} />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-72">
+                        {opts.map((opt) => (
+                          <SelectItem key={opt.id} value={opt.id} className="text-[13px]">
+                            <span className="flex min-w-0 items-center gap-2">
+                              <meta.icon className="size-3.5 shrink-0 text-primary" />
+                              <span className="truncate">{opt.label}</span>
+                              <span className="truncate font-mono text-[10.5px] text-muted-foreground">{opt.sub}</span>
+                            </span>
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="h-9 bg-deep text-background hover:bg-deep/90"
+                      disabled={
+                        !draft[conn.id] || draft[conn.id] === conn.resource_id || busy === `pick-${conn.id}`
+                      }
+                      onClick={async () => {
+                        const opt = opts.find((o) => o.id === draft[conn.id]);
+                        if (!opt) return;
+                        setBusy(`pick-${conn.id}`);
+                        try {
+                          await choose(conn, opt);
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : "Could not save the selection");
+                        } finally {
+                          setBusy(null);
+                        }
+                      }}
+                    >
+                      <Check className="size-4" />
+                      {draft[conn.id] && draft[conn.id] === conn.resource_id ? "In use" : "Use this"}
+                    </Button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-muted-foreground">
+                    Only the checked {service === "gmb" ? "location" : "property"} is used for research and publishing.
+                  </p>
                 </div>
               )}
             </div>
