@@ -2,7 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, Clock } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { BLOG_POSTS } from "@/lib/blog";
-import { listArticles } from "@/lib/articles.functions";
+import { listArticles, type IngestedArticle } from "@/lib/articles.functions";
 
 
 export const Route = createFileRoute("/blog/")({
@@ -62,7 +62,7 @@ export const Route = createFileRoute("/blog/")({
 
 
 function BlogIndex() {
-  const articles = Route.useLoaderData();
+  const articles = Route.useLoaderData() as IngestedArticle[];
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border">
