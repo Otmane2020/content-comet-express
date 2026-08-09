@@ -86,6 +86,79 @@ export async function aiCompetitors(
 
 type Sb = { from: (t: string) => any };
 
+/**
+ * Full hands-free research pass for one project: seed expansion, competitor
+ * discovery, and competitor keyword extraction. Uses DataForSEO when
+ * credentials work, otherwise falls back to AI estimates so the client always
+ * sees data. No-ops when keywords already exist unless `force`.
+ */
+export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
+  const { keywordIdeas, competitorDomains, competitorKeywords } = await import("./dataforseo.server");
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id, name, industry, locale, website_url, keywords")
+    .eq("id", projectId)
+    .single();
+  if (!project) throw new Error("Project not found");
+
+  const live = hasDataForSeo();
+  const { count } = await supabase
+    .from("keyword_research")
+    .select("id", { count: "exact", head: true })
+    .eq("project_id", projectId);
+  if (!force && (count ?? 0) > 0) return { found: 0, skipped: true, live };
+
+  const ctx = { ...project, domain: project.website_url ?? null };
+  const seeds: string[] = (project.keywords ?? []).filter(Boolean).slice(0, 10);
+  const fallback = project.name ?? project.industry ?? "";
+  const usedSeeds = seeds.length ? seeds : fallback ? [fallback] : [];
+  const opts = localeOpts(project.locale ?? null);
+  let rows: KwRow[] = [];
+
+  if (usedSeeds.length) {
+    try {
+      if (!live) throw new Error("no-dfs");
+      rows = await keywordIdeas(usedSeeds, opts);
+    } catch {
+      rows = await aiKeywords(usedSeeds, ctx);
+    }
+  }
+
+  let domains: { domain: string }[] = [];
+  if (project.website_url) {
+    try {
+      if (!live) throw new Error("no-dfs");
+      domains = await competitorDomains(project.website_url, opts);
+    } catch {
+      domains = await aiCompetitors(project.website_url, project);
+    }
+    if (domains.length) {
+      await supabase.from("competitors").upsert(
+        domains.map((r) => ({
+          user_id: userId,
+          project_id: projectId,
+          domain: r.domain,
+          metrics: r,
+          last_checked_at: new Date().toISOString(),
+        })),
+        { onConflict: "project_id,domain" },
+      );
+    }
+  }
+
+  for (const d of domains.slice(0, 2)) {
+    try {
+      const more = live ? await competitorKeywords(d.domain, opts) : await aiKeywords([d.domain], ctx, d.domain);
+      rows = rows.concat(more);
+    } catch {
+      /* keep what we have */
+    }
+  }
+
+  await saveKeywords(supabase, userId, projectId, rows);
+  return { found: rows.length, skipped: false, live };
+}
+
 export async function saveKeywords(
   supabase: Sb,
   userId: string,
