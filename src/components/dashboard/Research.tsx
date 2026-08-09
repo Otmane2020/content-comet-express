@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
+import { ChevronDown, Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { analyzeCompetitor, autoResearch, discoverCompetitors, researchKeywords } from "@/lib/research.functions";
 import { Button } from "@/components/ui/button";
@@ -34,6 +34,8 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   const auto = useServerFn(autoResearch);
   const started = useRef(false);
   const [autoRunning, setAutoRunning] = useState(false);
+  const [kwShown, setKwShown] = useState(5);
+  const [compShown, setCompShown] = useState(5);
 
   const { data: keywords = [], isLoading: kwLoading } = useQuery({
     queryKey: ["keywords", projectId],
@@ -93,11 +95,39 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-[25px] font-bold leading-tight">Keywords &amp; rivals</h1>
-        <p className="mt-1 text-[14.5px] text-muted-foreground">
-          The market research that feeds every article the autopilot writes.
-        </p>
+      {/* Explainer banner — brand indigo → deep with gold accents */}
+      <header className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background sm:p-8">
+        <div
+          className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-gold/25 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/20 px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">
+            <Sparkles className="size-3" />
+            Market research
+          </span>
+          <h1 className="mt-3 font-display text-[26px] font-bold leading-tight sm:text-[30px]">
+            Keywords &amp; rivals
+          </h1>
+          <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-background/75">
+            This is the fuel of your autopilot. We read what your market searches for and what your
+            competitors already rank on — then every article of the 30-day calendar is written around
+            those exact terms.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              { n: "01", t: "We find the keywords", d: "Real volume, CPC and difficulty for your topics." },
+              { n: "02", t: "We scan your rivals", d: "Their winning terms become your opportunities." },
+              { n: "03", t: "The autopilot writes", d: "Best-volume, low-difficulty terms are used first." },
+            ].map((s) => (
+              <div key={s.n} className="rounded-xl bg-background/10 p-3.5 backdrop-blur-sm">
+                <p className="font-mono text-[11px] font-bold text-gold">{s.n}</p>
+                <p className="mt-1 text-[13.5px] font-semibold">{s.t}</p>
+                <p className="mt-0.5 text-[12px] leading-snug text-background/65">{s.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -110,10 +140,13 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             sub: "searches across all keywords",
           },
         ].map((stat) => (
-          <div key={stat.label} className="surface p-5">
-            <p className="text-[13px] text-muted-foreground">{stat.label}</p>
-            <p className="mt-2 font-display text-2xl font-bold">{stat.value}</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">{stat.sub}</p>
+          <div key={stat.label} className="surface relative overflow-hidden p-5 pl-6">
+            <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-gold" aria-hidden />
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {stat.label}
+            </p>
+            <p className="mt-2 font-display text-[28px] font-bold leading-none text-primary">{stat.value}</p>
+            <p className="mt-1.5 text-[12px] text-muted-foreground">{stat.sub}</p>
           </div>
         ))}
       </div>
@@ -201,22 +234,41 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
                 No competitor tracked yet.
               </p>
             ) : (
-              competitors.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0"
-                >
-                  <span className="size-2 shrink-0 rounded-full bg-gold" />
-                  <span className="flex-1 truncate text-[13.5px] font-medium">{c.domain}</span>
+              <>
+                {competitors.slice(0, compShown).map((c, i) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0"
+                  >
+                    <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="size-2 shrink-0 rounded-full bg-gold" />
+                    <span className="flex-1 truncate text-[13.5px] font-medium">{c.domain}</span>
+                    <button
+                      type="button"
+                      className="rounded-md border border-border px-2.5 py-1 text-[11.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
+                      onClick={() => run("comp", () => analyze({ data: { projectId, domain: c.domain } }))}
+                    >
+                      Pull keywords
+                    </button>
+                  </div>
+                ))}
+                {competitors.length > 5 && (
                   <button
                     type="button"
-                    className="rounded-md border border-border px-2.5 py-1 text-[11.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
-                    onClick={() => run("comp", () => analyze({ data: { projectId, domain: c.domain } }))}
+                    onClick={() => setCompShown((n) => (n >= competitors.length ? 5 : n + 5))}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] border border-border py-2 text-[12.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
                   >
-                    Pull keywords
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${compShown >= competitors.length ? "rotate-180" : ""}`}
+                    />
+                    {compShown >= competitors.length
+                      ? "Show less"
+                      : `Show more (${competitors.length - compShown} left)`}
                   </button>
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         </div>
@@ -263,22 +315,30 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             </p>
           </div>
         ) : (
-          <div className="mt-5 overflow-x-auto">
+          <>
+          <div className="mt-5 overflow-x-auto rounded-xl border border-border">
             <table className="w-full border-collapse text-left">
               <thead>
-                <tr>
-                  {["Keyword", "Volume", "CPC", "Difficulty", "Intent", "Source"].map((h) => (
+                <tr className="bg-secondary/60">
+                  {[
+                    { h: "Keyword", a: "text-left" },
+                    { h: "Volume", a: "text-right" },
+                    { h: "CPC", a: "text-right" },
+                    { h: "Difficulty", a: "text-center" },
+                    { h: "Intent", a: "text-left" },
+                    { h: "Source", a: "text-left" },
+                  ].map((c) => (
                     <th
-                      key={h}
-                      className="border-b border-border px-2 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground"
+                      key={c.h}
+                      className={`border-b border-border px-3 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground ${c.a}`}
                     >
-                      {h}
+                      {c.h}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {keywords.map((k) => {
+                {keywords.slice(0, kwShown).map((k, i) => {
                   const diff = k.difficulty ?? null;
                   const diffTone =
                     diff == null
@@ -289,24 +349,31 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
                           ? "bg-warning-soft text-warning"
                           : "bg-destructive/10 text-destructive";
                   return (
-                    <tr key={k.id} className="border-b border-border last:border-b-0">
-                      <td className="px-2 py-3 text-[13.5px] font-medium">{k.keyword}</td>
-                      <td className="px-2 py-3 font-mono text-[13px]">
+                    <tr
+                      key={k.id}
+                      className={`border-b border-border last:border-b-0 transition-colors hover:bg-primary/5 ${
+                        i % 2 ? "bg-secondary/25" : ""
+                      }`}
+                    >
+                      <td className="px-3 py-3 text-[13.5px] font-medium">{k.keyword}</td>
+                      <td className="px-3 py-3 text-right font-mono text-[13px] font-semibold">
                         {k.search_volume != null ? k.search_volume.toLocaleString("en-US") : "—"}
                       </td>
-                      <td className="px-2 py-3 font-mono text-[13px]">
+                      <td className="px-3 py-3 text-right font-mono text-[13px] text-muted-foreground">
                         {k.cpc != null ? `€${k.cpc.toFixed(2)}` : "—"}
                       </td>
-                      <td className="px-2 py-3">
+                      <td className="px-3 py-3 text-center">
                         <span
                           className={`inline-block rounded-full px-2.5 py-1 font-mono text-[11.5px] font-bold ${diffTone}`}
                         >
                           {diff ?? "—"}
                         </span>
                       </td>
-                      <td className="px-2 py-3 text-[13px] text-muted-foreground">{k.intent ?? "—"}</td>
-                      <td className="px-2 py-3 text-[12.5px] text-muted-foreground">
-                        {k.competitor_domain ?? "seed"}
+                      <td className="px-3 py-3 text-[13px] text-muted-foreground">{k.intent ?? "—"}</td>
+                      <td className="px-3 py-3">
+                        <span className="rounded-md bg-secondary px-2 py-0.5 text-[11.5px] font-medium text-muted-foreground">
+                          {k.competitor_domain ?? "seed"}
+                        </span>
                       </td>
                     </tr>
                   );
@@ -314,6 +381,21 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
               </tbody>
             </table>
           </div>
+          {keywords.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setKwShown((n) => (n >= keywords.length ? 5 : n + 5))}
+              className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[10px] border border-border bg-card py-2.5 text-[13px] font-semibold text-primary transition-colors hover:bg-primary/5"
+            >
+              <ChevronDown
+                className={`size-4 transition-transform ${kwShown >= keywords.length ? "rotate-180" : ""}`}
+              />
+              {kwShown >= keywords.length
+                ? "Show less"
+                : `Show more (${keywords.length - kwShown} keywords left)`}
+            </button>
+          )}
+          </>
         )}
       </div>
     </div>
