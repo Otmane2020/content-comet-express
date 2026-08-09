@@ -295,7 +295,7 @@ export async function runPublish(
         try {
           const token = await accessTokenFor(conn.id);
           await createGmbPost(token, conn.resource_id, {
-            summary: [payload.title, payload.excerpt || (payload.body_md ?? "").slice(0, 900)]
+            summary: [payload.title, payload.excerpt || (payload.markdown ?? "").slice(0, 900)]
               .filter(Boolean)
               .join("\n\n"),
             url: firstOk?.url ?? null,
