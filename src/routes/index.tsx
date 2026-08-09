@@ -16,6 +16,7 @@ import {
   Zap,
 } from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
+import { DemoSlider } from "@/components/DemoSlider";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { createCheckout } from "@/lib/billing.functions";
@@ -148,6 +149,20 @@ function Landing() {
 
   return (
     <div className="min-h-screen bg-background">
+      <div className="bg-deep text-background">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-center gap-x-3 gap-y-1 px-5 py-2 text-center text-[12.5px]">
+          <span className="inline-flex items-center gap-1.5 font-mono text-[10.5px] font-semibold tracking-wide text-gold">
+            <Sparkles className="size-3.5" /> NEW
+          </span>
+          <span className="opacity-90">
+            AutopilotGEO writes and publishes one article a day to your CMS — keywords, competitors,
+            images and Google included.
+          </span>
+          <a href="#demo" className="font-semibold text-gold underline-offset-4 hover:underline">
+            Watch the demo
+          </a>
+        </div>
+      </div>
       <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
           <BrandLockup />
@@ -157,6 +172,12 @@ function Landing() {
               className="hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
             >
               Features
+            </a>
+            <a
+              href="#demo"
+              className="hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Demo
             </a>
             <a
               href="#pricing"
@@ -238,6 +259,8 @@ function Landing() {
           </div>
         </div>
       </header>
+
+      <DemoSlider />
 
       <section className="mx-auto max-w-6xl px-5 py-16">
         <h2 className="text-2xl font-bold">How the autopilot runs</h2>
