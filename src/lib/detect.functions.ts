@@ -28,8 +28,10 @@ export const detectBusiness = createServerFn({ method: "POST" })
       system:
         `You analyse a company website. Return ONLY JSON: {"name":string,"industry":string,"audience":string,"tone":"expert"|"friendly"|"premium"|"direct","locale":string,"keywords":string[],"summary":string}. ` +
         `"industry" MUST be picked from this list: ${ALL_INDUSTRIES.join(", ")}. ` +
+        `Classify by WHAT THE COMPANY SELLS, never by the industries of its customers: a software company selling tools to retailers is software, not retail. ` +
+        `"keywords": commercial search terms for the company's own product category (what a buyer would type to find this product), never terms about its customers' industries. ` +
         `"locale" MUST be one of: ${LANGUAGES.map((l) => l.code).join(", ")}. ` +
-        `"keywords": 8 realistic search keywords this business should rank for. "audience": one short sentence.`,
+        `Return 8 keywords. "audience": one short sentence naming who buys the product.`,
       user: JSON.stringify(site),
       json: true,
       maxTokens: 900,
