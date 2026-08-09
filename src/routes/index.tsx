@@ -127,6 +127,25 @@ const STEPS = [
 ];
 
 function Landing() {
+  const [annual, setAnnual] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const startCheckout = useServerFn(createCheckout);
+
+  const onSubscribe = async () => {
+    setLoading(true);
+    setCheckoutError(null);
+    try {
+      const { url } = await startCheckout({
+        data: { cycle: annual ? "annual" : "monthly", origin: window.location.origin },
+      });
+      window.location.href = url;
+    } catch {
+      setCheckoutError("Checkout is unavailable right now. Please try again in a moment.");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
