@@ -17,8 +17,14 @@ export function Support() {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (form.subject.trim().length < 3) return toast.error("Add a short subject.");
-    if (form.message.trim().length < 10) return toast.error("Tell us a bit more (10+ characters).");
+    if (form.subject.trim().length < 3) {
+      toast.error("Add a short subject.");
+      return;
+    }
+    if (form.message.trim().length < 10) {
+      toast.error("Tell us a bit more (10+ characters).");
+      return;
+    }
     setBusy(true);
     try {
       const res = await send({ data: { ...form, email: form.email.trim() } });
