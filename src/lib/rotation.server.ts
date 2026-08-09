@@ -60,7 +60,10 @@ export async function ensureWindow(
     .eq("project_id", project.id);
   const taken = new Set((existing ?? []).map((r: { scheduled_date: string }) => r.scheduled_date));
   const missing = window.filter((s) => !taken.has(s.date));
-  if (!missing.length) return { created: 0, keywords: 0, researched: false };
+  if (!missing.length) {
+    const attached = await backfillKeywords(supabase, userId, project);
+    return { created: 0, keywords: attached, researched: false };
+  }
 
   let picked = await pickKeywords(supabase, project.id, missing.length);
   let researched = false;
@@ -120,4 +123,42 @@ export async function ensureWindow(
   }
 
   return { created: topics.length, keywords: picked.length, researched };
+}
+
+/**
+ * Days planned before the research existed have no keyword attached. Give each
+ * still-unwritten day the next most relevant unused keyword, so the writer
+ * always targets a real search term.
+ */
+export async function backfillKeywords(
+  supabase: Sb,
+  _userId: string,
+  project: RotationProject,
+): Promise<number> {
+  const { data: orphans } = await supabase
+    .from("content_items")
+    .select("id")
+    .eq("project_id", project.id)
+    .is("target_keyword", null)
+    .is("body_md", null)
+    .order("scheduled_date", { ascending: true })
+    .limit(60);
+  const items = (orphans ?? []) as { id: string }[];
+  if (!items.length) return 0;
+
+  const picked = await pickKeywords(supabase, project.id, items.length);
+  if (!picked.length) return 0;
+
+  let used = 0;
+  for (const [i, item] of items.entries()) {
+    const kw = picked[i];
+    if (!kw) break;
+    await supabase.from("content_items").update({ target_keyword: kw.keyword }).eq("id", item.id);
+    used += 1;
+  }
+  await supabase
+    .from("keyword_research")
+    .update({ used: true })
+    .in("id", picked.slice(0, used).map((k) => k.id));
+  return used;
 }
