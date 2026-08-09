@@ -78,14 +78,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AutopilotGEO — 30 days of AI content, auto-published" },
+      { title: "AutopilotGEO — AI SEO Content on Autopilot" },
       {
         name: "description",
         content:
           "Plan 30 days of GEO, SEO and AEO articles, write them with DeepSeek, and auto-publish to WordPress, WooCommerce, PrestaShop, Shopify and your own site.",
       },
       { name: "author", content: "AutopilotGEO" },
-      { property: "og:title", content: "AutopilotGEO — 30 days of AI content, auto-published" },
+      { property: "og:site_name", content: "AutopilotGEO" },
+      { property: "og:title", content: "AutopilotGEO — AI SEO Content on Autopilot" },
       {
         property: "og:description",
         content: "A rolling 30-day content calendar that writes and publishes itself.",
@@ -104,7 +105,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
+      { rel: "apple-touch-icon", href: "/favicon.png" },
     ],
   }),
   shellComponent: RootShell,

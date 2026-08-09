@@ -35,7 +35,7 @@ export const Route = createFileRoute("/blog/")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary" },
       ],
-      links: [{ rel: "canonical", href: "/blog" }],
+      links: [{ rel: "canonical", href: "https://autopilotgeo.com/blog" }],
       scripts: [
         {
           type: "application/ld+json",

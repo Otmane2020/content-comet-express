@@ -38,7 +38,7 @@ export const Route = createFileRoute("/blog/$slug")({
         { property: "og:type", content: "article" },
         { name: "twitter:card", content: "summary" },
       ],
-      links: [{ rel: "canonical", href: `/blog/${params.slug}` }],
+      links: [{ rel: "canonical", href: `https://autopilotgeo.com/blog/${params.slug}` }],
       scripts: schema
         ? [
             {
