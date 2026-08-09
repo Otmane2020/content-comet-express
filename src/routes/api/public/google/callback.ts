@@ -45,7 +45,7 @@ export const Route = createFileRoute("/api/public/google/callback")({
             {
               connection_id: conn.id,
               access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token ?? undefined,
+              refresh_token: tokens.refresh_token ?? null,
               scope: tokens.scope ?? null,
               expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
               updated_at: new Date().toISOString(),

@@ -152,7 +152,7 @@ async function gfetch(url: string, token: string, init?: RequestInit) {
 
 /* ---------------- Google Business Profile ---------------- */
 
-export type GmbLocation = { name: string; title: string; address?: string; storeCode?: string };
+export type GmbLocation = { name: string; title: string; address: string; storeCode: string | null };
 
 export async function listGmbLocations(token: string): Promise<GmbLocation[]> {
   const accounts = (await gfetch(
@@ -171,7 +171,7 @@ export async function listGmbLocations(token: string): Promise<GmbLocation[]> {
       out.push({
         name: `${acc.name}/${loc.name}`,
         title: loc.title,
-        storeCode: loc.storeCode,
+        storeCode: loc.storeCode ?? null,
         address: [loc.storefrontAddress?.addressLines?.join(" "), loc.storefrontAddress?.locality]
           .filter(Boolean)
           .join(", "),
