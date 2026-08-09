@@ -82,6 +82,16 @@ export function Calendar({ projectId }: { projectId: string }) {
     onError: (e: Error) => toast.error(e.message),
   });
 
+  const imgMutation = useMutation({
+    mutationFn: (itemId: string) =>
+      illustrate({ data: { itemId, origin: window.location.origin } }),
+    onSuccess: () => {
+      toast.success("Images added to the article.");
+      void qc.invalidateQueries({ queryKey: ["content", projectId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
   async function saveDraft() {
     if (!open || !draft) return;
     const { error } = await supabase
@@ -241,62 +251,148 @@ export function Calendar({ projectId }: { projectId: string }) {
         </div>
       )}
 
-      <Sheet open={!!open} onOpenChange={(v) => !v && setOpenId(null)}>
-        <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
-          <SheetHeader>
-            <SheetTitle className="font-display">
-              {open ? TYPE_META[open.content_type as ContentType]?.label : ""} · {open?.scheduled_date}
-            </SheetTitle>
-          </SheetHeader>
+      <Dialog
+        open={!!open}
+        onOpenChange={(v) => {
+          if (!v) {
+            setOpenId(null);
+            setEditing(false);
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton={false}
+          className="max-h-[92vh] w-[96vw] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"
+        >
           {open && draft && (
-            <div className="space-y-4 px-4 pb-8">
-              <Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
-              {open.body_md ? (
-                <>
-                  <Textarea
-                    rows={16}
-                    value={draft.body}
-                    onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-                    className="font-mono text-[12.5px]"
+            <article className="pb-10">
+              <div className="relative">
+                {open.cover_image_url ? (
+                  <img
+                    src={open.cover_image_url}
+                    alt={open.title ?? "Article cover"}
+                    className="h-56 w-full object-cover sm:h-72"
                   />
-                  <div className="flex gap-2">
-                    <Button onClick={saveDraft} variant="outline" size="sm">
-                      <PenLine className="size-4" /> Save draft
-                    </Button>
-                    <Button
-                      size="sm"
-                      className="bg-deep text-background hover:bg-deep/90"
-                      onClick={() => pubMutation.mutate(open.id)}
-                    >
-                      <Send className="size-4" /> Publish
-                    </Button>
-                  </div>
-                  <div
-                    className="prose-geo rounded-xl border border-border bg-secondary/40 p-4 text-[14px]"
-                    dangerouslySetInnerHTML={{ __html: renderMarkdown(draft.body) }}
-                  />
-                </>
-              ) : (
-                <div className="rounded-xl border border-dashed border-border p-6 text-center">
-                  <p className="text-sm text-muted-foreground">{open.topic}</p>
-                  <Button
-                    className="mt-4 bg-deep text-background hover:bg-deep/90"
-                    disabled={genMutation.isPending}
-                    onClick={() => genMutation.mutate(open.id)}
+                ) : (
+                  <div className="paper-grid h-32 w-full bg-secondary sm:h-40" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => setOpenId(null)}
+                  className="absolute right-3 top-3 rounded-full bg-background/85 p-2 text-foreground backdrop-blur transition-colors hover:bg-background"
+                  aria-label="Close"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+
+              <div className="px-6 sm:px-10">
+                <div className="-mt-6 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${
+                      TYPE_META[open.content_type as ContentType]?.tone ?? ""
+                    }`}
                   >
-                    {genMutation.isPending ? (
+                    {TYPE_META[open.content_type as ContentType]?.label ?? open.content_type}
+                  </span>
+                  <span className="rounded-full bg-background/90 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur">
+                    {open.scheduled_date}
+                  </span>
+                </div>
+
+                <DialogTitle asChild>
+                  <h1 className="mt-4 font-display text-[28px] font-extrabold leading-tight tracking-tight sm:text-[34px]">
+                    {draft.title || "Untitled slot"}
+                  </h1>
+                </DialogTitle>
+                {open.excerpt && (
+                  <p className="mt-3 border-l-2 border-primary pl-4 text-[15px] italic text-muted-foreground">
+                    {open.excerpt}
+                  </p>
+                )}
+
+                <div className="mt-5 flex flex-wrap items-center gap-2 border-y border-border py-3">
+                  <Button size="sm" variant="outline" onClick={() => setEditing((e) => !e)}>
+                    <PenLine className="size-4" /> {editing ? "Reading view" : "Edit"}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={imgMutation.isPending || !open.body_md}
+                    onClick={() => imgMutation.mutate(open.id)}
+                  >
+                    {imgMutation.isPending ? (
                       <Loader2 className="size-4 animate-spin" />
                     ) : (
-                      <Sparkles className="size-4" />
+                      <ImageIcon className="size-4" />
                     )}
-                    Write this article
+                    Illustrate
                   </Button>
+                  <Button
+                    size="sm"
+                    className="bg-deep text-background hover:bg-deep/90"
+                    disabled={!open.body_md}
+                    onClick={() => pubMutation.mutate(open.id)}
+                  >
+                    <Send className="size-4" /> Publish
+                  </Button>
+                  {open.published_url && (
+                    <a
+                      href={open.published_url}
+                      target="_blank"
+                      rel="noopener"
+                      className="ml-auto inline-flex items-center gap-1 text-[12px] font-semibold text-primary"
+                    >
+                      Live <ExternalLink className="size-3.5" />
+                    </a>
+                  )}
                 </div>
-              )}
-            </div>
+
+                {open.body_md ? (
+                  editing ? (
+                    <div className="mt-5 space-y-3">
+                      <Input
+                        value={draft.title}
+                        onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                      />
+                      <Textarea
+                        rows={20}
+                        value={draft.body}
+                        onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+                        className="font-mono text-[12.5px]"
+                      />
+                      <Button onClick={saveDraft} variant="outline" size="sm">
+                        <PenLine className="size-4" /> Save draft
+                      </Button>
+                    </div>
+                  ) : (
+                    <div
+                      className="prose-magazine mt-6"
+                      dangerouslySetInnerHTML={{ __html: renderMarkdown(draft.body) }}
+                    />
+                  )
+                ) : (
+                  <div className="mt-8 rounded-xl border border-dashed border-border p-8 text-center">
+                    <p className="text-sm text-muted-foreground">{open.topic}</p>
+                    <Button
+                      className="mt-4 bg-deep text-background hover:bg-deep/90"
+                      disabled={genMutation.isPending}
+                      onClick={() => genMutation.mutate(open.id)}
+                    >
+                      {genMutation.isPending ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Sparkles className="size-4" />
+                      )}
+                      Write this article
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </article>
           )}
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
