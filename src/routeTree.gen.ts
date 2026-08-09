@@ -12,7 +12,10 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AppRouteImport } from './routes/app'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as BlogRouteImport } from './routes/blog'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google/callback'
 import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/public/hooks/daily-autopilot'
 import { Route as ApiPublicHooksRefillCalendarRouteImport } from './routes/api/public/hooks/refill-calendar'
@@ -33,10 +36,25 @@ const AuthRoute = AuthRouteImport.update({
   path: '/auth',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlogRoute = BlogRouteImport.update({
+  id: '/blog',
+  path: '/blog',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
   id: '/auth_/callback',
   path: '/auth/callback',
   getParentRoute: () => rootRouteImport,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => BlogRoute,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => BlogRoute,
 } as any)
 const ApiPublicGoogleCallbackRoute = ApiPublicGoogleCallbackRouteImport.update({
   id: '/api/public/google/callback',
@@ -65,7 +83,10 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/blog': typeof BlogRouteWithChildren
   '/auth/callback': typeof AuthCallbackRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/blog/': typeof BlogIndexRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
@@ -76,6 +97,8 @@ export interface FileRoutesByTo {
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
   '/auth/callback': typeof AuthCallbackRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/blog': typeof BlogIndexRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
@@ -86,7 +109,10 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/app': typeof AppRoute
   '/auth': typeof AuthRoute
+  '/blog': typeof BlogRouteWithChildren
   '/auth_/callback': typeof AuthCallbackRoute
+  '/blog/$slug': typeof BlogSlugRoute
+  '/blog/': typeof BlogIndexRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
   '/api/public/hooks/daily-autopilot': typeof ApiPublicHooksDailyAutopilotRoute
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
@@ -98,7 +124,10 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/blog'
     | '/auth/callback'
+    | '/blog/$slug'
+    | '/blog/'
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
@@ -109,6 +138,8 @@ export interface FileRouteTypes {
     | '/app'
     | '/auth'
     | '/auth/callback'
+    | '/blog/$slug'
+    | '/blog'
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
@@ -118,7 +149,10 @@ export interface FileRouteTypes {
     | '/'
     | '/app'
     | '/auth'
+    | '/blog'
     | '/auth_/callback'
+    | '/blog/$slug'
+    | '/blog/'
     | '/api/public/google/callback'
     | '/api/public/hooks/daily-autopilot'
     | '/api/public/hooks/refill-calendar'
@@ -129,6 +163,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AppRoute: typeof AppRoute
   AuthRoute: typeof AuthRoute
+  BlogRoute: typeof BlogRouteWithChildren
   AuthCallbackRoute: typeof AuthCallbackRoute
   ApiPublicGoogleCallbackRoute: typeof ApiPublicGoogleCallbackRoute
   ApiPublicHooksDailyAutopilotRoute: typeof ApiPublicHooksDailyAutopilotRoute
@@ -159,12 +194,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/blog': {
+      id: '/blog'
+      path: '/blog'
+      fullPath: '/blog'
+      preLoaderRoute: typeof BlogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/auth_/callback': {
       id: '/auth_/callback'
       path: '/auth/callback'
       fullPath: '/auth/callback'
       preLoaderRoute: typeof AuthCallbackRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof BlogRoute
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof BlogRoute
     }
     '/api/public/google/callback': {
       id: '/api/public/google/callback'
@@ -197,10 +253,23 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface BlogRouteChildren {
+  BlogSlugRoute: typeof BlogSlugRoute
+  BlogIndexRoute: typeof BlogIndexRoute
+}
+
+const BlogRouteChildren: BlogRouteChildren = {
+  BlogSlugRoute: BlogSlugRoute,
+  BlogIndexRoute: BlogIndexRoute,
+}
+
+const BlogRouteWithChildren = BlogRoute._addFileChildren(BlogRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AppRoute: AppRoute,
   AuthRoute: AuthRoute,
+  BlogRoute: BlogRouteWithChildren,
   AuthCallbackRoute: AuthCallbackRoute,
   ApiPublicGoogleCallbackRoute: ApiPublicGoogleCallbackRoute,
   ApiPublicHooksDailyAutopilotRoute: ApiPublicHooksDailyAutopilotRoute,
@@ -210,3 +279,13 @@ const rootRouteChildren: RootRouteChildren = {
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

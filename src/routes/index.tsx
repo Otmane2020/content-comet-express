@@ -182,10 +182,16 @@ function Landing() {
             </a>
             <a
               href="#pricing"
-              className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+              className="hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
             >
               Pricing
             </a>
+            <Link
+              to="/blog"
+              className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Blog
+            </Link>
             <Button asChild variant="ghost" size="sm">
               <Link to="/auth">Sign in</Link>
             </Button>
