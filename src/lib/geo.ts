@@ -6,6 +6,7 @@ export type PlatformId =
   | "woocommerce"
   | "prestashop"
   | "shopify"
+  | "supabase"
   | "webhook";
 
 export const TYPE_META: Record<
