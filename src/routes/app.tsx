@@ -223,7 +223,6 @@ function Dashboard() {
                     </AvatarFallback>
                   </Avatar>
                   <div className="hidden text-left sm:block">
-                    <p className="max-w-[140px] truncate text-[11px] font-semibold leading-tight">{user.email}</p>
                     <p className="flex items-center gap-1 text-[10px] font-medium text-amber-500">
                       <Crown className="size-2.5" /> Admin
                     </p>
@@ -231,14 +230,13 @@ function Dashboard() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <div className="px-3 py-2">
-                  <p className="text-xs font-semibold">Signed in as</p>
-                  <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
-                </div>
-                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setTab("help")} className="gap-2 text-xs">
+                  <LifeBuoy className="size-3.5" /> Help
+                </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => setTab("settings")} className="gap-2 text-xs">
                   <Settings2 className="size-3.5" /> Project settings
                 </DropdownMenuItem>
+                <DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={async () => {
                     await supabase.auth.signOut();
