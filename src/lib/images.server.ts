@@ -40,14 +40,17 @@ export async function storeImage(userId: string, key: string, bytes: Uint8Array,
   return `${origin.replace(/\/$/, "")}/api/public/img/${path}`;
 }
 
+const NO_TEXT =
+  "Absolutely no text of any kind: no words, no letters, no numbers, no captions, no titles, no headlines, no typography, no signage, no labels, no packaging text, no book or magazine covers with writing, no handwriting, no subtitles, no watermark, no logo, no brand name, no UI or screen text. Pure photographic image only.";
+
 export function coverPrompt(topic: string, industry: string | null) {
   return `Editorial magazine cover photograph illustrating: ${topic}. ${
     industry ? `Industry: ${industry}. ` : ""
-  }Cinematic natural light, shallow depth of field, premium interior-magazine aesthetic, no text, no watermark, no logo.`;
+  }Cinematic natural light, shallow depth of field, premium interior-magazine aesthetic. ${NO_TEXT}`;
 }
 
 export function sectionPrompt(heading: string, topic: string) {
-  return `Editorial magazine photograph for the section "${heading}" of an article about ${topic}. Natural light, realistic, premium lifestyle photography, no text, no watermark.`;
+  return `Editorial magazine photograph for the section "${heading}" of an article about ${topic}. Natural light, realistic, premium lifestyle photography. ${NO_TEXT}`;
 }
 
 /** Insert image markdown after the first few H2 sections of an article. */
