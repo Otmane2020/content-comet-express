@@ -152,31 +152,30 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
       </div>
 
       <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Run the research</p>
-      <div className="grid gap-4 lg:grid-cols-2">
-        <div className="surface flex flex-col p-6">
-          <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3">
+        <div className="surface flex flex-col gap-4 p-5 md:flex-row md:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <span className="flex size-10 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
               <Search className="size-[19px]" />
             </span>
-            <div>
+            <div className="min-w-0">
               <h2 className="font-display text-base font-semibold">Keyword research</h2>
               <p className="text-[12.5px] text-muted-foreground">
                 Live volume, CPC and difficulty for your seed terms.
               </p>
             </div>
           </div>
-          <Label htmlFor="seeds" className="mt-5 block text-[12.5px]">Seed keywords</Label>
-          <Input
-            id="seeds"
-            value={seeds}
-            onChange={(e) => setSeeds(e.target.value)}
-            placeholder="plumber paris, emergency leak repair"
-            className="mt-1.5"
-          />
-          <p className="mt-1.5 text-[11.5px] text-muted-foreground">Separate each term with a comma.</p>
-          <Button
-            className="mt-5 w-full bg-deep text-background hover:bg-deep/90"
-            disabled={busy === "kw"}
+          <div className="flex w-full items-center gap-2 md:w-[520px]">
+            <Label htmlFor="seeds" className="sr-only">Seed keywords</Label>
+            <Input
+              id="seeds"
+              value={seeds}
+              onChange={(e) => setSeeds(e.target.value)}
+              placeholder="plumber paris, emergency leak repair"
+            />
+            <Button
+              className="shrink-0 bg-deep text-background hover:bg-deep/90"
+              disabled={busy === "kw"}
             onClick={() =>
               run("kw", () =>
                 research({
@@ -187,25 +186,27 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
                 }),
               )
             }
-          >
-            {busy === "kw" ? "Analyzing…" : "Find keywords"}
-          </Button>
+            >
+              {busy === "kw" ? "Analyzing…" : "Find keywords"}
+            </Button>
+          </div>
         </div>
 
-        <div className="surface flex flex-col p-6">
-          <div className="flex items-center gap-3">
+        <div className="surface p-5">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <span className="flex size-10 items-center justify-center rounded-[11px] bg-gold-soft text-gold-foreground">
               <Radar className="size-[19px]" />
             </span>
-            <div>
+            <div className="min-w-0">
               <h2 className="font-display text-base font-semibold">Competitors</h2>
               <p className="text-[12.5px] text-muted-foreground">
                 Take the keywords your rivals already win.
               </p>
             </div>
           </div>
-          <Label htmlFor="rival" className="mt-5 block text-[12.5px]">Competitor domain</Label>
-          <div className="mt-1.5 flex gap-2">
+          <div className="flex w-full items-center gap-2 md:w-[520px]">
+            <Label htmlFor="rival" className="sr-only">Competitor domain</Label>
             <Input
               id="rival"
               value={domain}
@@ -214,20 +215,22 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             />
             <Button
               variant="outline"
+              className="shrink-0"
               disabled={busy === "comp" || !domain.trim()}
               onClick={() => run("comp", () => analyze({ data: { projectId, domain: domain.trim() } }))}
             >
               Analyze
             </Button>
+            <Button
+              variant="ghost"
+              className="shrink-0 text-[13px] text-primary hover:bg-primary/5"
+              disabled={busy === "disc"}
+              onClick={() => run("disc", () => discover({ data: { projectId } }))}
+            >
+              {busy === "disc" ? "Scanning…" : "Auto-discover"}
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            className="mt-2 w-full text-[13px] text-primary hover:bg-primary/5"
-            disabled={busy === "disc"}
-            onClick={() => run("disc", () => discover({ data: { projectId } }))}
-          >
-            {busy === "disc" ? "Scanning…" : "Auto-discover my competitors"}
-          </Button>
+          </div>
           <div className="mt-4 border-t border-border">
             {competitors.length === 0 ? (
               <p className="pt-3 text-[12.5px] text-muted-foreground">
