@@ -185,6 +185,7 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
                   markdown: body!,
                   contentType: item.content_type,
                   scheduledDate: item.scheduled_date,
+                  coverUrl: coverUrl ?? null,
                 },
               );
               published += 1;
