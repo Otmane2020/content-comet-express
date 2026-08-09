@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { GoogleGlyph } from "@/components/GoogleGlyph";
 import { generateArticle, illustrateArticle, publishItem } from "@/lib/autopilot.functions";
 import { STATUS_META, TYPE_META, type ContentType } from "@/lib/geo";
 import { renderMarkdown } from "@/lib/markdown";
