@@ -5,6 +5,11 @@
 @custom-variant dark (&:is(.dark *));
 
 /*
+ * AutopilotGEO design system — indigo ink, gold accent, paper background.
+ * Space Grotesk (display) / Inter (body) / IBM Plex Mono (data).
+ */
+
+/*
  * Design system definition.
  *
  * The @theme inline block maps CSS custom properties to Tailwind utility
