@@ -76,7 +76,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         <div className="surface mt-6 grid overflow-hidden lg:grid-cols-[340px_1fr]">
           {/* Left rail */}
           <aside className="relative overflow-hidden bg-deep px-7 py-8 text-background">
-            <div className="pointer-events-none absolute -left-16 bottom--10 size-56 rounded-full bg-gold/20 blur-3xl" />
+            <div className="pointer-events-none absolute -bottom-10 -left-16 size-56 rounded-full bg-gold/20 blur-3xl" />
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Configuration</p>
             <h2 className="mt-2 font-display text-[22px] font-bold leading-tight">
               3 minutes pour lancer 30 jours de contenu
@@ -127,7 +127,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
               </div>
               <div className="sm:col-span-2">
                 <Label htmlFor="url" className="text-[12.5px]">Site web</Label>
-                <Input id="url" value={form.website_url} onChange={set("url" as never) || set("website_url")} onChangeCapture={undefined} className="mt-1.5" placeholder="https://monsite.com" />
+                <Input id="url" value={form.website_url} onChange={set("website_url")} className="mt-1.5" placeholder="https://monsite.com" />
               </div>
               <div>
                 <Label htmlFor="industry" className="text-[12.5px]">Secteur</Label>
