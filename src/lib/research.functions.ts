@@ -5,6 +5,14 @@ import type { KwRow } from "./research.server";
 
 const projectInput = z.object({ projectId: z.string().uuid() });
 
+/** Tells the dashboard whether keyword metrics come from live SEO data or AI estimates. */
+export const dataSourceStatus = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const { dfsPing } = await import("./dataforseo.server");
+    return dfsPing();
+  });
+
 type ProjectCtx = { name?: string | null; industry?: string | null; locale?: string | null; website_url?: string | null; keywords?: string[] | null };
 
 /** Find competitor domains for the project's own website. */
