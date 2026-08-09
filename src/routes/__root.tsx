@@ -78,14 +78,15 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "AutopilotGEO — 30 days of AI content, auto-published" },
+      { title: "AutopilotGEO — AI SEO Content on Autopilot" },
       {
         name: "description",
         content:
           "Plan 30 days of GEO, SEO and AEO articles, write them with DeepSeek, and auto-publish to WordPress, WooCommerce, PrestaShop, Shopify and your own site.",
       },
       { name: "author", content: "AutopilotGEO" },
-      { property: "og:title", content: "AutopilotGEO — 30 days of AI content, auto-published" },
+      { property: "og:site_name", content: "AutopilotGEO" },
+      { property: "og:title", content: "AutopilotGEO — AI SEO Content on Autopilot" },
       {
         property: "og:description",
         content: "A rolling 30-day content calendar that writes and publishes itself.",
