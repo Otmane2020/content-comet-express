@@ -28,7 +28,7 @@ export function Footer() {
           </div>
 
           <p className="text-[11px] text-muted-foreground">
-            © {new Date().getFullYear()} AutopilotGEO — generative search, on autopilot.
+            © {new Date().getFullYear()} Ranki.ai — generative search, on autopilot.
           </p>
         </div>
       </div>

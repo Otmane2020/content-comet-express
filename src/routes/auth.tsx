@@ -12,10 +12,10 @@ import { Label } from "@/components/ui/label";
 export const Route = createFileRoute("/auth")({
   head: () => ({
     meta: [
-      { title: "Sign in — AutopilotGEO" },
+      { title: "Sign in — Ranki.ai" },
       { name: "description", content: "Access your rolling 30-day AI content calendar and publishing destinations." },
-      { property: "og:title", content: "Sign in — AutopilotGEO" },
-      { property: "og:description", content: "Access your AutopilotGEO content calendar." },
+      { property: "og:title", content: "Sign in — Ranki.ai" },
+      { property: "og:description", content: "Access your Ranki.ai content calendar." },
       { name: "robots", content: "noindex" },
     ],
   }),

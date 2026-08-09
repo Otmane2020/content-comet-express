@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { createClient } from "@supabase/supabase-js";
 import { BLOG_POSTS } from "@/lib/blog";
 
-const SITE = "https://autopilotgeo.com";
+const SITE = "https://www.ranki.ai";
 const STATIC = ["/", "/blog", "/about", "/privacy", "/terms"];
 
 export const Route = createFileRoute("/sitemap.xml")({

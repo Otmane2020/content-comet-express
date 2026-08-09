@@ -1,8 +1,8 @@
 const RESEND_ENDPOINT = "https://api.resend.com/emails";
 
-export const SUPPORT_INBOX = "support@autopilotgeo.com";
+export const SUPPORT_INBOX = "support@ranki.ai";
 export const ADMIN_ALERT_INBOX = "oben.rockman@gmail.com";
-const FROM = "AutoPilot Geo <support@autopilotgeo.com>";
+const FROM = "Ranki.ai <support@ranki.ai>";
 
 export async function sendMail(opts: {
   to: string[];
@@ -53,7 +53,7 @@ export function supportTicketHtml(t: {
 
 export function signupHtml(t: { email: string; userId: string; when: string }) {
   return `<div style="font-family:Arial,sans-serif;color:#111">
-    <h2 style="margin:0 0 12px">New AutoPilot Geo signup</h2>
+    <h2 style="margin:0 0 12px">New Ranki.ai signup</h2>
     <p style="margin:0 0 6px"><strong>Email:</strong> ${esc(t.email)}</p>
     <p style="margin:0 0 6px"><strong>User ID:</strong> ${esc(t.userId)}</p>
     <p style="margin:0;color:#666"><strong>Signed up:</strong> ${esc(t.when)}</p>

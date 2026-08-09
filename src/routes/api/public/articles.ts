@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { z } from "zod";
 
-const SITE = "https://autopilotgeo.com";
+const SITE = "https://www.ranki.ai";
 
 const payloadSchema = z.object({
   title: z.string().min(1).max(300),

@@ -13,4 +13,4 @@ Allow: /
 User-agent: *
 Allow: /
 
-Sitemap: https://autopilotgeo.com/sitemap.xml
+Sitemap: https://www.ranki.ai/sitemap.xml

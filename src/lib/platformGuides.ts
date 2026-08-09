@@ -17,7 +17,7 @@ export const PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
       "We publish through the official WordPress REST API. No plugin to install — all you need is an application password.",
     steps: [
       { title: "Open your WordPress admin", detail: "Go to https://yoursite.com/wp-admin, then Users → Profile (your administrator account)." },
-      { title: "Create an application password", detail: "Scroll to \u201cApplication Passwords\u201d, type the name AutopilotGEO and click \u201cAdd New\u201d." },
+      { title: "Create an application password", detail: "Scroll to \u201cApplication Passwords\u201d, type the name Ranki.ai and click \u201cAdd New\u201d." },
       { title: "Copy the generated code", detail: "WordPress shows something like \u201cabcd efgh ijkl mnop\u201d. It appears only once — copy it right away." },
       { title: "Paste your details here", detail: "Site URL = your website address, Username = your WordPress login, Application password = the code you copied." },
     ],
@@ -33,7 +33,7 @@ export const PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
       "A WooCommerce store is still a WordPress site: we publish blog articles through the store's WordPress REST API.",
     steps: [
       { title: "Sign in to your store admin", detail: "https://yourstore.com/wp-admin with an administrator account." },
-      { title: "Users → Profile", detail: "In the \u201cApplication Passwords\u201d section, enter the name AutopilotGEO, then click \u201cAdd New\u201d." },
+      { title: "Users → Profile", detail: "In the \u201cApplication Passwords\u201d section, enter the name Ranki.ai, then click \u201cAdd New\u201d." },
       { title: "Copy the generated password", detail: "It is shown only once. Keep it handy." },
       { title: "Fill in the form", detail: "Store URL, Username and Application password. We test the connection instantly." },
     ],
@@ -78,7 +78,7 @@ export const PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
     ],
     tips: ["Respond in under 10s, otherwise the publish is marked as failed and retried."],
     prompt: [
-      "Create a public article-ingest endpoint for AutopilotGEO, backed by Supabase.",
+      "Create a public article-ingest endpoint for Ranki.ai, backed by Supabase.",
       "",
       "1) Database (Supabase migration):",
       "   Create table public.articles with columns: id uuid primary key default gen_random_uuid(),",
@@ -97,14 +97,14 @@ export const PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
       "   - Parse the JSON body:",
       "     { title, slug, excerpt, markdown, html, cover_url, keywords, published_at, content_type }",
       "   - Upsert into public.articles on slug using the Supabase service role key (server-side only).",
-      "   - Return 200 with JSON { url: \"https://YOURSITE.com/blog/\" + slug } so AutopilotGEO can store the live link.",
+      "   - Return 200 with JSON { url: \"https://YOURSITE.com/blog/\" + slug } so Ranki.ai can store the live link.",
       "   - Always answer in under 10 seconds.",
       "",
       "3) Blog pages: /blog listing the articles (newest first, cover image + title + excerpt)",
       "   and /blog/$slug rendering the html, with SEO title, meta description, canonical URL",
       "   and Article JSON-LD. Add every slug to sitemap.xml.",
       "",
-      "4) Store AUTOPILOT_SECRET as a secret and tell me its value so I can paste it into AutopilotGEO.",
+      "4) Store AUTOPILOT_SECRET as a secret and tell me its value so I can paste it into Ranki.ai.",
     ].join("\n"),
   },
 };

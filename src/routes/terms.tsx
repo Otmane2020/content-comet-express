@@ -4,17 +4,17 @@ import { Footer } from "@/components/Footer";
 export const Route = createFileRoute("/terms")({
   head: () => ({
     meta: [
-      { title: "Terms of Service — AutopilotGEO" },
+      { title: "Terms of Service — Ranki.ai" },
       {
         name: "description",
-        content: "Terms of service for AutopilotGEO by AutoPilot Geo Ltd.",
+        content: "Terms of service for Ranki.ai by Ranki AI Ltd.",
       },
-      { property: "og:title", content: "Terms of Service — AutopilotGEO" },
-      { property: "og:description", content: "Terms of service for AutopilotGEO by AutoPilot Geo Ltd." },
+      { property: "og:title", content: "Terms of Service — Ranki.ai" },
+      { property: "og:description", content: "Terms of service for Ranki.ai by Ranki AI Ltd." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
-    links: [{ rel: "canonical", href: "https://autopilotgeo.com/terms" }],
+    links: [{ rel: "canonical", href: "https://www.ranki.ai/terms" }],
   }),
   component: TermsPage,
 });
@@ -25,7 +25,7 @@ function TermsPage() {
       <div className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
-            AutopilotGEO
+            Ranki.ai
           </Link>
           <nav className="flex items-center gap-4 text-[13px]">
             <Link to="/" className="text-muted-foreground hover:text-foreground">
@@ -49,7 +49,7 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">Agreement</h2>
             <p className="mt-2">
-              These Terms of Service govern your use of AutopilotGEO, operated by AutoPilot Geo Ltd,
+              These Terms of Service govern your use of Ranki.ai, operated by Ranki AI Ltd,
               Suite 4, Piccadilly House, Manchester, M1 1AB, United Kingdom. By signing up or using the
               service, you agree to these terms.
             </p>
@@ -58,7 +58,7 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">The service</h2>
             <p className="mt-2">
-              AutopilotGEO provides AI-assisted content planning, writing, image generation and
+              Ranki.ai provides AI-assisted content planning, writing, image generation and
               publishing to connected platforms. You are responsible for reviewing the content before it
               is published and for ensuring it complies with applicable laws and platform policies.
             </p>
@@ -67,7 +67,7 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">Subscriptions and billing</h2>
             <p className="mt-2">
-              AutopilotGEO is offered as a subscription service. Fees are billed in advance. You may
+              Ranki.ai is offered as a subscription service. Fees are billed in advance. You may
               cancel at any time from your account settings. Annual plans are billed once per year and
               renew automatically unless cancelled.
             </p>
@@ -76,7 +76,7 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">Content and ownership</h2>
             <p className="mt-2">
-              You retain ownership of the content generated for your account. You grant AutopilotGEO a
+              You retain ownership of the content generated for your account. You grant Ranki.ai a
               limited licence to store, process and publish that content on your behalf through the
               integrations you enable.
             </p>
@@ -85,7 +85,7 @@ function TermsPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">Limitations</h2>
             <p className="mt-2">
-              AutopilotGEO is provided “as is” without warranties of any kind. We are not liable for any
+              Ranki.ai is provided “as is” without warranties of any kind. We are not liable for any
               indirect, incidental or consequential damages arising from the use of the service or from
               content published through it.
             </p>
@@ -103,8 +103,8 @@ function TermsPage() {
             <h2 className="font-display text-lg font-semibold text-foreground">Contact</h2>
             <p className="mt-2">
               For questions about these terms, email{" "}
-              <a href="mailto:support@autopilotgeo.com" className="text-primary hover:underline">
-                support@autopilotgeo.com
+              <a href="mailto:support@ranki.ai" className="text-primary hover:underline">
+                support@ranki.ai
               </a>
               .
             </p>

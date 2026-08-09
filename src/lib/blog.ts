@@ -17,7 +17,7 @@ export const BLOG_POSTS: BlogPost[] = [
     description:
       "Generative Engine Optimisation is the practice of making your brand the answer AI search engines quote. Learn how GEO differs from SEO and how to start.",
     publishedAt: "2026-08-05",
-    author: "AutopilotGEO Editorial",
+    author: "Ranki.ai Editorial",
     readMinutes: 6,
     tags: ["GEO", "AI search", "SEO"],
     content: [
@@ -76,7 +76,7 @@ export const BLOG_POSTS: BlogPost[] = [
     description:
       "AI can plan, write and publish a month of articles. Here is how to keep the output useful, accurate and on-brand while you sleep.",
     publishedAt: "2026-08-07",
-    author: "AutopilotGEO Editorial",
+    author: "Ranki.ai Editorial",
     readMinutes: 7,
     tags: ["AI content", "content automation", "editorial workflow"],
     content: [
@@ -132,7 +132,7 @@ export const BLOG_POSTS: BlogPost[] = [
     description:
       "Local search is changing. Here is how to use Google Business Profile posts, reviews and on-page signals to win nearby customers this year.",
     publishedAt: "2026-08-09",
-    author: "AutopilotGEO Editorial",
+    author: "Ranki.ai Editorial",
     readMinutes: 5,
     tags: ["Local SEO", "Google Business Profile", "local marketing"],
     content: [

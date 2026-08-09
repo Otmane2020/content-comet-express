@@ -30,9 +30,9 @@ import {
 export const Route = createFileRoute("/app")({
   head: () => ({
     meta: [
-      { title: "Dashboard — AutopilotGEO" },
+      { title: "Dashboard — Ranki.ai" },
       { name: "description", content: "Your rolling 30-day content calendar, drafts and publishing destinations." },
-      { property: "og:title", content: "Dashboard — AutopilotGEO" },
+      { property: "og:title", content: "Dashboard — Ranki.ai" },
       { property: "og:description", content: "Your rolling 30-day AI content calendar." },
       { name: "robots", content: "noindex" },
     ],
