@@ -43,6 +43,7 @@ export function Calendar({ projectId }: { projectId: string }) {
   const [draft, setDraft] = useState<{ title: string; body: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [page, setPage] = useState(0);
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
   const PER_PAGE = 5;
 
   const { data: items = [], isLoading } = useQuery({
@@ -90,6 +91,34 @@ export function Calendar({ projectId }: { projectId: string }) {
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  async function illustrateAll() {
+    const targets = items.filter((i) => i.body_md && !i.cover_image_url);
+    if (!targets.length) {
+      toast.info(
+        items.some((i) => !i.body_md)
+          ? "Write the articles first — only written drafts can be illustrated."
+          : "Every article already has its images.",
+      );
+      return;
+    }
+    setBulk({ done: 0, total: targets.length });
+    let ok = 0;
+    let failed = 0;
+    for (const [i, item] of targets.entries()) {
+      try {
+        await illustrate({ data: { itemId: item.id, origin: window.location.origin } });
+        ok += 1;
+      } catch {
+        failed += 1;
+      }
+      setBulk({ done: i + 1, total: targets.length });
+      void qc.invalidateQueries({ queryKey: ["content", projectId] });
+    }
+    setBulk(null);
+    if (ok) toast.success(`Images generated for ${ok} article${ok > 1 ? "s" : ""}.`);
+    if (failed) toast.error(`${failed} article${failed > 1 ? "s" : ""} could not be illustrated.`);
+  }
 
   async function saveDraft() {
     if (!open || !draft) return;
