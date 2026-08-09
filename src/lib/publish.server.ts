@@ -295,7 +295,9 @@ export async function runPublish(
         try {
           const token = await accessTokenFor(conn.id);
           await createGmbPost(token, conn.resource_id, {
-            summary: [payload.title, payload.excerpt].filter(Boolean).join("\n\n"),
+            summary: [payload.title, payload.excerpt || (payload.body_md ?? "").slice(0, 900)]
+              .filter(Boolean)
+              .join("\n\n"),
             url: firstOk?.url ?? null,
           });
           results.push({ platform: "gmb", success: true, message: "Shared on Google Business Profile", url: null });
