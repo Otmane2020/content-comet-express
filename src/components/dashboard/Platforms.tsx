@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plug, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PLATFORM_META, type PlatformId } from "@/lib/geo";
+import { PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -73,7 +74,9 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
           )}
           {integrations.map((i) => (
             <div key={i.id} className="flex items-center gap-3 rounded-lg border border-border px-3 py-2.5">
-              <Plug className="size-4 text-primary" />
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-[11px] border border-border bg-card">
+                <PlatformLogo platform={i.platform} className="size-5" />
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{i.label}</p>
                 <p className="font-mono text-[11px] text-muted-foreground">
@@ -93,23 +96,26 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
         <h2 className="font-display text-lg font-semibold">Add a destination</h2>
         <div className="mt-4 space-y-4">
           <div>
-            <Label htmlFor="platform">Platform</Label>
-            <select
-              id="platform"
-              value={platform}
-              onChange={(e) => {
-                setPlatform(e.target.value as PlatformId);
-                setValues({});
-              }}
-              className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-            >
-              {Object.entries(PLATFORM_META).map(([id, meta]) => (
-                <option key={id} value={id}>
-                  {meta.label}
-                </option>
+            <Label>Platform</Label>
+            <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {(Object.entries(PLATFORM_META) as [PlatformId, (typeof PLATFORM_META)[PlatformId]][]).map(([id, meta]) => (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => {
+                    setPlatform(id);
+                    setValues({});
+                  }}
+                  className={`flex items-center gap-2 rounded-xl border px-3 py-2.5 text-left transition ${
+                    platform === id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:bg-muted/50"
+                  }`}
+                >
+                  <PlatformLogo platform={id} className="size-5 shrink-0" />
+                  <span className="truncate text-[12.5px] font-medium">{meta.label}</span>
+                </button>
               ))}
-            </select>
-            <p className="mt-1.5 text-[12px] text-muted-foreground">{PLATFORM_META[platform].hint}</p>
+            </div>
+            <p className="mt-2 text-[12px] text-muted-foreground">{PLATFORM_META[platform].hint}</p>
           </div>
           <div>
             <Label htmlFor="label">Name</Label>
