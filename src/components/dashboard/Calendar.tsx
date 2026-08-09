@@ -1,8 +1,8 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ExternalLink, Loader2, PenLine, Send, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Loader2, PenLine, Send, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateArticle, publishItem } from "@/lib/autopilot.functions";
 import { STATUS_META, TYPE_META, type ContentType } from "@/lib/geo";
@@ -30,6 +30,8 @@ export function Calendar({ projectId }: { projectId: string }) {
   const publish = useServerFn(publishItem);
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; body: string } | null>(null);
+  const [page, setPage] = useState(0);
+  const PER_PAGE = 5;
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["content", projectId],
@@ -83,6 +85,12 @@ export function Calendar({ projectId }: { projectId: string }) {
 
   const done = items.filter((i) => i.status === "published").length;
   const ready = items.filter((i) => i.status === "draft").length;
+  const pageCount = Math.max(1, Math.ceil(items.length / PER_PAGE));
+  const pageItems = items.slice(page * PER_PAGE, page * PER_PAGE + PER_PAGE);
+
+  useEffect(() => {
+    if (page > pageCount - 1) setPage(pageCount - 1);
+  }, [page, pageCount]);
 
   return (
     <div>
@@ -99,38 +107,61 @@ export function Calendar({ projectId }: { projectId: string }) {
         ))}
       </div>
 
-      <div className="surface mt-5 divide-y divide-border overflow-hidden">
+      <div className="mt-5 flex items-center justify-between gap-3">
+        <h3 className="font-display text-[15px] font-bold">Rolling schedule</h3>
+        <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+          {items.length ? `${page * PER_PAGE + 1}–${Math.min((page + 1) * PER_PAGE, items.length)} of ${items.length}` : "—"}
+        </p>
+      </div>
+
+      <div className="mt-3 space-y-3">
         {isLoading && (
-          <p className="px-5 py-6 text-sm text-muted-foreground">Loading your calendar…</p>
+          <p className="surface px-5 py-6 text-sm text-muted-foreground">Loading your calendar…</p>
         )}
         {!isLoading && items.length === 0 && (
-          <p className="px-5 py-6 text-sm text-muted-foreground">No content planned yet.</p>
+          <p className="surface px-5 py-6 text-sm text-muted-foreground">No content planned yet.</p>
         )}
-        {items.map((item) => {
+        {pageItems.map((item) => {
           const meta = TYPE_META[item.content_type as ContentType];
           const status = STATUS_META[item.status] ?? STATUS_META["planned"]!;
           const busy =
             (genMutation.isPending && genMutation.variables === item.id) ||
             (pubMutation.isPending && pubMutation.variables === item.id);
+          const d = new Date(`${item.scheduled_date}T00:00:00`);
           return (
-            <div key={item.id} className="flex flex-wrap items-center gap-3 px-4 py-3 hover:bg-secondary/50">
-              <span className="w-24 font-mono text-[12px] text-muted-foreground">{item.scheduled_date}</span>
-              <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta?.tone ?? ""}`}>
-                {meta?.short ?? item.content_type}
-              </span>
-              <button
-                type="button"
-                onClick={() => {
-                  setOpenId(item.id);
-                  setDraft({ title: item.title ?? item.topic ?? "", body: item.body_md ?? "" });
-                }}
-                className="min-w-40 flex-1 truncate text-left text-[14px] font-medium hover:text-primary"
-              >
-                {item.title ?? item.topic ?? "Untitled slot"}
-              </button>
-              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>
-                {status.label}
-              </span>
+            <div
+              key={item.id}
+              className="surface flex flex-wrap items-center gap-4 px-4 py-4 transition-colors hover:border-primary/40"
+            >
+              <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-secondary/70 text-center">
+                <span className="font-mono text-[10px] uppercase tracking-wide text-muted-foreground">
+                  {d.toLocaleDateString("en-US", { month: "short" })}
+                </span>
+                <span className="font-display text-lg font-bold leading-none">{d.getDate()}</span>
+              </div>
+              <div className="min-w-40 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta?.tone ?? ""}`}>
+                    {meta?.short ?? item.content_type}
+                  </span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>
+                    {status.label}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenId(item.id);
+                    setDraft({ title: item.title ?? item.topic ?? "", body: item.body_md ?? "" });
+                  }}
+                  className="mt-1.5 block w-full truncate text-left text-[14.5px] font-semibold hover:text-primary"
+                >
+                  {item.title ?? item.topic ?? "Untitled slot"}
+                </button>
+                {item.excerpt && (
+                  <p className="mt-0.5 line-clamp-1 text-[12.5px] text-muted-foreground">{item.excerpt}</p>
+                )}
+              </div>
               <div className="flex items-center gap-1.5">
                 <Button
                   size="sm"
@@ -168,6 +199,34 @@ export function Calendar({ projectId }: { projectId: string }) {
           );
         })}
       </div>
+
+      {pageCount > 1 && (
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
+            <ChevronLeft className="size-4" />
+          </Button>
+          {Array.from({ length: pageCount }).map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setPage(i)}
+              className={`size-8 rounded-lg font-mono text-[12px] font-semibold transition-colors ${
+                i === page ? "bg-deep text-background" : "bg-secondary text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {i + 1}
+            </button>
+          ))}
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= pageCount - 1}
+            onClick={() => setPage((p) => p + 1)}
+          >
+            <ChevronRight className="size-4" />
+          </Button>
+        </div>
+      )}
 
       <Sheet open={!!open} onOpenChange={(v) => !v && setOpenId(null)}>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-2xl">
