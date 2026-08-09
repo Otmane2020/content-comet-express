@@ -1,9 +1,11 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { BookOpen, Check, Clock, Copy, ExternalLink, HelpCircle, Plug, ShieldCheck, Timer, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PLATFORM_META, type PlatformId } from "@/lib/geo";
+import { startShopifyInstall } from "@/lib/shopify.functions";
 import { PLATFORM_GUIDES } from "@/lib/platformGuides";
 import { PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
@@ -32,6 +34,9 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
   const [values, setValues] = useState<Record<string, string>>({});
   const [label, setLabel] = useState("");
   const [guideFor, setGuideFor] = useState<PlatformId | null>(null);
+  const [shopDomain, setShopDomain] = useState("");
+  const [manualShopify, setManualShopify] = useState(false);
+  const install = useServerFn(startShopifyInstall);
 
   const { data: integrations = [] } = useQuery({
     queryKey: ["integrations", projectId],
@@ -73,6 +78,35 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
     },
     onSuccess: () => void qc.invalidateQueries({ queryKey: ["integrations", projectId] }),
   });
+
+  const connectShopify = useMutation({
+    mutationFn: async (shop: string) => {
+      const { url } = await install({ data: { projectId, shop, origin: window.location.origin } });
+      window.location.href = url;
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
+
+  // Handle the return from Shopify (and installs started from the Shopify admin).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("shopify");
+    const pending = params.get("connect_shopify");
+    if (!status && !pending) return;
+    window.history.replaceState({}, "", `${window.location.pathname}?tab=platforms`);
+    if (status === "connected") {
+      toast.success("Shopify app installed — your store is connected.");
+      void qc.invalidateQueries({ queryKey: ["integrations", projectId] });
+    } else if (status === "error") {
+      toast.error(params.get("message") ?? "Shopify install failed.");
+    }
+    if (pending) {
+      setPlatform("shopify");
+      setShopDomain(pending);
+      connectShopify.mutate(pending);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const guide = guideFor ? PLATFORM_GUIDES[guideFor] : null;
   const healthy = integrations.filter((i) => !i.last_error).length;
@@ -246,6 +280,39 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                 placeholder="Mon blog principal"
               />
             </div>
+            {platform === "shopify" && !manualShopify ? (
+              <div className="space-y-3.5">
+                <div>
+                  <Label htmlFor="shop" className="text-[12.5px]">Shop domain</Label>
+                  <Input
+                    id="shop"
+                    value={shopDomain}
+                    onChange={(e) => setShopDomain(e.target.value)}
+                    placeholder="mystore.myshopify.com"
+                    className="mt-1.5 bg-background"
+                  />
+                </div>
+                <p className="text-[11.5px] leading-relaxed text-muted-foreground">
+                  One click: you approve the Ranki app in your Shopify admin and you are sent straight
+                  back to this dashboard, already connected. No API token to copy.
+                </p>
+                <Button
+                  onClick={() => connectShopify.mutate(shopDomain)}
+                  disabled={connectShopify.isPending || !shopDomain.trim()}
+                  className="w-full bg-deep text-background hover:bg-deep/90"
+                >
+                  {connectShopify.isPending ? "Opening Shopify…" : "Install the Shopify app"}
+                </Button>
+                <button
+                  type="button"
+                  className="w-full text-center text-[11.5px] text-muted-foreground underline"
+                  onClick={() => setManualShopify(true)}
+                >
+                  Use a custom app token instead
+                </button>
+              </div>
+            ) : (
+              <>
             {PLATFORM_META[platform].fields.map((field) => (
               <div key={field.key}>
                 <Label htmlFor={field.key} className="text-[12.5px]">{field.label}</Label>
@@ -266,6 +333,8 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
             >
               {add.isPending ? "Connecting…" : "Connect destination"}
             </Button>
+              </>
+            )}
             <p className="text-center text-[11.5px] text-muted-foreground">
               Need help?{" "}
               <button type="button" className="font-semibold text-primary underline" onClick={() => setGuideFor(platform)}>
