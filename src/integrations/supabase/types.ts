@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      articles: {
+        Row: {
+          content_type: string | null
+          cover_url: string | null
+          created_at: string
+          excerpt: string | null
+          html: string | null
+          id: string
+          keywords: string[] | null
+          markdown: string | null
+          published_at: string
+          slug: string
+          title: string
+        }
+        Insert: {
+          content_type?: string | null
+          cover_url?: string | null
+          created_at?: string
+          excerpt?: string | null
+          html?: string | null
+          id?: string
+          keywords?: string[] | null
+          markdown?: string | null
+          published_at?: string
+          slug: string
+          title: string
+        }
+        Update: {
+          content_type?: string | null
+          cover_url?: string | null
+          created_at?: string
+          excerpt?: string | null
+          html?: string | null
+          id?: string
+          keywords?: string[] | null
+          markdown?: string | null
+          published_at?: string
+          slug?: string
+          title?: string
+        }
+        Relationships: []
+      }
       competitors: {
         Row: {
           created_at: string
