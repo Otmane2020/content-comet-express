@@ -27,11 +27,44 @@ const ShopifyLogo = (p: SVGProps) => (
   </svg>
 );
 
-const LovableBoltLogo = (p: SVGProps) => (
+/** Lovable — heart mark. */
+export const LovableLogo = (p: SVGProps) => (
   <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
-    <path d="M13.2 2 4 13.4h5.6L8.8 22 20 10.2h-6.2L13.2 2Z" fill="#C79A2E" />
+    <path
+      d="M12 21s-7.6-4.7-9.4-9.2C1.3 8.3 3.2 4.8 6.6 4.2c2.1-.4 4.1.6 5.4 2.3 1.3-1.7 3.3-2.7 5.4-2.3 3.4.6 5.3 4.1 4 7.6C19.6 16.3 12 21 12 21Z"
+      fill="#FF4D82"
+    />
   </svg>
 );
+
+/** Bolt.new — lightning mark. */
+export const BoltLogo = (p: SVGProps) => (
+  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
+    <rect x="1.5" y="1.5" width="21" height="21" rx="5" fill="#0F172A" />
+    <path d="M13.6 4 6.8 13.3h4.2L10.4 20l6.8-9.3h-4.2L13.6 4Z" fill="#FACC15" />
+  </svg>
+);
+
+/** Replit — three offset squares. */
+export const ReplitLogo = (p: SVGProps) => (
+  <svg viewBox="0 0 24 24" fill="#F26207" xmlns="http://www.w3.org/2000/svg" {...p}>
+    <path d="M3.5 3.6c0-.6.5-1.1 1.1-1.1h6.3c.6 0 1.1.5 1.1 1.1v5.2H4.6c-.6 0-1.1-.5-1.1-1.1V3.6ZM12 9.1h6.4c.6 0 1.1.5 1.1 1.1v4.1c0 .6-.5 1.1-1.1 1.1H12V9.1ZM3.5 16.2c0-.6.5-1.1 1.1-1.1H12v5.3c0 .6-.5 1.1-1.1 1.1H4.6c-.6 0-1.1-.5-1.1-1.1v-4.2Z" />
+  </svg>
+);
+
+/** Fallback / generic custom-endpoint mark. */
+const LovableBoltLogo = LovableLogo;
+
+/** Row of the three no-code hosts we POST the article JSON to. */
+export function CustomSiteLogos({ className = "size-6" }: { className?: string }) {
+  return (
+    <span className="flex items-center gap-1.5">
+      <LovableLogo className={className} aria-hidden />
+      <BoltLogo className={className} aria-hidden />
+      <ReplitLogo className={className} aria-hidden />
+    </span>
+  );
+}
 
 const MAP: Record<PlatformId, (p: SVGProps) => ReactElement> = {
   wordpress: WordPressLogo,
