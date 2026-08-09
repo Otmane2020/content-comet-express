@@ -135,23 +135,23 @@ export const publishToGmb = createServerFn({ method: "POST" })
 
     let query = context.supabase
       .from("content_items")
-      .select("id, title, summary, body_markdown, canonical_url")
+      .select("id, title, excerpt, body_md, published_url")
       .eq("project_id", data.projectId);
     query = data.contentId
       ? query.eq("id", data.contentId)
-      : query.order("scheduled_for", { ascending: false }).limit(1);
+      : query.order("scheduled_date", { ascending: false }).limit(1);
     const { data: itemRows } = await query;
     const item = itemRows?.[0];
     if (!item) throw new Error("No article to post yet.");
 
-    const summary = [item.title, item.summary ?? (item.body_markdown ?? "").replace(/[#*`>]/g, "").slice(0, 900)]
+    const summary = [item.title, item.excerpt ?? (item.body_md ?? "").replace(/[#*`>]/g, "").slice(0, 900)]
       .filter(Boolean)
       .join("\n\n");
 
     const { accessTokenFor, createGmbPost } = await import("./google.server");
     try {
       const token = await accessTokenFor(conn.id);
-      await createGmbPost(token, conn.resource_id, { summary, url: item.canonical_url ?? null });
+      await createGmbPost(token, conn.resource_id, { summary, url: item.published_url ?? null });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Google post failed";
       await context.supabase.from("google_connections").update({ last_error: message, status: "error" }).eq("id", conn.id);
