@@ -85,29 +85,29 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
           <div className="max-w-xl">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Destinations</p>
             <h1 className="mt-1.5 font-display text-[26px] font-bold leading-tight">
-              Connecte tes sites une fois. L'autopilot publie tous les jours.
+              Connect your sites once. The autopilot publishes every day.
             </h1>
             <p className="mt-2 text-[13.5px] leading-relaxed text-background/70">
-              Chaque article généré est envoyé automatiquement vers les plateformes connectées — via
-              leurs API officielles, sans plugin. Un doute sur les identifiants ? Ouvre le guide de la
-              plateforme, tout y est expliqué étape par étape.
+              Every generated article is sent automatically to your connected platforms — through their
+              official APIs, no plugin required. Unsure about credentials? Open the platform guide,
+              every step is explained.
             </p>
           </div>
           <div className="flex gap-3">
             <div className="rounded-xl border border-background/15 bg-background/10 px-4 py-3">
               <p className="font-display text-2xl font-bold">{integrations.length}</p>
-              <p className="text-[11px] uppercase tracking-wide text-background/60">Connectées</p>
+              <p className="text-[11px] uppercase tracking-wide text-background/60">Connected</p>
             </div>
             <div className="rounded-xl border border-background/15 bg-background/10 px-4 py-3">
               <p className="font-display text-2xl font-bold text-gold">{healthy}</p>
-              <p className="text-[11px] uppercase tracking-wide text-background/60">En ligne</p>
+              <p className="text-[11px] uppercase tracking-wide text-background/60">Live</p>
             </div>
           </div>
         </div>
         <div className="relative mt-5 flex flex-wrap gap-4 text-[12px] text-background/70">
-          <span className="inline-flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-gold" /> Identifiants chiffrés</span>
-          <span className="inline-flex items-center gap-1.5"><Plug className="size-3.5 text-gold" /> API officielles</span>
-          <span className="inline-flex items-center gap-1.5"><Timer className="size-3.5 text-gold" /> 2 à 5 min par site</span>
+          <span className="inline-flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-gold" /> Encrypted credentials</span>
+          <span className="inline-flex items-center gap-1.5"><Plug className="size-3.5 text-gold" /> Official APIs</span>
+          <span className="inline-flex items-center gap-1.5"><Timer className="size-3.5 text-gold" /> 2–5 min per site</span>
         </div>
       </section>
 
@@ -115,7 +115,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
       <div className="surface overflow-hidden">
         <div className="flex items-center justify-between border-b border-border px-5 py-3.5">
           <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-            Destinations connectées
+            Connected destinations
           </p>
           <span className="text-[12px] text-muted-foreground">{integrations.length} site(s)</span>
         </div>
@@ -124,9 +124,9 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
             <span className="mx-auto flex size-11 items-center justify-center rounded-xl bg-secondary">
               <Plug className="size-5 text-muted-foreground" />
             </span>
-            <h3 className="mt-3 font-display text-base font-semibold">Aucune destination pour l'instant</h3>
+            <h3 className="mt-3 font-display text-base font-semibold">No destination yet</h3>
             <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-muted-foreground">
-              Choisis une plateforme ci-dessous, ouvre le guide si besoin, et colle tes identifiants.
+              Pick a platform below, open the guide if needed, and paste your credentials.
             </p>
           </div>
         ) : (
@@ -156,7 +156,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                     i.last_error ? "bg-warning-soft text-warning" : "bg-success-soft text-success"
                   }`}
                 >
-                  {i.last_error ? "À vérifier" : "Connectée"}
+                  {i.last_error ? "Needs attention" : "Connected"}
                 </span>
                 <Button size="sm" variant="ghost" onClick={() => remove.mutate(i.id)}>
                   <Trash2 className="size-4" />
@@ -172,10 +172,10 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
         <div>
           <div className="flex items-center gap-2">
             <span className="flex size-6 items-center justify-center rounded-full bg-deep text-[11px] font-bold text-background">1</span>
-            <h2 className="font-display text-base font-semibold">Choisis la plateforme</h2>
+            <h2 className="font-display text-base font-semibold">Choose the platform</h2>
           </div>
           <p className="mt-1 text-[12.5px] text-muted-foreground">
-            Publication via API officielle — aucun plugin à installer.
+            Published through the official API — no plugin to install.
           </p>
           <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
             {(Object.entries(PLATFORM_META) as [PlatformId, (typeof PLATFORM_META)[PlatformId]][]).map(
@@ -197,7 +197,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                   <span className="min-w-0">
                     <span className="block truncate text-[12.5px] font-semibold">{meta.label}</span>
                     <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">
-                      {PLATFORM_GUIDES[id].time} de configuration
+                      {PLATFORM_GUIDES[id].time} setup
                     </span>
                   </span>
                   {platform === id && (
@@ -219,7 +219,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
               className="mt-3 border-deep/20 bg-background text-[12.5px]"
               onClick={() => setGuideFor(platform)}
             >
-              <BookOpen className="mr-1.5 size-3.5" /> Voir le guide pas à pas
+              <BookOpen className="mr-1.5 size-3.5" /> View step-by-step guide
             </Button>
           </div>
         </div>
@@ -227,14 +227,14 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
         <div>
           <div className="flex items-center gap-2">
             <span className="flex size-6 items-center justify-center rounded-full bg-deep text-[11px] font-bold text-background">2</span>
-            <h2 className="font-display text-base font-semibold">Saisis tes identifiants</h2>
+            <h2 className="font-display text-base font-semibold">Enter your credentials</h2>
           </div>
           <p className="mt-1 text-[12.5px] text-muted-foreground">
-            Chiffrés et utilisés uniquement pour publier ton propre contenu.
+            Encrypted and used only to publish your own content.
           </p>
           <div className="mt-4 space-y-3.5 rounded-xl border border-border bg-secondary/30 p-4">
             <div>
-              <Label htmlFor="label" className="text-[12.5px]">Nom</Label>
+              <Label htmlFor="label" className="text-[12.5px]">Name</Label>
               <Input
                 id="label"
                 value={label}
@@ -261,12 +261,12 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
               disabled={add.isPending}
               className="w-full bg-deep text-background hover:bg-deep/90"
             >
-              {add.isPending ? "Connexion…" : "Connecter la destination"}
+              {add.isPending ? "Connecting…" : "Connect destination"}
             </Button>
             <p className="text-center text-[11.5px] text-muted-foreground">
-              Besoin d'aide ?{" "}
+              Need help?{" "}
               <button type="button" className="font-semibold text-primary underline" onClick={() => setGuideFor(platform)}>
-                Ouvrir le guide {PLATFORM_META[platform].label}
+                Open the {PLATFORM_META[platform].label} guide
               </button>
             </p>
           </div>
@@ -286,7 +286,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                     </span>
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
-                        Guide de connexion · {guide.time}
+                        Setup guide · {guide.time}
                       </p>
                       <DialogTitle className="font-display text-xl text-background">
                         {PLATFORM_META[guideFor].label}
@@ -317,7 +317,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                 {guide.tips && guide.tips.length > 0 && (
                   <div className="rounded-xl border border-gold/30 bg-gold-soft/50 p-4">
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gold-foreground">
-                      Bon à savoir
+                      Good to know
                     </p>
                     <ul className="mt-2 space-y-1.5">
                       {guide.tips.map((t) => (
@@ -339,12 +339,12 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                       setGuideFor(null);
                     }}
                   >
-                    Configurer {PLATFORM_META[guideFor].label}
+                    Set up {PLATFORM_META[guideFor].label}
                   </Button>
                   {guide.docUrl && (
                     <Button variant="outline" asChild>
                       <a href={guide.docUrl} target="_blank" rel="noreferrer">
-                        Documentation officielle <ExternalLink className="ml-1.5 size-3.5" />
+                        Official documentation <ExternalLink className="ml-1.5 size-3.5" />
                       </a>
                     </Button>
                   )}
