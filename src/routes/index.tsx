@@ -82,16 +82,16 @@ const CAPABILITIES = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Ranki.ai — 30 Days of AI SEO Content, Auto-Published" },
+      { title: "Ranki.ai — AI SEO & GEO on Autopilot" },
       {
         name: "description",
         content:
-          "A rolling 30-day calendar of GEO, SEO and AEO content written by DeepSeek and published automatically to WordPress, WooCommerce, PrestaShop, Shopify and your own site.",
+          "Get 30 days of SEO & GEO content created and auto-published to help your business rank on Google, ChatGPT & Perplexity.",
       },
-      { property: "og:title", content: "Ranki.ai — 30 Days of AI SEO Content, Auto-Published" },
+      { property: "og:title", content: "Ranki.ai — AI SEO & GEO on Autopilot" },
       {
         property: "og:description",
-        content: "Plan, write and publish a month of generative-search content on autopilot.",
+        content: "Get 30 days of SEO & GEO content created and auto-published to help your business rank on Google, ChatGPT & Perplexity.",
       },
       { property: "og:url", content: "https://www.ranki.ai/" },
       { property: "og:type", content: "website" },
@@ -221,10 +221,7 @@ function Landing() {
               <Sparkles className="size-3.5" /> GEO · SEO · AEO ON AUTOPILOT
             </span>
             <h1 className="mt-5 text-4xl font-bold sm:text-5xl">
-              30 days of content.
-              <br />
-              Written and published
-              <span className="text-primary"> without you.</span>
+              Rank Higher on Google & AI Search — Automatically
             </h1>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
               Ranki.ai builds a rolling 30-day editorial calendar for your business, writes every
