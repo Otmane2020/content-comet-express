@@ -29,6 +29,21 @@ export const buildPlan = createServerFn({ method: "POST" })
     const missing = window.filter((s) => !taken.has(s.date));
     if (missing.length === 0) return { created: 0 };
 
+    // Plan on researched keywords, most relevant first, and never re-use the
+    // same terms twice — otherwise 30 days circle around 3 topics.
+    const { data: researched } = await supabase
+      .from("keyword_research")
+      .select("id, keyword, relevance_score, search_volume")
+      .eq("project_id", data.projectId)
+      .eq("used", false)
+      .order("relevance_score", { ascending: false, nullsFirst: false })
+      .order("search_volume", { ascending: false, nullsFirst: false })
+      .limit(missing.length * 2);
+    const picked = (researched ?? []) as { id: string; keyword: string }[];
+    const planKeywords = picked.length
+      ? picked.map((k) => k.keyword)
+      : (project.keywords ?? []);
+
     const topics = await planTopics(
       {
         name: project.name,
@@ -37,7 +52,7 @@ export const buildPlan = createServerFn({ method: "POST" })
         audience: project.audience,
         tone: project.tone,
         locale: project.locale,
-        keywords: project.keywords ?? [],
+        keywords: planKeywords,
       },
       missing.map((m) => ({ date: m.date, type: m.type as ContentType })),
     );
@@ -53,6 +68,12 @@ export const buildPlan = createServerFn({ method: "POST" })
       })),
     );
     if (insertError) throw new Error(insertError.message);
+    if (picked.length) {
+      await supabase
+        .from("keyword_research")
+        .update({ used: true })
+        .in("id", picked.slice(0, missing.length).map((k) => k.id));
+    }
     return { created: topics.length };
   });
 
