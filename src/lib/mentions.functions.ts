@@ -27,7 +27,7 @@ export const scanAiMentions = createServerFn({ method: "POST" })
 
     const prompts = mentionPrompts({
       brand,
-      industry: p.industry,
+      industry: p.industry ?? null,
       keywords: p.keywords ?? null,
     });
     const engines = Object.keys(ENGINE_MODELS) as (keyof typeof ENGINE_MODELS)[];
