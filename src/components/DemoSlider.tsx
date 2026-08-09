@@ -83,7 +83,7 @@ export function DemoSlider() {
           onMouseEnter={() => setPaused(true)}
           onMouseLeave={() => setPaused(false)}
         >
-          <div className="surface overflow-hidden p-2">
+          <div className="surface self-start overflow-hidden p-2">
             <div className="flex items-center gap-1.5 px-2 pb-2 pt-1">
               <span className="size-2.5 rounded-full bg-destructive/60" />
               <span className="size-2.5 rounded-full bg-gold/70" />
