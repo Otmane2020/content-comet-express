@@ -146,6 +146,18 @@ function Landing() {
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-3.5">
           <BrandLockup />
           <div className="flex items-center gap-2">
+            <a
+              href="#capabilities"
+              className="hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Features
+            </a>
+            <a
+              href="#pricing"
+              className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              Pricing
+            </a>
             <Button asChild variant="ghost" size="sm">
               <Link to="/auth">Sign in</Link>
             </Button>
@@ -248,6 +260,107 @@ function Landing() {
                 <p className="font-display font-semibold">{meta.label}</p>
                 <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.hint}</p>
               </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section id="capabilities" className="mx-auto max-w-6xl px-5 py-16">
+        <h2 className="text-2xl font-bold">Everything the autopilot handles</h2>
+        <p className="mt-2 max-w-2xl text-[15px] text-muted-foreground">
+          Research, writing, publishing and measurement live in one loop — each day feeds the next.
+        </p>
+        <div className="mt-8 grid gap-4 sm:grid-cols-2">
+          {CAPABILITIES.map((c) => (
+            <div key={c.title} className="surface flex gap-4 p-6">
+              <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+                <c.icon className="size-5" />
+              </span>
+              <div>
+                <h3 className="text-lg font-semibold">{c.title}</h3>
+                <p className="mt-1.5 text-[14px] leading-relaxed text-muted-foreground">{c.body}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-6xl px-5 py-16">
+          <h2 className="text-2xl font-bold">The five formats it rotates</h2>
+          <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {ROTATION.map((type) => {
+              const meta = TYPE_META[type];
+              return (
+                <div key={type} className="surface p-5">
+                  <span
+                    className={`inline-flex rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta.tone}`}
+                  >
+                    {meta.short}
+                  </span>
+                  <p className="mt-3 font-display font-semibold">{meta.label}</p>
+                  <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.blurb}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      <section id="pricing" className="mx-auto max-w-6xl px-5 py-16">
+        <h2 className="text-2xl font-bold">Simple pricing</h2>
+        <p className="mt-2 text-[15px] text-muted-foreground">
+          Every plan includes the rolling calendar, DeepSeek writing and auto-publishing.
+        </p>
+        <div className="mt-8 grid gap-4 lg:grid-cols-3">
+          {PLANS.map((plan) => (
+            <div
+              key={plan.name}
+              className={`surface flex flex-col p-6 ${plan.featured ? "ring-2 ring-gold/60" : ""}`}
+            >
+              <div className="flex items-center justify-between">
+                <p className="font-display text-lg font-semibold">{plan.name}</p>
+                {plan.featured && (
+                  <span className="rounded-full bg-gold-soft px-2.5 py-0.5 font-mono text-[10px] font-semibold text-gold-foreground">
+                    POPULAR
+                  </span>
+                )}
+              </div>
+              <p className="mt-3">
+                <span className="font-display text-4xl font-bold">€{plan.price}</span>
+                <span className="text-[13px] text-muted-foreground"> / month</span>
+              </p>
+              <p className="mt-2 text-[13px] text-muted-foreground">{plan.blurb}</p>
+              <ul className="mt-5 space-y-2 text-[13px] text-foreground/80">
+                {plan.features.map((f) => (
+                  <li key={f} className="flex items-center gap-2">
+                    <Check className="size-4 text-success" /> {f}
+                  </li>
+                ))}
+              </ul>
+              <Button
+                asChild
+                className={`mt-6 ${plan.featured ? "bg-deep text-background hover:bg-deep/90" : ""}`}
+                variant={plan.featured ? "default" : "outline"}
+              >
+                <Link to="/auth">Start with {plan.name}</Link>
+              </Button>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-border bg-secondary/50">
+        <div className="mx-auto max-w-3xl px-5 py-16">
+          <h2 className="text-2xl font-bold">Questions</h2>
+          <div className="mt-8 space-y-3">
+            {FAQ.map((item) => (
+              <details key={item.q} className="surface group p-5">
+                <summary className="cursor-pointer list-none font-display font-semibold marker:hidden">
+                  {item.q}
+                </summary>
+                <p className="mt-2.5 text-[14px] leading-relaxed text-muted-foreground">{item.a}</p>
+              </details>
             ))}
           </div>
         </div>
