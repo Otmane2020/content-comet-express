@@ -193,6 +193,12 @@ function Landing() {
             >
               Blog
             </Link>
+            <Link
+              to="/about"
+              className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              About
+            </Link>
             <Button asChild variant="ghost" size="sm">
               <Link to="/auth">Sign in</Link>
             </Button>
