@@ -187,13 +187,26 @@ export async function createGmbPost(
   locationName: string,
   post: { summary: string; url?: string | null; ctaLabel?: string },
 ) {
+  // Google rejects a Standard local post without a summary, and it also refuses
+  // markdown noise, so normalise the text before sending it.
+  const summary = (post.summary ?? "")
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/[#*`>_~|]/g, " ")
+    .replace(/[ \t]+/g, " ")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  if (!summary) throw new Error("Nothing to post: the article has no title or summary text yet.");
+
   const body: Record<string, unknown> = {
-    languageCode: "fr",
-    summary: post.summary.slice(0, 1450),
+    languageCode: "en",
+    summary: summary.slice(0, 1450),
     topicType: "STANDARD",
   };
-  if (post.url) {
-    body["callToAction"] = { actionType: post.ctaLabel === "BOOK" ? "BOOK" : "LEARN_MORE", url: post.url };
+  const url = (post.url ?? "").trim();
+  if (/^https?:\/\//i.test(url)) {
+    body["callToAction"] = { actionType: post.ctaLabel === "BOOK" ? "BOOK" : "LEARN_MORE", url };
   }
   return gfetch(`https://mybusiness.googleapis.com/v4/${locationName}/localPosts`, token, {
     method: "POST",
