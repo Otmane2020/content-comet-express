@@ -78,18 +78,18 @@ export const researchKeywords = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("name, industry, locale, website_url")
+      .select("name, industry, audience, locale, target_country, website_url")
       .eq("id", data.projectId)
       .single();
     await requireLiveDataForSeo();
     const rows: KwRow[] = await keywordIdeas(
       data.seeds.slice(0, QUOTA.seeds),
-      localeOpts(project?.locale ?? null),
+      localeOpts(project?.locale ?? null, project?.target_country ?? null),
       QUOTA.keywords,
     );
     const unique = dedupeKeywords(rows, QUOTA.keywords);
-    await saveKeywords(supabase, userId, data.projectId, unique);
-    return { found: unique.length };
+    const found = await saveKeywords(supabase, userId, data.projectId, unique.map((r) => ({ ...r, origin: "seed" as const })));
+    return { found };
   });
 
 /** Pull the keywords a competitor domain ranks for. */
@@ -103,13 +103,17 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("name, industry, locale, website_url")
+      .select("name, industry, audience, locale, target_country, website_url")
       .eq("id", data.projectId)
       .single();
     const clean = data.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     await requireLiveDataForSeo();
     const rows: KwRow[] = dedupeKeywords(
-      await competitorKeywords(data.domain, localeOpts(project?.locale ?? null), QUOTA.keywordsPerCompetitor),
+      await competitorKeywords(
+        data.domain,
+        localeOpts(project?.locale ?? null, project?.target_country ?? null),
+        QUOTA.keywordsPerCompetitor,
+      ),
       QUOTA.keywordsPerCompetitor,
     );
     await supabase.from("competitors").upsert(
@@ -122,8 +126,13 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
       },
       { onConflict: "project_id,domain" },
     );
-    await saveKeywords(supabase, userId, data.projectId, rows);
-    return { found: rows.length };
+    const found = await saveKeywords(
+      supabase,
+      userId,
+      data.projectId,
+      rows.map((r) => ({ ...r, origin: "competitor" as const })),
+    );
+    return { found };
   });
 
 /**
