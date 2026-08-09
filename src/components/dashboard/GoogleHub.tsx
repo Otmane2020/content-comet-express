@@ -421,6 +421,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
             <h3 className="font-display text-lg font-semibold">Search performance</h3>
             <p className="text-[12.5px] text-muted-foreground">Last 28 days from Search Console.</p>
           </div>
+          <span className="hidden" aria-hidden />
           <div className="flex gap-6 font-mono text-[12px]">
             <span>
               <span className="block text-muted-foreground">clicks</span>
