@@ -2,41 +2,68 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { CalendarDays, Clock, ChevronLeft } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { BLOG_POSTS, getBlogPost } from "@/lib/blog";
+import { renderMarkdown } from "@/lib/markdown";
+import { getArticleBySlug, type IngestedArticle } from "@/lib/articles.functions";
 
 
 export const Route = createFileRoute("/blog/$slug")({
-  head: ({ params }) => {
+  loader: async ({ params }) => {
+    if (getBlogPost(params.slug)) return null;
+    return (await getArticleBySlug({ data: { slug: params.slug } })) as IngestedArticle | null;
+  },
+  errorComponent: () => (
+    <div className="mx-auto max-w-2xl px-5 py-24 text-center text-muted-foreground">
+      This article could not be loaded.
+    </div>
+  ),
+  notFoundComponent: () => (
+    <div className="mx-auto max-w-2xl px-5 py-24 text-center text-muted-foreground">
+      Article not found.
+    </div>
+  ),
+  head: ({ params, loaderData }) => {
     const post = getBlogPost(params.slug);
-    const schema = post
+    const article = (loaderData ?? null) as IngestedArticle | null;
+    const title = post?.title ?? article?.title ?? null;
+    const description = post?.description ?? article?.excerpt ?? null;
+    const datePublished = post?.publishedAt ?? article?.published_at ?? null;
+    const schema = title
       ? {
           "@context": "https://schema.org",
           "@type": "Article",
-          headline: post.title,
-          description: post.description,
+          headline: title,
+          description: description ?? undefined,
+          image: article?.cover_url ?? undefined,
           author: { "@type": "Organization", name: "AutopilotGEO" },
           publisher: { "@type": "Organization", name: "AutopilotGEO" },
-          datePublished: post.publishedAt,
-          dateModified: post.publishedAt,
+          datePublished,
+          dateModified: datePublished,
           mainEntityOfPage: {
             "@type": "WebPage",
-            "@id": `https://autopilotgeo.com/blog/${post.slug}`,
+            "@id": `https://autopilotgeo.com/blog/${params.slug}`,
           },
         }
       : null;
     return {
       meta: [
-        { title: post ? `${post.title} — AutopilotGEO` : "Post — AutopilotGEO" },
+        { title: title ? `${title} — AutopilotGEO` : "Post — AutopilotGEO" },
         {
           name: "description",
-          content: post?.description ?? "Read the full article on AutopilotGEO.",
+          content: description ?? "Read the full article on AutopilotGEO.",
         },
-        { property: "og:title", content: post?.title ?? "Post — AutopilotGEO" },
+        { property: "og:title", content: title ?? "Post — AutopilotGEO" },
         {
           property: "og:description",
-          content: post?.description ?? "Read the full article on AutopilotGEO.",
+          content: description ?? "Read the full article on AutopilotGEO.",
         },
         { property: "og:type", content: "article" },
-        { name: "twitter:card", content: "summary" },
+        { name: "twitter:card", content: article?.cover_url ? "summary_large_image" : "summary" },
+        ...(article?.cover_url
+          ? [
+              { property: "og:image", content: article.cover_url },
+              { name: "twitter:image", content: article.cover_url },
+            ]
+          : []),
       ],
       links: [{ rel: "canonical", href: `https://autopilotgeo.com/blog/${params.slug}` }],
       scripts: schema
@@ -57,9 +84,67 @@ export const Route = createFileRoute("/blog/$slug")({
 function BlogPost() {
   const { slug } = Route.useParams();
   const post = getBlogPost(slug);
-  if (!post) throw notFound();
+  const article = Route.useLoaderData() as IngestedArticle | null;
+  if (!post && !article) throw notFound();
 
   const related = BLOG_POSTS.filter((p) => p.slug !== slug).slice(0, 2);
+
+  if (!post && article) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="border-b border-border">
+          <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
+            <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
+              AutopilotGEO
+            </Link>
+            <nav className="flex items-center gap-4 text-[13px]">
+              <Link to="/" className="text-muted-foreground hover:text-foreground">
+                Home
+              </Link>
+              <Link to="/blog" className="font-semibold text-foreground">
+                Blog
+              </Link>
+            </nav>
+          </div>
+        </div>
+        <main className="mx-auto max-w-3xl px-5 py-12">
+          <Link
+            to="/blog"
+            className="inline-flex items-center gap-1 text-[12px] font-medium text-muted-foreground hover:text-foreground"
+          >
+            <ChevronLeft className="size-4" /> All articles
+          </Link>
+          <article className="mt-6">
+            <h1 className="font-display text-3xl font-bold leading-tight sm:text-4xl">
+              {article.title}
+            </h1>
+            <div className="mt-4 flex items-center gap-1 text-[12px] text-muted-foreground">
+              <CalendarDays className="size-3.5" />
+              {new Date(article.published_at).toLocaleDateString("en-US", {
+                year: "numeric",
+                month: "long",
+                day: "numeric",
+              })}
+            </div>
+            {article.cover_url && (
+              <img
+                src={article.cover_url}
+                alt={article.title}
+                className="mt-6 w-full rounded-xl border border-border object-cover"
+              />
+            )}
+            <div
+              className="prose-magazine mt-8"
+              dangerouslySetInnerHTML={{ __html: article.html ?? renderMarkdown(article.markdown ?? "") }}
+            />
+          </article>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!post) throw notFound();
 
   return (
     <div className="min-h-screen bg-background">

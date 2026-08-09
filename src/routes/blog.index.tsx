@@ -2,9 +2,21 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, Clock } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { BLOG_POSTS } from "@/lib/blog";
+import { listArticles, type IngestedArticle } from "@/lib/articles.functions";
 
 
 export const Route = createFileRoute("/blog/")({
+  loader: () => listArticles(),
+  errorComponent: () => (
+    <div className="mx-auto max-w-2xl px-5 py-24 text-center text-muted-foreground">
+      Articles could not be loaded. Please refresh.
+    </div>
+  ),
+  notFoundComponent: () => (
+    <div className="mx-auto max-w-2xl px-5 py-24 text-center text-muted-foreground">
+      Nothing here.
+    </div>
+  ),
   head: () => {
     const schema = {
       "@context": "https://schema.org",
@@ -50,6 +62,7 @@ export const Route = createFileRoute("/blog/")({
 
 
 function BlogIndex() {
+  const articles = Route.useLoaderData() as IngestedArticle[];
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b border-border">
@@ -78,6 +91,44 @@ function BlogIndex() {
         </div>
 
         <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          {articles.map((post) => (
+            <article
+              key={post.slug}
+              className="surface group flex flex-col overflow-hidden transition-all hover:border-primary/40 hover:shadow-sm"
+            >
+              {post.cover_url && (
+                <img
+                  src={post.cover_url}
+                  alt={post.title}
+                  loading="lazy"
+                  className="h-40 w-full object-cover"
+                />
+              )}
+              <div className="flex flex-1 flex-col p-5">
+                {post.content_type && (
+                  <span className="w-fit rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium uppercase text-secondary-foreground">
+                    {post.content_type}
+                  </span>
+                )}
+                <h2 className="mt-3 font-display text-lg font-semibold leading-snug group-hover:text-primary">
+                  <Link to="/blog/$slug" params={{ slug: post.slug }}>
+                    {post.title}
+                  </Link>
+                </h2>
+                <p className="mt-2 flex-1 text-[13px] leading-relaxed text-muted-foreground">
+                  {post.excerpt}
+                </p>
+                <div className="mt-4 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <CalendarDays className="size-3.5" />
+                  {new Date(post.published_at).toLocaleDateString("en-US", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                  })}
+                </div>
+              </div>
+            </article>
+          ))}
           {BLOG_POSTS.map((post) => (
             <article
               key={post.slug}
