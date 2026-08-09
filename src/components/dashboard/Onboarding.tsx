@@ -22,48 +22,48 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 
 const TONES = [
-  { id: "expert", label: "Expert", hint: "Précis, sourcé" },
-  { id: "friendly", label: "Proche", hint: "Chaleureux, simple" },
-  { id: "premium", label: "Premium", hint: "Élégant, haut de gamme" },
-  { id: "direct", label: "Direct", hint: "Court, orienté action" },
+  { id: "expert", label: "Expert", hint: "Precise, sourced" },
+  { id: "friendly", label: "Friendly", hint: "Warm, simple" },
+  { id: "premium", label: "Premium", hint: "Elegant, high-end" },
+  { id: "direct", label: "Direct", hint: "Short, action-driven" },
 ];
 
 const STEPS = [
   {
     id: 0,
     icon: Building2,
-    kicker: "Étape 1",
-    title: "Ton activité",
-    lead: "On apprend qui tu es",
+    kicker: "Step 1",
+    title: "Your business",
+    lead: "We learn who you are",
     blurb:
-      "Nom, site, secteur, audience et langue : c'est la base sur laquelle l'IA écrit. Plus c'est précis, plus les articles ressemblent à ta marque.",
+      "Name, website, industry, audience and language: the base the AI writes from. The more precise, the more the articles sound like your brand.",
   },
   {
     id: 1,
     icon: Radar,
-    kicker: "Étape 2",
-    title: "Concurrents & mots-clés",
-    lead: "On scanne ton marché",
+    kicker: "Step 2",
+    title: "Competitors & keywords",
+    lead: "We scan your market",
     blurb:
-      "On analyse tes concurrents et on extrait les mots-clés qui rapportent du trafic : volume, difficulté, CPC. Ce sont eux qui alimentent le calendrier.",
+      "We analyse your competitors and pull the keywords that actually drive traffic: volume, difficulty, CPC. They feed the calendar.",
   },
   {
     id: 2,
     icon: Rocket,
-    kicker: "Étape 3",
-    title: "Génération & auto-publish",
-    lead: "On écrit et on publie chaque jour",
+    kicker: "Step 3",
+    title: "Generation & auto-publish",
+    lead: "We write and publish daily",
     blurb:
-      "Un article par jour pendant 30 jours, illustré et publié tout seul sur tes destinations connectées. Tu n'as plus rien à faire.",
+      "One article a day for 30 days, illustrated and published on its own to your connected destinations. Nothing left for you to do.",
   },
 ];
 
 const FORMATS = [
-  { code: "GEO", desc: "Cité par ChatGPT & Perplexity" },
-  { code: "SEO", desc: "Ranking Google classique" },
-  { code: "AEO", desc: "Réponse directe acheteur" },
-  { code: "LOCAL", desc: "Intention près de chez moi" },
-  { code: "SHOP", desc: "Comparatif shopping" },
+  { code: "GEO", desc: "Cited by ChatGPT & Perplexity" },
+  { code: "SEO", desc: "Classic Google ranking" },
+  { code: "AEO", desc: "Direct buyer answer" },
+  { code: "LOCAL", desc: "Near-me intent" },
+  { code: "SHOP", desc: "Shopping comparison" },
 ];
 
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
@@ -122,9 +122,9 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         );
       }
 
-      toast.info("Construction de ton calendrier 30 jours…");
+      toast.info("Building your 30-day calendar…");
       await build({ data: { projectId: data.id, days: 30 } });
-      toast.success("Tes 30 jours sont planifiés.");
+      toast.success("Your 30 days are planned.");
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
@@ -153,10 +153,10 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
             />
             <div className="relative">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
-                Configuration · {step + 1}/3
+                Setup · {step + 1}/3
               </p>
               <h2 className="mt-2 font-display text-[21px] font-bold leading-tight">
-                3 minutes pour lancer 30 jours de contenu
+                3 minutes to launch 30 days of content
               </h2>
 
               <ol className="mt-7 space-y-1.5">
@@ -237,33 +237,33 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 {step === 0 && (
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
-                      <Label htmlFor="name" className="text-[12.5px]">Nom de l'entreprise</Label>
+                      <Label htmlFor="name" className="text-[12.5px]">Business name</Label>
                       <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Maison Dupont" />
                     </div>
                     <div className="sm:col-span-2">
-                      <Label htmlFor="url" className="text-[12.5px]">Site web</Label>
+                      <Label htmlFor="url" className="text-[12.5px]">Website</Label>
                       <Input id="url" value={form.website_url} onChange={set("website_url")} className="mt-1.5" placeholder="https://monsite.com" />
                     </div>
                     <div>
-                      <Label htmlFor="industry" className="text-[12.5px]">Secteur</Label>
-                      <Input id="industry" value={form.industry} onChange={set("industry")} className="mt-1.5" placeholder="Plomberie, SaaS RH…" />
+                      <Label htmlFor="industry" className="text-[12.5px]">Industry</Label>
+                      <Input id="industry" value={form.industry} onChange={set("industry")} className="mt-1.5" placeholder="Plumbing, HR SaaS…" />
                     </div>
                     <div>
-                      <Label htmlFor="locale" className="text-[12.5px]">Langue</Label>
+                      <Label htmlFor="locale" className="text-[12.5px]">Language</Label>
                       <select
                         id="locale"
                         value={form.locale}
                         onChange={set("locale")}
                         className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                       >
-                        <option value="fr">Français</option>
+                        <option value="fr">French</option>
                         <option value="en">English</option>
-                        <option value="es">Español</option>
-                        <option value="de">Deutsch</option>
+                        <option value="es">Spanish</option>
+                        <option value="de">German</option>
                       </select>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label className="text-[12.5px]">Ton éditorial</Label>
+                      <Label className="text-[12.5px]">Editorial tone</Label>
                       <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
                         {TONES.map((t) => (
                           <button
@@ -283,8 +283,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       </div>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label htmlFor="audience" className="text-[12.5px]">Pour qui écrit-on ?</Label>
-                      <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder="Propriétaires de maison à Lyon, 35-60 ans" />
+                      <Label htmlFor="audience" className="text-[12.5px]">Who are we writing for?</Label>
+                      <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder="Homeowners in Lyon, 35-60" />
                     </div>
                   </div>
                 )}
@@ -293,9 +293,9 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   <div className="mt-6 space-y-5">
                     <div className="grid gap-3 sm:grid-cols-3">
                       {[
-                        { t: "On liste tes rivaux", d: "Les sites qui captent déjà tes clients." },
-                        { t: "On extrait leurs mots-clés", d: "Volume, difficulté et coût par clic réels." },
-                        { t: "On garde les gagnants", d: "Ceux que tu peux réellement rafler." },
+                        { t: "We list your rivals", d: "The sites already capturing your customers." },
+                        { t: "We extract their keywords", d: "Real volume, difficulty and cost per click." },
+                        { t: "We keep the winners", d: "The ones you can realistically win." },
                       ].map((c, i) => (
                         <motion.div
                           key={c.t}
@@ -312,23 +312,23 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                     </div>
 
                     <div>
-                      <Label htmlFor="competitors" className="text-[12.5px]">Concurrents (un domaine par ligne)</Label>
+                      <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
                       <Textarea
                         id="competitors"
                         value={form.competitors}
                         onChange={set("competitors")}
                         className="mt-1.5"
                         rows={3}
-                        placeholder={"concurrent1.com\nconcurrent2.fr"}
+                        placeholder={"competitor1.com\ncompetitor2.com"}
                       />
                     </div>
                     <div>
-                      <Label htmlFor="keywords" className="text-[12.5px]">Mots-clés cibles (séparés par des virgules)</Label>
-                      <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plombier lyon, fuite d'eau, chaudière" />
+                      <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
+                      <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
                     </div>
                     <p className="rounded-xl border border-gold/30 bg-gold-soft/50 px-4 py-3 text-[12.5px] leading-relaxed text-foreground/80">
-                      Tu peux tout laisser vide : l'app analyse ton site et trouve concurrents et mots-clés
-                      toute seule dès l'ouverture du dashboard.
+                      You can leave this empty: the app analyses your site and finds competitors and keywords
+                      on its own as soon as you open the dashboard.
                     </p>
                   </div>
                 )}
@@ -361,9 +361,9 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       />
                       <div className="relative flex flex-wrap items-center gap-x-5 gap-y-4">
                         {[
-                          { icon: CalendarDays, t: "Planifié" },
-                          { icon: Sparkles, t: "Rédigé + illustré" },
-                          { icon: Send, t: "Publié partout" },
+                          { icon: CalendarDays, t: "Planned" },
+                          { icon: Sparkles, t: "Written + illustrated" },
+                          { icon: Send, t: "Published everywhere" },
                         ].map((s, i) => (
                           <motion.div
                             key={s.t}
@@ -380,16 +380,16 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         ))}
                       </div>
                       <p className="relative mt-4 text-[12.5px] leading-relaxed text-background/70">
-                        Chaque matin, l'autopilot écrit l'article du jour, génère ses images et l'envoie
-                        vers WordPress, Shopify, PrestaShop, WooCommerce ou ton site Lovable/Bolt.
+                        Every morning the autopilot writes the article of the day, generates its images and sends
+                        it to WordPress, Shopify, PrestaShop, WooCommerce or your Lovable/Bolt site.
                       </p>
                     </div>
 
                     <div className="rounded-xl border border-border bg-secondary/40 p-4 text-[12.5px] leading-relaxed text-muted-foreground">
-                      <strong className="font-semibold text-foreground">Récap :</strong>{" "}
-                      {form.name || "Ton entreprise"}
-                      {form.industry ? ` · ${form.industry}` : ""} · ton {form.tone} ·{" "}
-                      {form.locale.toUpperCase()} · 30 articles planifiés.
+                      <strong className="font-semibold text-foreground">Recap:</strong>{" "}
+                      {form.name || "Your business"}
+                      {form.industry ? ` · ${form.industry}` : ""} · {form.tone} tone ·{" "}
+                      {form.locale.toUpperCase()} · 30 articles planned.
                     </div>
                   </div>
                 )}
@@ -405,7 +405,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 disabled={step === 0 || busy}
                 className="text-[13px]"
               >
-                <ArrowLeft className="mr-1.5 size-4" /> Retour
+                <ArrowLeft className="mr-1.5 size-4" /> Back
               </Button>
 
               {step < 2 ? (
@@ -415,7 +415,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   disabled={!canNext}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
-                  Continuer <ArrowRight className="ml-1.5 size-4" />
+                  Continue <ArrowRight className="ml-1.5 size-4" />
                 </Button>
               ) : (
                 <Button
@@ -424,7 +424,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   disabled={busy}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
-                  {busy ? "Planification des 30 jours…" : "Lancer mon autopilot"}
+                  {busy ? "Planning 30 days…" : "Launch my autopilot"}
                   <Rocket className="ml-1.5 size-4" />
                 </Button>
               )}
