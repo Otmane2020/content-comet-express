@@ -40,32 +40,14 @@ const FAQ = [
   },
 ];
 
-const PLANS = [
-  {
-    name: "Solo",
-    price: "29",
-    blurb: "One site, the full 30-day rotation.",
-    features: ["1 project", "30 articles / month", "2 destinations", "Keyword research"],
-  },
-  {
-    name: "Studio",
-    price: "79",
-    blurb: "For shops that live on search.",
-    features: [
-      "3 projects",
-      "Unlimited destinations",
-      "Competitor keyword mining",
-      "Google Business Profile posts",
-      "Search Console sync",
-    ],
-    featured: true,
-  },
-  {
-    name: "Agency",
-    price: "199",
-    blurb: "Run autopilot for your clients.",
-    features: ["15 projects", "Client-ready calendars", "Priority generation", "Webhook delivery"],
-  },
+const PLAN_FEATURES = [
+  "30 articles a month, on a rolling calendar",
+  "GEO, SEO, AEO, Local & Shopping rotation",
+  "Unlimited destinations (WordPress, Woo, PrestaShop, Shopify, webhook)",
+  "Keyword research & competitor mining",
+  "AI cover and in-article images",
+  "Google Business Profile posts & Search Console sync",
+  "Auto-publish every morning",
 ];
 
 const CAPABILITIES = [
