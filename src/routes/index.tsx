@@ -260,6 +260,8 @@ function Landing() {
         </div>
       </header>
 
+      <DemoSlider />
+
       <section className="mx-auto max-w-6xl px-5 py-16">
         <h2 className="text-2xl font-bold">How the autopilot runs</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
