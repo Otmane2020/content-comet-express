@@ -2,7 +2,19 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Bot, Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Sparkles, Unplug } from "lucide-react";
+import {
+  BarChart3,
+  Bot,
+  Check,
+  CheckCircle2,
+  ExternalLink,
+  MapPin,
+  RefreshCw,
+  Search,
+  Send,
+  Sparkles,
+  Unplug,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleGlyph } from "@/components/GoogleGlyph";
 import { scanAiMentions } from "@/lib/mentions.functions";
@@ -12,6 +24,7 @@ import {
   publishToGmb,
   selectGoogleResource,
   startGoogleConnect,
+  syncAiTraffic,
   syncSearchConsole,
 } from "@/lib/google.functions";
 import { Button } from "@/components/ui/button";
@@ -23,7 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-type Service = "gmb" | "gsc";
+type Service = "gmb" | "gsc" | "ga4";
 
 type Connection = {
   id: string;
@@ -54,6 +67,16 @@ type Mention = {
   checked_at: string;
 };
 
+type AiTraffic = {
+  id: string;
+  assistant: string;
+  source: string;
+  sessions: number;
+  users: number;
+  engaged_sessions: number;
+  conversions: number;
+};
+
 const META: Record<Service, { title: string; blurb: string; pick: string; icon: typeof MapPin }> = {
   gmb: {
     title: "Google Business Profile",
@@ -66,6 +89,12 @@ const META: Record<Service, { title: string; blurb: string; pick: string; icon: 
     blurb: "Live clicks, impressions, CTR and positions feeding the next 30 days of topics.",
     pick: "Choose the verified property to track",
     icon: Search,
+  },
+  ga4: {
+    title: "Google Analytics 4",
+    blurb: "AI assistant traffic — visits arriving from ChatGPT, Perplexity, Gemini, Claude and Copilot.",
+    pick: "Choose the GA4 property to read",
+    icon: BarChart3,
   },
 };
 
