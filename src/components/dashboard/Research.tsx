@@ -142,7 +142,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
           />
           <p className="mt-1.5 text-[11.5px] text-muted-foreground">Separate each term with a comma.</p>
           <Button
-            className="mt-auto w-full bg-deep pt-0 text-background hover:bg-deep/90 sm:mt-5"
+            className="mt-5 w-full bg-deep text-background hover:bg-deep/90"
             disabled={busy === "kw"}
             onClick={() =>
               run("kw", () =>
