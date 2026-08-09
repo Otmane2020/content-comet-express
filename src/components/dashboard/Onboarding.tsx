@@ -17,7 +17,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { buildPlan } from "@/lib/autopilot.functions";
+import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { detectBusiness, detectMarket } from "@/lib/detect.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
@@ -73,6 +73,7 @@ const FORMATS = [
 
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
   const build = useServerFn(buildPlan);
+  const kickstart = useServerFn(kickstartFirstDay);
   const detectBiz = useServerFn(detectBusiness);
   const detectMkt = useServerFn(detectMarket);
   const [busy, setBusy] = useState(false);
@@ -218,6 +219,24 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       toast.info("Building your 30-day calendar…");
       await build({ data: { projectId: data.id, days: 30 } });
       toast.success("Your 30 days are planned.");
+
+      toast.info("Writing and illustrating your day-1 GEO article…");
+      try {
+        const first = await kickstart({
+          data: { projectId: data.id, origin: window.location.origin },
+        });
+        if (first.gmb?.posted) {
+          toast.success(`Day 1 ready + Local post published to Google Business Profile.`);
+        } else if (first.gmb) {
+          toast.warning(`Day 1 ready. Google Business Profile post failed: ${first.gmb.error}`);
+        } else {
+          toast.success(`Day 1 ready: “${first.title}”`);
+        }
+      } catch (e) {
+        toast.warning(
+          e instanceof Error ? `Day 1 will be written shortly (${e.message})` : "Day 1 will be written shortly",
+        );
+      }
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
