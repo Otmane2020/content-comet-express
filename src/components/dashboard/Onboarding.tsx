@@ -133,7 +133,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     }
   }
 
-  const active = STEPS[step];
+  const active = STEPS[step]!;
 
   return (
     <div className="paper-grid min-h-screen px-4 py-10">
