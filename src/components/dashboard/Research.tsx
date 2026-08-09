@@ -140,10 +140,13 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             sub: "searches across all keywords",
           },
         ].map((stat) => (
-          <div key={stat.label} className="surface p-5">
-            <p className="text-[13px] text-muted-foreground">{stat.label}</p>
-            <p className="mt-2 font-display text-2xl font-bold">{stat.value}</p>
-            <p className="mt-0.5 text-[12px] text-muted-foreground">{stat.sub}</p>
+          <div key={stat.label} className="surface relative overflow-hidden p-5 pl-6">
+            <span className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-gold" aria-hidden />
+            <p className="font-mono text-[11px] uppercase tracking-[0.08em] text-muted-foreground">
+              {stat.label}
+            </p>
+            <p className="mt-2 font-display text-[28px] font-bold leading-none text-primary">{stat.value}</p>
+            <p className="mt-1.5 text-[12px] text-muted-foreground">{stat.sub}</p>
           </div>
         ))}
       </div>
