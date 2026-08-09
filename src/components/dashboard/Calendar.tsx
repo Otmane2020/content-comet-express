@@ -308,9 +308,13 @@ export function Calendar({ projectId }: { projectId: string }) {
                       SHOPPING FEED
                     </span>
                   )}
-                  {gmbConnected && (
-                    <span className="flex items-center gap-1 rounded-full bg-gold-soft px-2 py-0.5 text-[10.5px] font-bold text-gold-foreground">
-                      <span className="size-1.5 rounded-full bg-gold" aria-hidden />
+                  {(gmbPostedIds.includes(item.id) ||
+                    (gmbSharing && item.content_type === "local_aeo")) && (
+                    <span
+                      className="flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-bold"
+                      title="Shared as a Google Business Profile local post"
+                    >
+                      <GoogleGlyph className="size-3" />
                       GMB
                     </span>
                   )}
