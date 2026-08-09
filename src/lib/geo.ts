@@ -92,6 +92,22 @@ export const PLATFORM_META: Record<
       { key: "secret", label: "Shared secret (optional)", placeholder: "x-autopilot-secret", secret: true },
     ],
   },
+  supabase: {
+    label: "Lovable / Bolt / Replit (Supabase)",
+    hint: "Simplest setup: we write each article straight into your articles table.",
+    fields: [
+      { key: "supabase_url", label: "Supabase project URL", placeholder: "https://xxxx.supabase.co" },
+      { key: "service_role_key", label: "Service role key", placeholder: "sb_secret_… / eyJ…", secret: true },
+      { key: "site_url", label: "Site URL (optional)", placeholder: "https://monapp.lovable.app" },
+    ],
+  },
+  __unused_webhook: {
+    hint: "We POST the article JSON to your endpoint. Add a secret header if you want.",
+    fields: [
+      { key: "endpoint", label: "Endpoint URL", placeholder: "https://monapp.lovable.app/api/public/articles" },
+      { key: "secret", label: "Shared secret (optional)", placeholder: "x-autopilot-secret", secret: true },
+    ],
+  },
 };
 
 export const dayKey = (d: Date) => {
