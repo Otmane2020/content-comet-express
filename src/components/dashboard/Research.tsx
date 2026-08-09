@@ -1,10 +1,10 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Radar, Search, TrendingUp } from "lucide-react";
+import { Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { analyzeCompetitor, discoverCompetitors, researchKeywords } from "@/lib/research.functions";
+import { analyzeCompetitor, autoResearch, discoverCompetitors, researchKeywords } from "@/lib/research.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -31,8 +31,11 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   const research = useServerFn(researchKeywords);
   const discover = useServerFn(discoverCompetitors);
   const analyze = useServerFn(analyzeCompetitor);
+  const auto = useServerFn(autoResearch);
+  const started = useRef(false);
+  const [autoRunning, setAutoRunning] = useState(false);
 
-  const { data: keywords = [] } = useQuery({
+  const { data: keywords = [], isLoading: kwLoading } = useQuery({
     queryKey: ["keywords", projectId],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -63,15 +66,30 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
     setBusy(key);
     try {
       const res = await fn();
-      toast.success(res.found ? `${res.found} result(s) from DataForSEO.` : "No result returned.");
+      toast.success(res.found ? `${res.found} keyword(s) added.` : "No new result.");
       void qc.invalidateQueries({ queryKey: ["keywords", projectId] });
       void qc.invalidateQueries({ queryKey: ["competitors", projectId] });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "DataForSEO request failed");
+      toast.error(e instanceof Error ? e.message : "Research request failed");
     } finally {
       setBusy(null);
     }
   }
+
+  // Hands-free: the first time a project has no keywords, run the full
+  // research pass (seeds + competitors + their keywords) automatically.
+  useEffect(() => {
+    if (kwLoading || started.current || keywords.length > 0) return;
+    started.current = true;
+    setAutoRunning(true);
+    auto({ data: { projectId } })
+      .then(() => {
+        void qc.invalidateQueries({ queryKey: ["keywords", projectId] });
+        void qc.invalidateQueries({ queryKey: ["competitors", projectId] });
+      })
+      .catch(() => undefined)
+      .finally(() => setAutoRunning(false));
+  }, [auto, keywords.length, kwLoading, projectId, qc]);
 
   return (
     <div className="space-y-5">
@@ -162,10 +180,24 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
           <TrendingUp className="size-4 text-primary" />
           <h2 className="font-display text-lg font-semibold">Keyword opportunities</h2>
           <span className="ml-auto font-mono text-[11px] text-muted-foreground">{keywords.length} tracked</span>
+          <button
+            type="button"
+            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            disabled={autoRunning || busy !== null}
+            onClick={() => run("auto", () => auto({ data: { projectId, force: true } }))}
+          >
+            <RefreshCw className={`size-3 ${autoRunning || busy === "auto" ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
         </div>
-        {keywords.length === 0 ? (
+        {autoRunning || busy === "auto" ? (
+          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+            <Sparkles className="size-4 animate-pulse text-gold-foreground" />
+            Analyzing your market and competitors — this runs automatically, no action needed.
+          </p>
+        ) : keywords.length === 0 ? (
           <p className="mt-3 text-sm text-muted-foreground">
-            Nothing yet — run a keyword or competitor analysis above.
+            Nothing yet — add keywords or a website URL in Settings, then hit Refresh.
           </p>
         ) : (
           <div className="mt-3 overflow-x-auto">
