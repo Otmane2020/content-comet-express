@@ -114,7 +114,9 @@ export const publishItem = createServerFn({ method: "POST" })
       .parse(input),
   )
   .handler(async ({ data, context }) => {
-    return publishHandler(data, context);
+    const { publishTo } = await import("./publish.server");
+    const { supabase, userId } = context;
+    return runPublish(supabase, userId, data);
   });
 
 export const illustrateArticle = createServerFn({ method: "POST" })
@@ -163,12 +165,13 @@ export const illustrateArticle = createServerFn({ method: "POST" })
     return { coverUrl, inline: inline.length };
   });
 
-const publishHandlerStub = 0;
-void publishHandlerStub;
-  .handler(async ({ data, context }) => {
+async function runPublish(
+  supabase: { from: (t: string) => any },
+  userId: string,
+  data: { itemId: string; integrationIds?: string[] },
+) {
+  {
     const { publishTo } = await import("./publish.server");
-    const { supabase, userId } = context;
-
     const { data: item, error } = await supabase
       .from("content_items")
       .select("*")
