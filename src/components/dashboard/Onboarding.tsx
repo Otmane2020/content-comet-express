@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
-import { createCheckout, getSubscription } from "@/lib/billing.functions";
+import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
 import { detectBusiness, detectMarket } from "@/lib/detect.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
@@ -81,6 +81,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const detectMkt = useServerFn(detectMarket);
   const checkout = useServerFn(createCheckout);
   const fetchSub = useServerFn(getSubscription);
+  const syncSub = useServerFn(syncSubscription);
   const [busy, setBusy] = useState(false);
   const [subActive, setSubActive] = useState<boolean | null>(null);
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
@@ -107,17 +108,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const DRAFT_KEY = "apgeo_onboarding_draft";
 
   useEffect(() => {
+    let returned = false;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const saved = JSON.parse(raw) as typeof form;
         setForm((f) => ({ ...f, ...saved }));
-        if (new URLSearchParams(window.location.search).get("checkout") === "success") setStep(2);
+      }
+      if (new URLSearchParams(window.location.search).get("checkout") === "success") {
+        returned = true;
+        setStep(2);
       }
     } catch {
       /* ignore */
     }
-    fetchSub()
+    (returned ? syncSub().catch(() => fetchSub()) : fetchSub())
       .then((s) => setSubActive(s.active))
       .catch(() => setSubActive(false));
   }, []);
