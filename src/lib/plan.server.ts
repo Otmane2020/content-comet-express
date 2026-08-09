@@ -52,6 +52,7 @@ export async function planTopics(
 
 Create one editorial topic per slot below. Each topic must be a concrete, specific title idea (max 90 chars) matching the slot's content type, non-duplicated, in the project's language.
 Any year mentioned in a title must be ${year}. Never write ${year - 1}, ${year - 2} or older years.
+Topics must be about what this business sells and the problems its buyers search for — never about the internal operations of the industries its customers belong to.
 
 Slots:
 ${list}
