@@ -14,7 +14,211 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      content_items: {
+        Row: {
+          body_md: string | null
+          content_type: string
+          created_at: string
+          excerpt: string | null
+          id: string
+          model: string | null
+          project_id: string
+          published_url: string | null
+          scheduled_date: string
+          slug: string | null
+          status: string
+          title: string | null
+          topic: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body_md?: string | null
+          content_type: string
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          model?: string | null
+          project_id: string
+          published_url?: string | null
+          scheduled_date: string
+          slug?: string | null
+          status?: string
+          title?: string | null
+          topic?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body_md?: string | null
+          content_type?: string
+          created_at?: string
+          excerpt?: string | null
+          id?: string
+          model?: string | null
+          project_id?: string
+          published_url?: string | null
+          scheduled_date?: string
+          slug?: string | null
+          status?: string
+          title?: string | null
+          topic?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "content_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      integrations: {
+        Row: {
+          auto_publish: boolean
+          config: Json
+          created_at: string
+          id: string
+          label: string
+          last_error: string | null
+          platform: string
+          project_id: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          auto_publish?: boolean
+          config?: Json
+          created_at?: string
+          id?: string
+          label: string
+          last_error?: string | null
+          platform: string
+          project_id: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          auto_publish?: boolean
+          config?: Json
+          created_at?: string
+          id?: string
+          label?: string
+          last_error?: string | null
+          platform?: string
+          project_id?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "integrations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      projects: {
+        Row: {
+          audience: string | null
+          created_at: string
+          id: string
+          industry: string | null
+          keywords: string[]
+          locale: string | null
+          name: string
+          tone: string | null
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          audience?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          keywords?: string[]
+          locale?: string | null
+          name: string
+          tone?: string | null
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          audience?: string | null
+          created_at?: string
+          id?: string
+          industry?: string | null
+          keywords?: string[]
+          locale?: string | null
+          name?: string
+          tone?: string | null
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: []
+      }
+      publish_logs: {
+        Row: {
+          content_item_id: string
+          created_at: string
+          id: string
+          integration_id: string | null
+          message: string | null
+          platform: string
+          remote_url: string | null
+          success: boolean
+          user_id: string
+        }
+        Insert: {
+          content_item_id: string
+          created_at?: string
+          id?: string
+          integration_id?: string | null
+          message?: string | null
+          platform: string
+          remote_url?: string | null
+          success: boolean
+          user_id: string
+        }
+        Update: {
+          content_item_id?: string
+          created_at?: string
+          id?: string
+          integration_id?: string | null
+          message?: string | null
+          platform?: string
+          remote_url?: string | null
+          success?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "publish_logs_content_item_id_fkey"
+            columns: ["content_item_id"]
+            isOneToOne: false
+            referencedRelation: "content_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "publish_logs_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
