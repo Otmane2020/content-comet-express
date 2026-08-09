@@ -171,10 +171,23 @@ export function Calendar({ projectId }: { projectId: string }) {
             (genMutation.isPending && genMutation.variables === item.id) ||
             (pubMutation.isPending && pubMutation.variables === item.id);
           const d = new Date(`${item.scheduled_date}T00:00:00`);
+          const open = () => {
+            setOpenId(item.id);
+            setDraft({ title: item.title ?? item.topic ?? "", body: item.body_md ?? "" });
+          };
           return (
             <div
               key={item.id}
-              className="surface group relative flex flex-wrap items-center gap-4 overflow-hidden px-4 py-4 pl-5 transition-all hover:border-primary/40 hover:shadow-sm"
+              role="button"
+              tabIndex={0}
+              onClick={open}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  open();
+                }
+              }}
+              className="surface group relative flex cursor-pointer flex-wrap items-center gap-4 overflow-hidden px-4 py-4 pl-5 transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
               <span
                 className="absolute inset-y-0 left-0 w-1 bg-transparent transition-colors group-hover:bg-gold"
@@ -202,21 +215,14 @@ export function Calendar({ projectId }: { projectId: string }) {
                     {status.label}
                   </span>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setOpenId(item.id);
-                    setDraft({ title: item.title ?? item.topic ?? "", body: item.body_md ?? "" });
-                  }}
-                  className="mt-1.5 block w-full truncate text-left text-[14.5px] font-semibold hover:text-primary"
-                >
+                <p className="mt-1.5 block w-full truncate text-left text-[14.5px] font-semibold transition-colors group-hover:text-primary">
                   {item.title ?? item.topic ?? "Untitled slot"}
-                </button>
+                </p>
                 {item.excerpt && (
                   <p className="mt-0.5 line-clamp-1 text-[12.5px] text-muted-foreground">{item.excerpt}</p>
                 )}
               </div>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                 <Button
                   size="sm"
                   variant="ghost"
