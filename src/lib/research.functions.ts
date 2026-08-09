@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import type { KwRow } from "./research.server";
 
 const projectInput = z.object({ projectId: z.string().uuid() });
 
@@ -51,7 +52,7 @@ export const researchKeywords = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { keywordIdeas } = await import("./dataforseo.server");
-    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords, type KwRow } = await import("./research.server");
+    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords } = await import("./research.server");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
@@ -75,7 +76,7 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => projectInput.extend({ domain: z.string().min(3).max(200) }).parse(input))
   .handler(async ({ data, context }) => {
     const { competitorKeywords } = await import("./dataforseo.server");
-    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords, type KwRow } = await import("./research.server");
+    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords } = await import("./research.server");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
@@ -114,7 +115,7 @@ export const autoResearch = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => projectInput.extend({ force: z.boolean().optional() }).parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords, aiCompetitors, type KwRow } = await import(
+    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords, aiCompetitors } = await import(
       "./research.server"
     );
     const { keywordIdeas, competitorDomains, competitorKeywords } = await import("./dataforseo.server");
