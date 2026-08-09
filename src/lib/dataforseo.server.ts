@@ -1,5 +1,22 @@
 const BASE = "https://api.dataforseo.com/v3";
 
+/** Checks whether the DataForSEO credentials are accepted (live data available). */
+export async function dfsPing(): Promise<{ live: boolean; reason: string | null }> {
+  const login = process.env["DATAFORSEO_LOGIN"];
+  const password = process.env["DATAFORSEO_PASSWORD"];
+  if (!login || !password) return { live: false, reason: "missing" };
+  try {
+    const res = await fetch(`${BASE}/appendix/user_data`, {
+      headers: { Authorization: "Basic " + Buffer.from(`${login}:${password}`).toString("base64") },
+    });
+    if (res.status === 401) return { live: false, reason: "unauthorized" };
+    if (!res.ok) return { live: false, reason: "unreachable" };
+    return { live: true, reason: null };
+  } catch {
+    return { live: false, reason: "unreachable" };
+  }
+}
+
 function authHeader() {
   const login = process.env["DATAFORSEO_LOGIN"];
   const password = process.env["DATAFORSEO_PASSWORD"];
