@@ -200,11 +200,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         },
       });
       setMarket(r);
-      setForm((f) => ({
-        ...f,
-        competitors: f.competitors.trim() ? f.competitors : r.competitors.join("\n"),
-        keywords: f.keywords.trim() ? f.keywords : r.keywords.slice(0, 10).map((k) => k.keyword).join(", "),
-      }));
+      // Live DataForSEO keywords take priority over the AI-detected ones,
+      // which are only kept as a tail so a wrong industry guess can't drive
+      // the 30-day calendar.
+      setForm((f) => {
+        const aiKeywords = f.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+        const dfsKeywords = r.keywords.slice(0, 15).map((k) => k.keyword);
+        const merged = Array.from(
+          new Map([...dfsKeywords, ...aiKeywords].map((k) => [k.toLowerCase(), k])).values(),
+        ).slice(0, 15);
+        return {
+          ...f,
+          competitors: f.competitors.trim() ? f.competitors : r.competitors.join("\n"),
+          keywords: merged.join(", "),
+        };
+      });
       toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Market scan failed");
