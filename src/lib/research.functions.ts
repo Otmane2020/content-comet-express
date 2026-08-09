@@ -45,12 +45,19 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
 
     await requireLiveDataForSeo();
 
-    const rows: { domain: string; [k: string]: unknown }[] = await competitorDomains(
+    const raw: { domain: string; [k: string]: unknown }[] = await competitorDomains(
       project.website_url,
       localeOpts(project.locale),
-      QUOTA.competitors,
+      QUOTA.competitors * 5,
     );
+    const self = (project.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+    const kept = dedupeDomains(raw.map((r) => r.domain), self, QUOTA.competitors);
+    const rows = kept
+      .map((d) => raw.find((r) => r.domain.replace(/^www\./, "").toLowerCase() === d))
+      .filter(Boolean) as { domain: string; [k: string]: unknown }[];
     if (rows.length) {
+      // Replace results from earlier scans that included platforms/aggregators.
+      await supabase.from("competitors").delete().eq("project_id", data.projectId);
       await supabase.from("competitors").upsert(
         rows.slice(0, QUOTA.competitors).map((r) => ({
           user_id: userId,
