@@ -1,7 +1,18 @@
 import { useState } from "react";
 import { toast } from "sonner";
+import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { CalendarDays, Check, Sparkles, Rocket } from "lucide-react";
+import {
+  ArrowLeft,
+  ArrowRight,
+  Building2,
+  CalendarDays,
+  Check,
+  Radar,
+  Rocket,
+  Send,
+  Sparkles,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan } from "@/lib/autopilot.functions";
 import { BrandLockup } from "@/components/BrandMark";
@@ -17,9 +28,48 @@ const TONES = [
   { id: "direct", label: "Direct", hint: "Court, orienté action" },
 ];
 
+const STEPS = [
+  {
+    id: 0,
+    icon: Building2,
+    kicker: "Étape 1",
+    title: "Ton activité",
+    lead: "On apprend qui tu es",
+    blurb:
+      "Nom, site, secteur, audience et langue : c'est la base sur laquelle l'IA écrit. Plus c'est précis, plus les articles ressemblent à ta marque.",
+  },
+  {
+    id: 1,
+    icon: Radar,
+    kicker: "Étape 2",
+    title: "Concurrents & mots-clés",
+    lead: "On scanne ton marché",
+    blurb:
+      "On analyse tes concurrents et on extrait les mots-clés qui rapportent du trafic : volume, difficulté, CPC. Ce sont eux qui alimentent le calendrier.",
+  },
+  {
+    id: 2,
+    icon: Rocket,
+    kicker: "Étape 3",
+    title: "Génération & auto-publish",
+    lead: "On écrit et on publie chaque jour",
+    blurb:
+      "Un article par jour pendant 30 jours, illustré et publié tout seul sur tes destinations connectées. Tu n'as plus rien à faire.",
+  },
+];
+
+const FORMATS = [
+  { code: "GEO", desc: "Cité par ChatGPT & Perplexity" },
+  { code: "SEO", desc: "Ranking Google classique" },
+  { code: "AEO", desc: "Réponse directe acheteur" },
+  { code: "LOCAL", desc: "Intention près de chez moi" },
+  { code: "SHOP", desc: "Comparatif shopping" },
+];
+
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
   const build = useServerFn(buildPlan);
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     name: "",
     website_url: "",
@@ -28,13 +78,15 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     tone: "expert",
     locale: "fr",
     keywords: "",
+    competitors: "",
   });
 
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
+  const canNext = step !== 0 || form.name.trim().length > 1;
+
+  async function submit() {
     setBusy(true);
     try {
       const { data, error } = await supabase
@@ -55,6 +107,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         .select()
         .single();
       if (error) throw error;
+
+      const rivals = form.competitors
+        .split(/[\n,]/)
+        .map((c) => c.trim())
+        .filter(Boolean);
+      if (rivals.length) {
+        await supabase.from("competitors").insert(
+          rivals.map((domain) => ({
+            user_id: userId,
+            project_id: data.id,
+            domain: domain.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
+          })),
+        );
+      }
+
       toast.info("Construction de ton calendrier 30 jours…");
       await build({ data: { projectId: data.id, days: 30 } });
       toast.success("Tes 30 jours sont planifiés.");
@@ -66,6 +133,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     }
   }
 
+  const active = STEPS[step];
+
   return (
     <div className="paper-grid min-h-screen px-4 py-10">
       <div className="mx-auto w-full max-w-5xl">
@@ -73,122 +142,294 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
           <BrandLockup />
         </div>
 
-        <div className="surface mt-6 grid overflow-hidden lg:grid-cols-[340px_1fr]">
-          {/* Left rail */}
+        <div className="surface mt-6 grid overflow-hidden lg:grid-cols-[330px_1fr]">
+          {/* Rail */}
           <aside className="relative overflow-hidden bg-deep px-7 py-8 text-background">
-            <div className="pointer-events-none absolute -bottom-10 -left-16 size-56 rounded-full bg-gold/20 blur-3xl" />
-            <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Configuration</p>
-            <h2 className="mt-2 font-display text-[22px] font-bold leading-tight">
-              3 minutes pour lancer 30 jours de contenu
-            </h2>
-            <p className="mt-2.5 text-[13px] leading-relaxed text-background/70">
-              On utilise ces informations pour planifier, rédiger et publier automatiquement chaque jour.
-            </p>
+            <motion.div
+              aria-hidden
+              className="pointer-events-none absolute -left-20 top-10 size-64 rounded-full bg-gold/25 blur-3xl"
+              animate={{ y: [0, 28, 0], opacity: [0.55, 0.85, 0.55] }}
+              transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }}
+            />
+            <div className="relative">
+              <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
+                Configuration · {step + 1}/3
+              </p>
+              <h2 className="mt-2 font-display text-[21px] font-bold leading-tight">
+                3 minutes pour lancer 30 jours de contenu
+              </h2>
 
-            <ol className="mt-7 space-y-5">
-              {[
-                { icon: Sparkles, t: "Ton activité", d: "Marché, audience et mots-clés cibles." },
-                { icon: CalendarDays, t: "Calendrier 30 jours", d: "Rotation GEO · SEO · AEO · Local · Shopping." },
-                { icon: Rocket, t: "Publication auto", d: "Connecte tes sites, l'autopilot fait le reste." },
-              ].map((s, i) => (
-                <li key={s.t} className="flex gap-3">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-background/10 text-gold">
-                    <s.icon className="size-4" />
-                  </span>
-                  <div>
-                    <p className="text-[13px] font-semibold">
-                      <span className="mr-1.5 text-gold">{i + 1}.</span>
-                      {s.t}
-                    </p>
-                    <p className="mt-0.5 text-[12.5px] leading-relaxed text-background/60">{s.d}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+              <ol className="mt-7 space-y-1.5">
+                {STEPS.map((s, i) => {
+                  const done = i < step;
+                  const current = i === step;
+                  return (
+                    <li key={s.id}>
+                      <button
+                        type="button"
+                        onClick={() => i <= step && setStep(i)}
+                        className={`flex w-full items-start gap-3 rounded-xl px-3 py-3 text-left transition ${
+                          current ? "bg-background/10" : "hover:bg-background/5"
+                        }`}
+                      >
+                        <span
+                          className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition ${
+                            done
+                              ? "bg-gold text-gold-foreground"
+                              : current
+                                ? "bg-background text-deep"
+                                : "bg-background/10 text-background/60"
+                          }`}
+                        >
+                          {done ? <Check className="size-4" /> : <s.icon className="size-4" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className={`block text-[13px] font-semibold ${current ? "" : "text-background/70"}`}>
+                            {s.title}
+                          </span>
+                          <span className="mt-0.5 block text-[11.5px] leading-snug text-background/50">
+                            {s.lead}
+                          </span>
+                        </span>
+                      </button>
+                      {current && (
+                        <motion.div
+                          layoutId="rail-progress"
+                          className="ml-6 h-6 w-px bg-gold/50"
+                          initial={{ scaleY: 0 }}
+                          animate={{ scaleY: 1 }}
+                        />
+                      )}
+                    </li>
+                  );
+                })}
+              </ol>
 
-            <p className="relative mt-8 inline-flex items-center gap-1.5 rounded-full bg-background/10 px-3 py-1.5 text-[11.5px] text-background/70">
-              <Check className="size-3.5 text-gold" /> Modifiable à tout moment
-            </p>
+              <div className="mt-8 h-1 overflow-hidden rounded-full bg-background/15">
+                <motion.div
+                  className="h-full rounded-full bg-gold"
+                  animate={{ width: `${((step + 1) / 3) * 100}%` }}
+                  transition={{ type: "spring", stiffness: 120, damping: 20 }}
+                />
+              </div>
+            </div>
           </aside>
 
-          {/* Form */}
-          <form onSubmit={submit} className="space-y-5 px-7 py-8">
-            <div>
-              <h1 className="font-display text-[21px] font-bold leading-tight">Parle-nous de ton activité</h1>
-              <p className="mt-1 text-[13px] text-muted-foreground">
-                Plus c'est précis, plus les articles seront pertinents.
-              </p>
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Label htmlFor="name" className="text-[12.5px]">Nom de l'entreprise</Label>
-                <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Maison Dupont" />
-              </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="url" className="text-[12.5px]">Site web</Label>
-                <Input id="url" value={form.website_url} onChange={set("website_url")} className="mt-1.5" placeholder="https://monsite.com" />
-              </div>
-              <div>
-                <Label htmlFor="industry" className="text-[12.5px]">Secteur</Label>
-                <Input id="industry" value={form.industry} onChange={set("industry")} className="mt-1.5" placeholder="Plomberie, SaaS RH…" />
-              </div>
-              <div>
-                <Label htmlFor="locale" className="text-[12.5px]">Langue</Label>
-                <select
-                  id="locale"
-                  value={form.locale}
-                  onChange={set("locale")}
-                  className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                >
-                  <option value="fr">Français</option>
-                  <option value="en">English</option>
-                  <option value="es">Español</option>
-                  <option value="de">Deutsch</option>
-                </select>
-              </div>
-              <div className="sm:col-span-2">
-                <Label className="text-[12.5px]">Ton éditorial</Label>
-                <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                  {TONES.map((t) => (
-                    <button
-                      key={t.id}
-                      type="button"
-                      onClick={() => setForm((f) => ({ ...f, tone: t.id }))}
-                      className={`rounded-xl border px-3 py-2.5 text-left transition ${
-                        form.tone === t.id
-                          ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                          : "border-border hover:border-primary/40 hover:bg-muted/50"
-                      }`}
-                    >
-                      <span className="block text-[12.5px] font-semibold">{t.label}</span>
-                      <span className="mt-0.5 block text-[11px] text-muted-foreground">{t.hint}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="audience" className="text-[12.5px]">Pour qui écrit-on ?</Label>
-                <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder="Propriétaires de maison à Lyon, 35-60 ans" />
-              </div>
-              <div className="sm:col-span-2">
-                <Label htmlFor="keywords" className="text-[12.5px]">Mots-clés cibles (séparés par des virgules)</Label>
-                <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plombier lyon, fuite d'eau, chaudière" />
-                <p className="mt-1.5 text-[11.5px] text-muted-foreground">
-                  Pas d'idée ? Laisse vide — on les trouve pour toi à partir de ton site.
+          {/* Panel */}
+          <div className="flex min-h-[540px] flex-col px-7 py-8">
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={step}
+                initial={{ opacity: 0, x: 24 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -24 }}
+                transition={{ duration: 0.28, ease: "easeOut" }}
+                className="flex-1"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-primary">
+                  {active.kicker}
                 </p>
-              </div>
-            </div>
+                <h1 className="mt-1.5 font-display text-[23px] font-bold leading-tight">{active.title}</h1>
+                <p className="mt-2 max-w-xl text-[13.5px] leading-relaxed text-muted-foreground">
+                  {active.blurb}
+                </p>
 
-            <div className="rounded-xl border border-border bg-secondary/40 p-4">
-              <Button type="submit" disabled={busy} className="w-full bg-deep text-background hover:bg-deep/90">
-                {busy ? "Planification des 30 jours…" : "Construire mon calendrier 30 jours"}
+                {step === 0 && (
+                  <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="name" className="text-[12.5px]">Nom de l'entreprise</Label>
+                      <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Maison Dupont" />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="url" className="text-[12.5px]">Site web</Label>
+                      <Input id="url" value={form.website_url} onChange={set("website_url")} className="mt-1.5" placeholder="https://monsite.com" />
+                    </div>
+                    <div>
+                      <Label htmlFor="industry" className="text-[12.5px]">Secteur</Label>
+                      <Input id="industry" value={form.industry} onChange={set("industry")} className="mt-1.5" placeholder="Plomberie, SaaS RH…" />
+                    </div>
+                    <div>
+                      <Label htmlFor="locale" className="text-[12.5px]">Langue</Label>
+                      <select
+                        id="locale"
+                        value={form.locale}
+                        onChange={set("locale")}
+                        className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      >
+                        <option value="fr">Français</option>
+                        <option value="en">English</option>
+                        <option value="es">Español</option>
+                        <option value="de">Deutsch</option>
+                      </select>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label className="text-[12.5px]">Ton éditorial</Label>
+                      <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {TONES.map((t) => (
+                          <button
+                            key={t.id}
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, tone: t.id }))}
+                            className={`rounded-xl border px-3 py-2.5 text-left transition ${
+                              form.tone === t.id
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                                : "border-border hover:border-primary/40 hover:bg-muted/50"
+                            }`}
+                          >
+                            <span className="block text-[12.5px] font-semibold">{t.label}</span>
+                            <span className="mt-0.5 block text-[11px] text-muted-foreground">{t.hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <Label htmlFor="audience" className="text-[12.5px]">Pour qui écrit-on ?</Label>
+                      <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder="Propriétaires de maison à Lyon, 35-60 ans" />
+                    </div>
+                  </div>
+                )}
+
+                {step === 1 && (
+                  <div className="mt-6 space-y-5">
+                    <div className="grid gap-3 sm:grid-cols-3">
+                      {[
+                        { t: "On liste tes rivaux", d: "Les sites qui captent déjà tes clients." },
+                        { t: "On extrait leurs mots-clés", d: "Volume, difficulté et coût par clic réels." },
+                        { t: "On garde les gagnants", d: "Ceux que tu peux réellement rafler." },
+                      ].map((c, i) => (
+                        <motion.div
+                          key={c.t}
+                          initial={{ opacity: 0, y: 12 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.06 * i }}
+                          className="rounded-xl border border-border bg-secondary/40 p-3.5"
+                        >
+                          <span className="text-[11px] font-bold text-gold">0{i + 1}</span>
+                          <p className="mt-1 text-[12.5px] font-semibold">{c.t}</p>
+                          <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{c.d}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    <div>
+                      <Label htmlFor="competitors" className="text-[12.5px]">Concurrents (un domaine par ligne)</Label>
+                      <Textarea
+                        id="competitors"
+                        value={form.competitors}
+                        onChange={set("competitors")}
+                        className="mt-1.5"
+                        rows={3}
+                        placeholder={"concurrent1.com\nconcurrent2.fr"}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="keywords" className="text-[12.5px]">Mots-clés cibles (séparés par des virgules)</Label>
+                      <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plombier lyon, fuite d'eau, chaudière" />
+                    </div>
+                    <p className="rounded-xl border border-gold/30 bg-gold-soft/50 px-4 py-3 text-[12.5px] leading-relaxed text-foreground/80">
+                      Tu peux tout laisser vide : l'app analyse ton site et trouve concurrents et mots-clés
+                      toute seule dès l'ouverture du dashboard.
+                    </p>
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="mt-6 space-y-5">
+                    <div className="grid gap-2 sm:grid-cols-5">
+                      {FORMATS.map((f, i) => (
+                        <motion.div
+                          key={f.code}
+                          initial={{ opacity: 0, y: 14 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.05 * i }}
+                          className="rounded-xl border border-border bg-secondary/40 p-3"
+                        >
+                          <span className="rounded-md bg-deep px-2 py-0.5 text-[10.5px] font-bold text-background">
+                            {f.code}
+                          </span>
+                          <p className="mt-2 text-[11.5px] leading-snug text-muted-foreground">{f.desc}</p>
+                        </motion.div>
+                      ))}
+                    </div>
+
+                    <div className="relative overflow-hidden rounded-2xl bg-deep px-6 py-6 text-background">
+                      <motion.div
+                        aria-hidden
+                        className="pointer-events-none absolute -right-12 -top-12 size-52 rounded-full bg-gold/25 blur-3xl"
+                        animate={{ scale: [1, 1.18, 1] }}
+                        transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                      />
+                      <div className="relative flex flex-wrap items-center gap-x-5 gap-y-4">
+                        {[
+                          { icon: CalendarDays, t: "Planifié" },
+                          { icon: Sparkles, t: "Rédigé + illustré" },
+                          { icon: Send, t: "Publié partout" },
+                        ].map((s, i) => (
+                          <motion.div
+                            key={s.t}
+                            className="flex items-center gap-2.5"
+                            animate={{ opacity: [0.45, 1, 0.45] }}
+                            transition={{ duration: 3, repeat: Infinity, delay: i * 1 }}
+                          >
+                            <span className="flex size-9 items-center justify-center rounded-xl bg-background/10 text-gold">
+                              <s.icon className="size-4" />
+                            </span>
+                            <span className="text-[13px] font-semibold">{s.t}</span>
+                            {i < 2 && <ArrowRight className="ml-2 size-4 text-background/40" />}
+                          </motion.div>
+                        ))}
+                      </div>
+                      <p className="relative mt-4 text-[12.5px] leading-relaxed text-background/70">
+                        Chaque matin, l'autopilot écrit l'article du jour, génère ses images et l'envoie
+                        vers WordPress, Shopify, PrestaShop, WooCommerce ou ton site Lovable/Bolt.
+                      </p>
+                    </div>
+
+                    <div className="rounded-xl border border-border bg-secondary/40 p-4 text-[12.5px] leading-relaxed text-muted-foreground">
+                      <strong className="font-semibold text-foreground">Récap :</strong>{" "}
+                      {form.name || "Ton entreprise"}
+                      {form.industry ? ` · ${form.industry}` : ""} · ton {form.tone} ·{" "}
+                      {form.locale.toUpperCase()} · 30 articles planifiés.
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            </AnimatePresence>
+
+            {/* Nav */}
+            <div className="mt-7 flex items-center justify-between border-t border-border pt-5">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setStep((s) => Math.max(0, s - 1))}
+                disabled={step === 0 || busy}
+                className="text-[13px]"
+              >
+                <ArrowLeft className="mr-1.5 size-4" /> Retour
               </Button>
-              <p className="mt-2 text-center text-[11.5px] text-muted-foreground">
-                Génération instantanée · aucune carte bancaire requise
-              </p>
+
+              {step < 2 ? (
+                <Button
+                  type="button"
+                  onClick={() => setStep((s) => Math.min(2, s + 1))}
+                  disabled={!canNext}
+                  className="bg-deep text-background hover:bg-deep/90"
+                >
+                  Continuer <ArrowRight className="ml-1.5 size-4" />
+                </Button>
+              ) : (
+                <Button
+                  type="button"
+                  onClick={submit}
+                  disabled={busy}
+                  className="bg-deep text-background hover:bg-deep/90"
+                >
+                  {busy ? "Planification des 30 jours…" : "Lancer mon autopilot"}
+                  <Rocket className="ml-1.5 size-4" />
+                </Button>
+              )}
             </div>
-          </form>
+          </div>
         </div>
       </div>
     </div>
