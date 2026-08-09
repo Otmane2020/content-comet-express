@@ -146,3 +146,88 @@ export function publishTo(
       throw new Error(`Unsupported platform: ${platform as string}`);
   }
 }
+type AnyClient = { from: (table: string) => any };
+
+/** Publish one content item to every connected destination of its project. */
+export async function runPublish(
+  supabase: AnyClient,
+  userId: string,
+  data: { itemId: string; integrationIds?: string[] },
+) {
+  const { slugify } = await import("./geo");
+  const { renderMarkdown } = await import("./markdown");
+
+  const { data: item, error } = await supabase
+    .from("content_items")
+    .select("*")
+    .eq("id", data.itemId)
+    .single();
+  if (error || !item) throw new Error("Content item not found");
+  if (!item.body_md) throw new Error("Generate the article before publishing");
+
+  let query = supabase
+    .from("integrations")
+    .select("*")
+    .eq("project_id", item.project_id)
+    .eq("status", "connected");
+  if (data.integrationIds?.length) query = query.in("id", data.integrationIds);
+  const { data: integrations } = await query;
+  if (!integrations?.length) throw new Error("No connected platform for this project");
+
+  const cover = item.cover_image_url
+    ? `<figure><img src="${item.cover_image_url}" alt="${item.title ?? ""}" /></figure>`
+    : "";
+
+  const payload: PublishPayload = {
+    title: item.title ?? item.topic ?? "Untitled",
+    slug: item.slug ?? slugify(item.title ?? item.topic ?? "article"),
+    excerpt: item.excerpt ?? "",
+    html: cover + renderMarkdown(item.body_md),
+    markdown: item.body_md,
+    contentType: item.content_type,
+    scheduledDate: item.scheduled_date,
+  };
+
+  const results: { platform: string; success: boolean; message: string; url: string | null }[] = [];
+  for (const integration of integrations as any[]) {
+    try {
+      const result = await publishTo(
+        integration.platform as PlatformId,
+        (integration.config ?? {}) as Record<string, string>,
+        payload,
+      );
+      results.push({ platform: integration.platform, success: true, message: result.message, url: result.url });
+      await supabase.from("publish_logs").insert({
+        user_id: userId,
+        content_item_id: item.id,
+        integration_id: integration.id,
+        platform: integration.platform,
+        success: true,
+        message: result.message,
+        remote_url: result.url,
+      });
+      await supabase.from("integrations").update({ last_error: null }).eq("id", integration.id);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Unknown error";
+      results.push({ platform: integration.platform, success: false, message, url: null });
+      await supabase.from("publish_logs").insert({
+        user_id: userId,
+        content_item_id: item.id,
+        integration_id: integration.id,
+        platform: integration.platform,
+        success: false,
+        message,
+      });
+      await supabase.from("integrations").update({ last_error: message }).eq("id", integration.id);
+    }
+  }
+
+  const firstOk = results.find((r) => r.success);
+  if (firstOk) {
+    await supabase
+      .from("content_items")
+      .update({ status: "published", published_url: firstOk.url })
+      .eq("id", item.id);
+  }
+  return { results };
+}
