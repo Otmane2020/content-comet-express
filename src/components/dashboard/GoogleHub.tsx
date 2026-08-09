@@ -2,8 +2,9 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Unplug } from "lucide-react";
+import { Bot, Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Sparkles, Unplug } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { scanAiMentions } from "@/lib/mentions.functions";
 import {
   disconnectGoogle,
   listGoogleResources,
@@ -42,6 +43,16 @@ type Metric = {
   position: number | null;
 };
 
+type Mention = {
+  id: string;
+  engine: string;
+  prompt: string;
+  mentioned: boolean;
+  rank: number | null;
+  brands: string[] | null;
+  checked_at: string;
+};
+
 const META: Record<Service, { title: string; blurb: string; pick: string; icon: typeof MapPin }> = {
   gmb: {
     title: "Google Business Profile",
@@ -76,6 +87,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
   const sync = useServerFn(syncSearchConsole);
   const post = useServerFn(publishToGmb);
   const cut = useServerFn(disconnectGoogle);
+  const scanMentions = useServerFn(scanAiMentions);
 
   const [busy, setBusy] = useState<string | null>(null);
   const [options, setOptions] = useState<Record<string, { id: string; label: string; sub: string }[]>>({});
@@ -168,6 +180,22 @@ export function GoogleHub({ projectId }: { projectId: string }) {
       { clicks: 0, impressions: 0 },
     );
 
+  const { data: mentions = [] } = useQuery({
+    queryKey: ["ai-mentions", projectId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("ai_mentions")
+        .select("id, engine, prompt, mentioned, rank, brands, checked_at")
+        .eq("project_id", projectId)
+        .order("checked_at", { ascending: false });
+      if (error) throw error;
+      return data as Mention[];
+    },
+  });
+  const mentionRate = mentions.length
+    ? Math.round((mentions.filter((m) => m.mentioned).length / mentions.length) * 100)
+    : 0;
+
   return (
     <div className="space-y-5">
       <div className="grid gap-4 lg:grid-cols-2">
@@ -191,9 +219,6 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                     )}
                   </div>
                   <p className="mt-1 text-[12.5px] text-muted-foreground">{meta.blurb}</p>
-                  {conn?.account_email && (
-                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">{conn.account_email}</p>
-                  )}
                   {conn?.resource_name && (
                     <p className="mt-2 flex items-center gap-1.5 text-[12.5px] font-medium">
                       <meta.icon className="size-3.5 text-primary" /> {conn.resource_name}
@@ -356,39 +381,146 @@ export function GoogleHub({ projectId }: { projectId: string }) {
           <div className="mt-4 grid gap-5 lg:grid-cols-2">
             <div>
               <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Top queries</p>
-              <table className="w-full text-[13px]">
-                <thead className="text-[11px] uppercase text-muted-foreground">
-                  <tr>
-                    <th className="py-1 text-left font-medium">Query</th>
-                    <th className="py-1 text-right font-medium">Clicks</th>
-                    <th className="py-1 text-right font-medium">Impr.</th>
-                    <th className="py-1 text-right font-medium">Pos.</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {queries.map((m) => (
-                    <tr key={m.label} className="border-t border-border">
-                      <td className="max-w-[220px] truncate py-1.5">{m.label}</td>
-                      <td className="py-1.5 text-right font-mono">{Math.round(m.clicks)}</td>
-                      <td className="py-1.5 text-right font-mono">{Math.round(m.impressions)}</td>
-                      <td className="py-1.5 text-right font-mono">{m.position ? Number(m.position).toFixed(1) : "—"}</td>
+              <div className="overflow-hidden rounded-xl border border-border bg-card">
+                <table className="w-full text-[13px]">
+                  <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                    <tr>
+                      <th className="px-3 py-2 text-left font-medium">Query</th>
+                      <th className="px-3 py-2 text-right font-medium">Clicks</th>
+                      <th className="px-3 py-2 text-right font-medium">Impr.</th>
+                      <th className="px-3 py-2 text-right font-medium">Pos.</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {queries.map((m, i) => (
+                      <tr
+                        key={m.label}
+                        className={`border-t border-border/60 transition-colors hover:bg-primary/5 ${
+                          i % 2 ? "bg-muted/15" : ""
+                        }`}
+                      >
+                        <td className="max-w-[220px] truncate px-3 py-2">{m.label}</td>
+                        <td className="px-3 py-2 text-right font-mono font-semibold text-primary">
+                          {Math.round(m.clicks)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono text-muted-foreground">
+                          {Math.round(m.impressions)}
+                        </td>
+                        <td className="px-3 py-2 text-right font-mono">
+                          {m.position ? Number(m.position).toFixed(1) : "—"}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
             <div>
               <p className="mb-2 text-[12px] font-semibold uppercase tracking-wide text-muted-foreground">Top pages</p>
-              <ul className="space-y-1.5">
-                {pages.map((m) => (
-                  <li key={m.label} className="flex items-center gap-2 border-t border-border py-1.5 text-[13px]">
+              <ul className="overflow-hidden rounded-xl border border-border bg-card">
+                {pages.map((m, i) => (
+                  <li
+                    key={m.label}
+                    className={`flex items-center gap-2 px-3 py-2 text-[13px] transition-colors hover:bg-primary/5 ${
+                      i ? "border-t border-border/60" : ""
+                    } ${i % 2 ? "bg-muted/15" : ""}`}
+                  >
                     <ExternalLink className="size-3.5 shrink-0 text-muted-foreground" />
                     <span className="min-w-0 flex-1 truncate">{m.label}</span>
-                    <span className="font-mono text-[12px]">{Math.round(m.clicks)}</span>
+                    <span className="font-mono text-[12px] font-semibold text-primary">{Math.round(m.clicks)}</span>
                   </li>
                 ))}
               </ul>
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="surface p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
+              <Sparkles className="size-4 text-primary" /> AI mentions
+            </h3>
+            <p className="max-w-xl text-[12.5px] text-muted-foreground">
+              We ask ChatGPT, Perplexity and Gemini the buying questions your customers type, then check whether your
+              brand is named and in which position. That is your GEO visibility — tracked right here.
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <div className="text-right font-mono text-[12px]">
+              <span className="block text-muted-foreground">mention rate</span>
+              <span className="text-base font-semibold text-primary">{mentionRate}%</span>
+            </div>
+            <Button
+              size="sm"
+              className="bg-deep text-background hover:bg-deep/90"
+              disabled={busy === "mentions"}
+              onClick={async () => {
+                setBusy("mentions");
+                try {
+                  const res = await scanMentions({ data: { projectId } });
+                  toast.success(`${res.mentioned}/${res.checked} answers mention your brand.`);
+                  void qc.invalidateQueries({ queryKey: ["ai-mentions", projectId] });
+                } catch (e) {
+                  toast.error(e instanceof Error ? e.message : "AI mention scan failed");
+                } finally {
+                  setBusy(null);
+                }
+              }}
+            >
+              <RefreshCw className={`size-4 ${busy === "mentions" ? "animate-spin" : ""}`} /> Run AI scan
+            </Button>
+          </div>
+        </div>
+
+        {mentions.length === 0 ? (
+          <p className="mt-4 text-sm text-muted-foreground">
+            No scan yet — run an AI scan to see where you stand inside AI answers.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
+            <table className="w-full text-[13px]">
+              <thead className="bg-muted/40 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <tr>
+                  <th className="px-3 py-2 text-left font-medium">Engine</th>
+                  <th className="px-3 py-2 text-left font-medium">Question</th>
+                  <th className="px-3 py-2 text-left font-medium">Brands cited</th>
+                  <th className="px-3 py-2 text-right font-medium">You</th>
+                </tr>
+              </thead>
+              <tbody>
+                {mentions.map((m, i) => (
+                  <tr
+                    key={m.id}
+                    className={`border-t border-border/60 transition-colors hover:bg-primary/5 ${
+                      i % 2 ? "bg-muted/15" : ""
+                    }`}
+                  >
+                    <td className="whitespace-nowrap px-3 py-2">
+                      <span className="inline-flex items-center gap-1.5 font-medium capitalize">
+                        <Bot className="size-3.5 text-primary" /> {m.engine}
+                      </span>
+                    </td>
+                    <td className="max-w-[280px] truncate px-3 py-2">{m.prompt}</td>
+                    <td className="max-w-[260px] truncate px-3 py-2 text-muted-foreground">
+                      {(m.brands ?? []).slice(0, 4).join(" · ") || "—"}
+                    </td>
+                    <td className="px-3 py-2 text-right">
+                      {m.mentioned ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-success-soft px-2 py-0.5 text-[11px] font-medium text-success">
+                          <CheckCircle2 className="size-3" /> #{m.rank ?? "—"}
+                        </span>
+                      ) : (
+                        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                          not cited
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
