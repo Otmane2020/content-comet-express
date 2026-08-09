@@ -326,6 +326,8 @@ export type Database = {
           keywords: string[]
           locale: string | null
           name: string
+          publish_hour: number
+          timezone: string
           tone: string | null
           updated_at: string
           user_id: string
@@ -339,6 +341,8 @@ export type Database = {
           keywords?: string[]
           locale?: string | null
           name: string
+          publish_hour?: number
+          timezone?: string
           tone?: string | null
           updated_at?: string
           user_id: string
@@ -352,6 +356,8 @@ export type Database = {
           keywords?: string[]
           locale?: string | null
           name?: string
+          publish_hour?: number
+          timezone?: string
           tone?: string | null
           updated_at?: string
           user_id?: string
