@@ -53,6 +53,14 @@ export function sectionPrompt(heading: string, topic: string) {
   return `Editorial magazine photograph for the section "${heading}" of an article about ${topic}. Natural light, realistic, premium lifestyle photography. ${NO_TEXT}`;
 }
 
+/** Remove inline markdown images (we keep exactly one cover image per article). */
+export function stripInlineImages(md: string): string {
+  return md
+    .replace(/^!\[[^\]]*\]\([^\s)]+\)\s*$/gm, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 /** Insert image markdown after the first few H2 sections of an article. */
 export function injectImages(md: string, images: { heading: string; url: string }[]): string {
   let out = md;
