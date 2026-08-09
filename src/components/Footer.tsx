@@ -1,5 +1,6 @@
 import { Link } from "@tanstack/react-router";
-import { BrandLockup } from "@/components/BrandLockup";
+import { BrandLockup } from "@/components/BrandMark";
+
 
 export function Footer() {
   return (
