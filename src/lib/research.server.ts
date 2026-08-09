@@ -230,5 +230,15 @@ export async function saveKeywords(
     { onConflict: "project_id,keyword" },
   );
   if (error) throw new Error(error.message);
+  // Sweep out off-topic terms stored by an earlier, volume-driven pass.
+  // Keywords already used by an article are left alone.
+  if (graded) {
+    await supabase
+      .from("keyword_research")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("used", false)
+      .or(`relevance_score.is.null,relevance_score.lt.${MIN_RELEVANCE}`);
+  }
   return kept.length;
 }

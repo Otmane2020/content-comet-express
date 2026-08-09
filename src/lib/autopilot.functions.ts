@@ -36,6 +36,7 @@ export const buildPlan = createServerFn({ method: "POST" })
       .select("id, keyword, relevance_score, search_volume")
       .eq("project_id", data.projectId)
       .eq("used", false)
+      .gte("relevance_score", 60)
       .order("relevance_score", { ascending: false, nullsFirst: false })
       .order("search_volume", { ascending: false, nullsFirst: false })
       .limit(missing.length * 2);
