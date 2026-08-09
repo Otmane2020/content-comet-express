@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { BrandLockup } from "@/components/BrandMark";
 import { CalendarDays, Clock } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { BLOG_POSTS } from "@/lib/blog";
@@ -67,8 +68,8 @@ function BlogIndex() {
     <div className="min-h-screen bg-background">
       <div className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
-          <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
-            Ranki.ai
+          <Link to="/" aria-label="Ranki.ai home">
+            <BrandLockup />
           </Link>
           <nav className="flex items-center gap-4 text-[13px]">
             <Link to="/" className="text-muted-foreground hover:text-foreground">
