@@ -204,7 +204,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
 
   async function choose(conn: Connection, opt: { id: string; label: string }) {
     await pick({ data: { connectionId: conn.id, resourceId: opt.id, resourceName: opt.label } });
-    toast.success(`Linked to ${opt.label}.`);
+    toast.success(`Linked to ${prettyResource(opt.label)}.`);
     void qc.invalidateQueries({ queryKey: ["google", projectId] });
   }
 
