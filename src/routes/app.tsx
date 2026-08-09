@@ -3,16 +3,18 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { CalendarDays, LineChart, LogOut, MapPin, Plug, RefreshCw, Settings2, Crown } from "lucide-react";
+import { CalendarDays, LifeBuoy, LineChart, LogOut, MapPin, Plug, RefreshCw, Settings2, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { buildPlan } from "@/lib/autopilot.functions";
+import { notifySignup } from "@/lib/support.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
 import { GoogleHub } from "@/components/dashboard/GoogleHub";
+import { Support } from "@/components/dashboard/Support";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,7 +40,7 @@ export const Route = createFileRoute("/app")({
   component: Dashboard,
 });
 
-type Tab = "calendar" | "research" | "local" | "platforms" | "settings";
+type Tab = "calendar" | "research" | "local" | "platforms" | "help" | "settings";
 
 type Project = {
   id: string;
@@ -58,16 +60,22 @@ function Dashboard() {
   const [tab, setTab] = useState<Tab>(() => {
     if (typeof window === "undefined") return "calendar";
     const t = new URLSearchParams(window.location.search).get("tab");
-    return (["calendar", "research", "local", "platforms", "settings"] as const).includes(t as Tab)
+    return (["calendar", "research", "local", "platforms", "help", "settings"] as const).includes(t as Tab)
       ? (t as Tab)
       : "calendar";
   });
   const build = useServerFn(buildPlan);
+  const announceSignup = useServerFn(notifySignup);
   const [refilling, setRefilling] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth", replace: true });
   }, [loading, user, navigate]);
+
+  useEffect(() => {
+    if (!user) return;
+    void announceSignup({ data: undefined }).catch(() => undefined);
+  }, [user, announceSignup]);
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", user?.id],
@@ -120,6 +128,7 @@ function Dashboard() {
     { id: "research", label: "Keywords & rivals", icon: LineChart },
     { id: "local", label: "Local & Search", icon: MapPin },
     { id: "platforms", label: "Destinations", icon: Plug },
+    { id: "help", label: "Help & contact", icon: LifeBuoy },
     { id: "settings", label: "Settings", icon: Settings2 },
   ];
 
@@ -241,6 +250,7 @@ function Dashboard() {
           {tab === "research" && <Research projectId={project.id} seedKeywords={project.keywords ?? []} />}
           {tab === "local" && <GoogleHub projectId={project.id} />}
           {tab === "platforms" && <Platforms projectId={project.id} userId={user.id} />}
+          {tab === "help" && <Support />}
           {tab === "settings" && <ProjectSettings project={project} />}
         </div>
       </main>
