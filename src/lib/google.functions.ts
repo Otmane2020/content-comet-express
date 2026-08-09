@@ -4,7 +4,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const connectInput = z.object({
   projectId: z.string().uuid(),
-  service: z.enum(["gmb", "gsc"]),
+  service: z.enum(["gmb", "gsc", "all"]),
   origin: z.string().url(),
 });
 
