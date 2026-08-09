@@ -159,14 +159,8 @@ function BlogPost() {
         )}
       </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-[12px] text-muted-foreground">
-          <span>© {new Date().getFullYear()} AutopilotGEO</span>
-          <Link to="/" className="hover:text-foreground">
-            Back to home
-          </Link>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
+

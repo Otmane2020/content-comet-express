@@ -458,12 +458,8 @@ function Landing() {
         </Button>
       </section>
 
-      <footer className="border-t border-border py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-5 text-center text-[13px] text-muted-foreground">
-          <BrandLockup />
-          <p>© {new Date().getFullYear()} AutopilotGEO — generative search, on autopilot.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
+
