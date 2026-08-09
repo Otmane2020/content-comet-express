@@ -32,10 +32,12 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
 
           let userId: string;
           let email: string;
+          let projectId = "";
 
           if (state) {
             // Merchant already signed in here: attach the store to their project.
             userId = state.userId;
+            projectId = state.projectId;
             const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
             email = user.user?.email ?? info.email ?? `${shop}@shopify-merchant.ranki.ai`;
             const { data: existing } = await supabaseAdmin
@@ -81,6 +83,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
             });
             userId = created.userId;
             email = created.email;
+            projectId = created.projectId;
           }
 
           // Billing is handled by Shopify, never Stripe, for merchants coming from a store.
@@ -88,7 +91,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
           await provision.recordShopifySubscription(userId, email, existingSub);
 
           if (!existingSub) {
-            const billingState = mod.signState({ userId, projectId: shop, origin, ts: Date.now() });
+            const billingState = mod.signState({ userId, projectId, origin, shop, ts: Date.now() });
             const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(billingState)}`;
             const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl);
             return new Response(null, { status: 302, headers: { location: confirmationUrl } });
