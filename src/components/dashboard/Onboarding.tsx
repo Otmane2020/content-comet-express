@@ -335,25 +335,69 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                     </div>
                     <div className="sm:col-span-2">
                       <Label htmlFor="url" className="text-[12.5px]">Website</Label>
-                      <Input id="url" value={form.website_url} onChange={set("website_url")} className="mt-1.5" placeholder="https://monsite.com" />
+                      <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                        <Input id="url" value={form.website_url} onChange={set("website_url")} placeholder="https://yoursite.com" />
+                        <Button
+                          type="button"
+                          onClick={autodetectBusiness}
+                          disabled={scanning}
+                          className="shrink-0 bg-gold text-gold-foreground hover:bg-gold/90"
+                        >
+                          {scanning ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Wand2 className="mr-1.5 size-4" />}
+                          {scanning ? "Reading site…" : "Auto-detect with AI"}
+                        </Button>
+                      </div>
+                      <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+                        We read your homepage and fill industry, audience, tone and language for you.
+                      </p>
+                      {detected && (
+                        <motion.p
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-2 rounded-xl border border-gold/30 bg-gold-soft/50 px-3.5 py-2.5 text-[12px] leading-relaxed text-foreground/80"
+                        >
+                          <strong className="font-semibold">Detected:</strong> {detected}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="industry" className="text-[12.5px]">Industry</Label>
-                      <Input id="industry" value={form.industry} onChange={set("industry")} className="mt-1.5" placeholder="Plumbing, HR SaaS…" />
+                      <select
+                        id="industry"
+                        value={form.industry}
+                        onChange={set("industry")}
+                        className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      >
+                        <option value="">Select an industry…</option>
+                        {INDUSTRY_GROUPS.map((g) => (
+                          <optgroup key={g.group} label={g.group}>
+                            {g.items.map((i) => (
+                              <option key={i} value={i}>{i}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <Label htmlFor="locale" className="text-[12.5px]">Language</Label>
-                      <select
-                        id="locale"
-                        value={form.locale}
-                        onChange={set("locale")}
-                        className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                      >
-                        <option value="fr">French</option>
-                        <option value="en">English</option>
-                        <option value="es">Spanish</option>
-                        <option value="de">German</option>
-                      </select>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {LANGUAGES.map((l) => (
+                          <button
+                            key={l.code}
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, locale: l.code }))}
+                            title={l.label}
+                            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition ${
+                              form.locale === l.code
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                                : "border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/50"
+                            }`}
+                          >
+                            <span className="text-[15px] leading-none">{l.flag}</span>
+                            {l.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="sm:col-span-2">
                       <Label className="text-[12.5px]">Editorial tone</Label>
