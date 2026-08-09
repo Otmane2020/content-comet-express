@@ -58,7 +58,7 @@ const SupabaseLogo = (p: SVGProps) => (
 );
 
 /** Fallback / generic custom-endpoint mark. */
-const LovableBoltLogo = (p: SVGProps) => <LovableLogo className={p.className} />;
+const LovableBoltLogo = (p: SVGProps) => <LovableLogo className={p.className ?? "size-6"} />;
 
 /** Row of the three no-code hosts we POST the article JSON to. */
 export function CustomSiteLogos({ className = "size-6" }: { className?: string }) {
