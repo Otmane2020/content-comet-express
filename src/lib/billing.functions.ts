@@ -1,3 +1,46 @@
+export const syncSubscription = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const key = process.env["STRIPE_LIVE_API_KEY"];
+    if (!key) throw new Error("Stripe is not configured");
+    const { userId } = context;
+
+    const q = encodeURIComponent(`metadata['user_id']:'${userId}'`);
+    const res = await fetch(`https://api.stripe.com/v1/subscriptions/search?query=${q}&limit=1`, {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    if (!res.ok) throw new Error(`Stripe lookup failed [${res.status}]`);
+    const found = (await res.json()) as {
+      data: {
+        id: string;
+        status: string;
+        customer: string;
+        current_period_end?: number;
+        items?: { data: { price?: { recurring?: { interval?: string } } }[] };
+      }[];
+    };
+    const sub = found.data[0];
+    if (!sub) return { active: false, status: "inactive" as const };
+
+    const interval = sub.items?.data?.[0]?.price?.recurring?.interval;
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    await supabaseAdmin.from("subscriptions").upsert(
+      {
+        user_id: userId,
+        status: sub.status,
+        cycle: interval === "year" ? "annual" : interval === "month" ? "monthly" : null,
+        stripe_customer_id: sub.customer,
+        stripe_subscription_id: sub.id,
+        current_period_end: sub.current_period_end
+          ? new Date(sub.current_period_end * 1000).toISOString()
+          : null,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id" },
+    );
+
+    return { active: sub.status === "active" || sub.status === "trialing", status: sub.status };
+  });
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
