@@ -1,5 +1,8 @@
 import type { ReactElement, SVGProps as ReactSVGProps } from "react";
 import type { PlatformId } from "@/lib/geo";
+import lovableMark from "@/assets/logos/lovable.svg";
+import boltMark from "@/assets/logos/bolt.svg";
+import replitMark from "@/assets/logos/replit.png";
 
 type SVGProps = ReactSVGProps<SVGSVGElement>;
 
@@ -27,39 +30,17 @@ const ShopifyLogo = (p: SVGProps) => (
   </svg>
 );
 
-/** Lovable — heart mark in the brand orange→pink→violet gradient. */
-export const LovableLogo = (p: SVGProps) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
-    <defs>
-      <linearGradient id="ranki-lovable-grad" x1="2" y1="21" x2="22" y2="3" gradientUnits="userSpaceOnUse">
-        <stop offset="0%" stopColor="#FF8A3D" />
-        <stop offset="45%" stopColor="#FF4D6D" />
-        <stop offset="100%" stopColor="#8B5CF6" />
-      </linearGradient>
-    </defs>
-    <path
-      d="M6.9 3.2c-2.7 0-4.9 2.2-4.9 5v3.1c0 5.3 4.3 9.5 9.6 9.5h8.4c1.1 0 2-.9 2-2s-.9-2-2-2h-4.1v-2.2c2.6-.2 4.6-2.3 4.6-4.9 0-2.7-2.2-4.9-4.9-4.9-1.6 0-3.1.8-4 2.1-.9-1.7-2.7-2.8-4.7-2.8Z"
-      fill="url(#ranki-lovable-grad)"
-    />
-  </svg>
+/** Official brand marks, downloaded from each vendor. */
+export const LovableLogo = ({ className = "size-6" }: { className?: string }) => (
+  <img src={lovableMark} alt="Lovable" className={`${className} object-contain`} loading="lazy" />
 );
 
-/** Bolt.new — white lightning bolt on the black rounded square. */
-export const BoltLogo = (p: SVGProps) => (
-  <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" {...p}>
-    <rect width="24" height="24" rx="5.5" fill="#0B0B0B" />
-    <path d="M13.9 3.5 6.4 13.35h4.36L10 20.5l7.6-9.98h-4.4l.7-7.02Z" fill="#FFFFFF" />
-  </svg>
+export const BoltLogo = ({ className = "size-6" }: { className?: string }) => (
+  <img src={boltMark} alt="Bolt.new" className={`${className} rounded-[5px] object-contain`} loading="lazy" />
 );
 
-/** Replit — official three-block mark. */
-export const ReplitLogo = (p: SVGProps) => (
-  <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" {...p}>
-    <path
-      d="M2 1.5A1.5 1.5 0 0 1 3.5 0h7A1.5 1.5 0 0 1 12 1.5V8H3.5A1.5 1.5 0 0 1 2 6.5v-5ZM12 8h8.5A1.5 1.5 0 0 1 22 9.5v5a1.5 1.5 0 0 1-1.5 1.5H12V8ZM2 17.5A1.5 1.5 0 0 1 3.5 16H12v6.5a1.5 1.5 0 0 1-1.5 1.5h-7A1.5 1.5 0 0 1 2 22.5v-5Z"
-      fill="#F26207"
-    />
-  </svg>
+export const ReplitLogo = ({ className = "size-6" }: { className?: string }) => (
+  <img src={replitMark} alt="Replit" className={`${className} rounded-[5px] object-contain`} loading="lazy" />
 );
 
 /** Official Supabase mark. */
@@ -77,15 +58,15 @@ const SupabaseLogo = (p: SVGProps) => (
 );
 
 /** Fallback / generic custom-endpoint mark. */
-const LovableBoltLogo = LovableLogo;
+const LovableBoltLogo = (p: SVGProps) => <LovableLogo className={p.className ?? "size-6"} />;
 
 /** Row of the three no-code hosts we POST the article JSON to. */
 export function CustomSiteLogos({ className = "size-6" }: { className?: string }) {
   return (
-    <span className="flex items-center gap-1.5">
-      <LovableLogo className={className} aria-hidden />
-      <BoltLogo className={className} aria-hidden />
-      <ReplitLogo className={className} aria-hidden />
+    <span className="inline-flex items-center gap-2">
+      <LovableLogo className={className} />
+      <BoltLogo className={className} />
+      <ReplitLogo className={className} />
     </span>
   );
 }
@@ -96,7 +77,7 @@ const MAP: Record<PlatformId, (p: SVGProps) => ReactElement> = {
   prestashop: PrestaShopLogo,
   shopify: ShopifyLogo,
   supabase: SupabaseLogo,
-  webhook: LovableBoltLogo,
+  webhook: LovableBoltLogo as (p: SVGProps) => ReactElement,
 };
 
 export function PlatformLogo({ platform, className = "size-5" }: { platform: string; className?: string }) {
