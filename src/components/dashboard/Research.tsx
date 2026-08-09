@@ -139,9 +139,9 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
           </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             {[
-              { n: "01", t: "We find the keywords", d: "Real volume, CPC and difficulty for your topics." },
-              { n: "02", t: "We scan your rivals", d: "Their winning terms become your opportunities." },
-              { n: "03", t: "The autopilot writes", d: "Most relevant, buyer-intent terms are used first — not just the biggest volume." },
+              { n: "01", t: "We find the keywords", d: "Real volume, CPC and difficulty — never estimated." },
+              { n: "02", t: "We validate the fit", d: "Off-topic terms and fake rivals are rejected, however big their volume." },
+              { n: "03", t: "The autopilot writes", d: "Highest business relevance first — volume only breaks ties." },
             ].map((s) => (
               <div key={s.n} className="rounded-xl bg-background/10 p-3.5 backdrop-blur-sm">
                 <p className="font-mono text-[11px] font-bold text-gold">{s.n}</p>
@@ -155,7 +155,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Keywords tracked", value: keywords.length, sub: "ranked by monthly volume" },
+          { label: "Keywords tracked", value: keywords.length, sub: "ranked by business relevance" },
           { label: "Competitors watched", value: competitors.length, sub: "domains fighting for your terms" },
           {
             label: "Total monthly volume",
@@ -324,7 +324,8 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             <div>
               <h2 className="font-display text-base font-semibold">What to write about</h2>
               <p className="text-[12.5px] text-muted-foreground">
-                {keywords.length} keyword{keywords.length === 1 ? "" : "s"} tracked, best volume first.
+                {keywords.length} keyword{keywords.length === 1 ? "" : "s"} tracked, most relevant to your
+                product first.
               </p>
             </div>
           </div>
@@ -360,6 +361,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
                 <tr className="bg-secondary/60">
                   {[
                     { h: "Keyword", a: "text-left" },
+                    { h: "Relevance", a: "text-center" },
                     { h: "Volume", a: "text-right" },
                     { h: "CPC", a: "text-right" },
                     { h: "Difficulty", a: "text-center" },
@@ -394,6 +396,19 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
                       }`}
                     >
                       <td className="px-3 py-3 text-[13.5px] font-medium">{k.keyword}</td>
+                      <td className="px-3 py-3 text-center">
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-1 font-mono text-[11.5px] font-bold ${
+                            (k.relevance_score ?? 0) >= 80
+                              ? "bg-success-soft text-success"
+                              : (k.relevance_score ?? 0) >= 60
+                                ? "bg-gold/20 text-gold-foreground"
+                                : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {k.relevance_score != null ? `${Math.round(k.relevance_score)}` : "—"}
+                        </span>
+                      </td>
                       <td className="px-3 py-3 text-right font-mono text-[13px] font-semibold">
                         {k.search_volume != null ? k.search_volume.toLocaleString("en-US") : "—"}
                       </td>
