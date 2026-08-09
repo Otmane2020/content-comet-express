@@ -106,6 +106,42 @@ async function publishPrestashop(config: Config, payload: PublishPayload): Promi
   return { url: `${clean(site)}/content/${payload.slug}`, message: "Published on PrestaShop" };
 }
 
+/** Writes the article straight into the customer's own Supabase `articles` table. */
+async function publishSupabase(config: Config, payload: PublishPayload): Promise<PublishResult> {
+  const base = config["supabase_url"];
+  const key = config["service_role_key"];
+  if (!base || !key) throw new Error("Supabase needs the project URL and the service role key");
+
+  const res = await fetch(`${clean(base)}/rest/v1/articles?on_conflict=slug`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      Prefer: "resolution=merge-duplicates,return=representation",
+    },
+    body: JSON.stringify([
+      {
+        title: payload.title,
+        slug: payload.slug,
+        excerpt: payload.excerpt,
+        markdown: payload.markdown,
+        html: payload.html,
+        cover_url: payload.coverUrl ?? null,
+        keywords: payload.keywords ?? [],
+        content_type: payload.contentType,
+        published_at: new Date().toISOString(),
+      },
+    ]),
+  });
+  if (!res.ok) throw new Error(`Supabase refused the article ${await readError(res)}`);
+  const site = config["site_url"];
+  return {
+    url: site ? `${clean(site)}/blog/${payload.slug}` : null,
+    message: "Saved in your Supabase articles table",
+  };
+}
+
 async function publishWebhook(config: Config, payload: PublishPayload): Promise<PublishResult> {
   const endpoint = config["endpoint"];
   if (!endpoint) throw new Error("Add the endpoint URL of your site");
@@ -148,6 +184,8 @@ export function publishTo(
       return publishShopify(config, payload);
     case "prestashop":
       return publishPrestashop(config, payload);
+    case "supabase":
+      return publishSupabase(config, payload);
     case "webhook":
       return publishWebhook(config, payload);
     default:

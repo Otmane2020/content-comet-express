@@ -55,6 +55,20 @@ export const ReplitLogo = (p: SVGProps) => (
   </svg>
 );
 
+/** Official Supabase mark. */
+const SupabaseLogo = (p: SVGProps) => (
+  <svg viewBox="0 0 109 113" {...p}>
+    <path
+      fill="#3ECF8E"
+      d="M63.7 110.3c-2.8 3.6-8.6 1.6-8.6-2.9l-.4-66.5h44.7c8.1 0 12.6 9.3 7.6 15.7l-43.3 53.7Z"
+    />
+    <path
+      fill="#249361"
+      d="M45.3 2.4c2.8-3.6 8.6-1.6 8.6 2.9l.3 66.5H10.1c-8.1 0-12.6-9.4-7.6-15.7L45.3 2.4Z"
+    />
+  </svg>
+);
+
 /** Fallback / generic custom-endpoint mark. */
 const LovableBoltLogo = LovableLogo;
 
@@ -74,6 +88,7 @@ const MAP: Record<PlatformId, (p: SVGProps) => ReactElement> = {
   woocommerce: WooCommerceLogo,
   prestashop: PrestaShopLogo,
   shopify: ShopifyLogo,
+  supabase: SupabaseLogo,
   webhook: LovableBoltLogo,
 };
 
