@@ -194,6 +194,8 @@ export async function runPublish(
     markdown: item.body_md,
     contentType: item.content_type,
     scheduledDate: item.scheduled_date,
+    coverUrl: item.cover_image_url ?? null,
+    keywords: (item.keywords as string[] | null) ?? [],
   };
 
   const results: { platform: string; success: boolean; message: string; url: string | null }[] = [];
