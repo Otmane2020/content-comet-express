@@ -74,6 +74,19 @@ export function Calendar({ projectId }: { projectId: string }) {
     },
   });
 
+  const { data: catalogConnected = false } = useQuery({
+    queryKey: ["catalog-connected", projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("integrations")
+        .select("id")
+        .eq("project_id", projectId)
+        .eq("status", "connected")
+        .in("platform", ["shopify", "woocommerce", "prestashop"]);
+      return Boolean(data?.length);
+    },
+  });
+
   const genMutation = useMutation({
     mutationFn: (itemId: string) => generate({ data: { itemId } }),
     onSuccess: () => {
@@ -275,7 +288,13 @@ export function Calendar({ projectId }: { projectId: string }) {
                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>
                     {status.label}
                   </span>
-                  {gmbConnected && item.content_type === "local_aeo" && (
+                  {catalogConnected && item.content_type === "shopping" && (
+                    <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-bold text-secondary-foreground">
+                      <span className="size-1.5 rounded-full bg-primary" aria-hidden />
+                      SHOPPING FEED
+                    </span>
+                  )}
+                  {gmbConnected && (
                     <span className="flex items-center gap-1 rounded-full bg-gold-soft px-2 py-0.5 text-[10.5px] font-bold text-gold-foreground">
                       <span className="size-1.5 rounded-full bg-gold" aria-hidden />
                       GMB

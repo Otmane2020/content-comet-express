@@ -106,10 +106,21 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
           let wrote = false;
           if (!body) {
             try {
+              let products: { title: string; price: string | null; url: string | null; description: string | null }[] = [];
+              if (item.content_type === "shopping") {
+                const { fetchCatalog, CATALOG_PLATFORMS } = await import("@/lib/catalog.server");
+                const { data: stores } = await supabaseAdmin
+                  .from("integrations")
+                  .select("platform, config")
+                  .eq("project_id", project.id)
+                  .eq("status", "connected")
+                  .in("platform", CATALOG_PLATFORMS as unknown as string[]);
+                products = await fetchCatalog((stores ?? []) as never);
+              }
               const article = await writeArticle(brief, {
                 content_type: item.content_type as ContentType,
                 topic: item.topic,
-              });
+              }, { products });
               body = article.body_md;
               title = article.title;
               excerpt = article.excerpt;

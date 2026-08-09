@@ -73,7 +73,9 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
 export async function writeArticle(
   project: ProjectBrief,
   item: { content_type: ContentType; topic: string | null },
+  extras?: { products?: { title: string; price: string | null; url: string | null; description: string | null }[] },
 ) {
+  const products = extras?.products ?? [];
   const guidance: Record<ContentType, string> = {
     geo: "Write so that generative engines (ChatGPT, Perplexity, Gemini, AI Overviews) can quote you: crisp factual claims, statistics, named entities, and a quotable summary paragraph near the top.",
     seo: "Write a classic long-form SEO article: search intent match, H2/H3 structure, internal-link suggestions, and a keyword-rich but natural style.",
@@ -82,6 +84,12 @@ export async function writeArticle(
     shopping:
       "Shopping assistant format: comparison table in markdown, buying criteria, price ranges, pros/cons, and a clear recommendation.",
   };
+
+  const catalogBlock = products.length
+    ? `\n\nReal product catalogue of this business (use ONLY these products, with their exact names, prices and links; never invent products):\n${products
+        .map((p) => [p.title, p.price ? `price ${p.price}` : null, p.url, p.description].filter(Boolean).join(" — "))
+        .join("\n")}\n\nBuild the comparison table and the recommendation from this catalogue, and link each product to its URL in markdown.`
+    : "";
 
   const year = new Date().getUTCFullYear();
   const raw = await callOpenRouter({
@@ -94,7 +102,7 @@ export async function writeArticle(
 Content type: ${TYPE_META[item.content_type].label}
 Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
-${guidance[item.content_type]}
+${guidance[item.content_type]}${catalogBlock}
 
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.
