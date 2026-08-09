@@ -14,7 +14,7 @@ export const Route = createFileRoute("/terms")({
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
-    links: [{ rel: "canonical", href: "/terms" }],
+    links: [{ rel: "canonical", href: "https://autopilotgeo.com/terms" }],
   }),
   component: TermsPage,
 });
