@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { CalendarDays, Clock, ChevronLeft } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { BLOG_POSTS, getBlogPost } from "@/lib/blog";
+import { renderMarkdown } from "@/lib/markdown";
 import { getArticleBySlug, type IngestedArticle } from "@/lib/articles.functions";
 
 
@@ -134,7 +135,7 @@ function BlogPost() {
             )}
             <div
               className="prose-magazine mt-8"
-              dangerouslySetInnerHTML={{ __html: article.html ?? "" }}
+              dangerouslySetInnerHTML={{ __html: article.html ?? renderMarkdown(article.markdown ?? "") }}
             />
           </article>
         </main>
