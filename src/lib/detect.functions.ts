@@ -69,29 +69,25 @@ export const detectMarket = createServerFn({ method: "POST" })
     const { normalizeUrl } = await import("./scrape.server");
     const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
     const { competitorDomains, keywordIdeas } = await import("./dataforseo.server");
+    const { QUOTA, dedupeKeywords, dedupeDomains } = await import("./quotas");
 
     const website = normalizeUrl(data.website);
     const domain = website.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
     const opts = localeOpts(data.locale ?? null);
     await requireLiveDataForSeo();
 
-    const competitors: { domain: string }[] = await competitorDomains(domain, opts);
+    const competitors: { domain: string }[] = await competitorDomains(domain, opts, QUOTA.competitors);
 
-    const seeds = (data.seeds ?? []).filter(Boolean).slice(0, 10);
+    const seeds = (data.seeds ?? []).filter(Boolean).slice(0, QUOTA.seeds);
     const usedSeeds = seeds.length ? seeds : [data.industry ?? data.name ?? domain];
     const keywords: { keyword: string; search_volume: number | null; difficulty: number | null }[] =
-      await keywordIdeas(usedSeeds, opts);
+      await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
 
     return {
       live: true,
       source: "dataforseo" as const,
-      competitors: competitors
-        .map((c) => c.domain)
-        .filter((d) => d && d !== domain)
-        .slice(0, 8),
-      keywords: keywords
-        .filter((k) => k?.keyword)
-        .slice(0, 20)
+      competitors: dedupeDomains(competitors.map((c) => c.domain), domain, QUOTA.competitors),
+      keywords: dedupeKeywords(keywords.filter((k) => k?.keyword), QUOTA.keywords)
         .map((k) => ({ keyword: k.keyword, volume: k.search_volume ?? null, difficulty: k.difficulty ?? null })),
     };
   });

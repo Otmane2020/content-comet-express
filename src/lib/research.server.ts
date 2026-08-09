@@ -44,6 +44,7 @@ type Sb = { from: (t: string) => any };
  */
 export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
   const { keywordIdeas, competitorDomains, competitorKeywords } = await import("./dataforseo.server");
+  const { QUOTA, dedupeKeywords, dedupeDomains, isFresh } = await import("./quotas");
   const { data: project } = await supabase
     .from("projects")
     .select("id, name, industry, locale, website_url, keywords")
@@ -59,22 +60,37 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
 
   await requireLiveDataForSeo();
 
-  const seeds: string[] = (project.keywords ?? []).filter(Boolean).slice(0, 10);
+  const seeds: string[] = (project.keywords ?? []).filter(Boolean).slice(0, QUOTA.seeds);
   const fallback = project.name ?? project.industry ?? "";
   const usedSeeds = seeds.length ? seeds : fallback ? [fallback] : [];
   const opts = localeOpts(project.locale ?? null);
   let rows: KwRow[] = [];
 
   if (usedSeeds.length) {
-    rows = await keywordIdeas(usedSeeds, opts);
+    rows = await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
   }
 
-  let domains: { domain: string }[] = [];
-  if (project.website_url) {
-    domains = await competitorDomains(project.website_url, opts);
-    if (domains.length) {
+  const self = (project.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  let domains: string[] = [];
+
+  // Cache: reuse stored competitors when they were checked recently.
+  const { data: cached } = await supabase
+    .from("competitors")
+    .select("domain, last_checked_at")
+    .eq("project_id", projectId)
+    .order("last_checked_at", { ascending: false })
+    .limit(QUOTA.competitors);
+  const cachedRows = (cached ?? []) as { domain: string; last_checked_at: string | null }[];
+  const cacheUsable = !force && cachedRows.length > 0 && isFresh(cachedRows[0]?.last_checked_at);
+
+  if (cacheUsable) {
+    domains = dedupeDomains(cachedRows.map((r) => r.domain), self, QUOTA.competitors);
+  } else if (project.website_url) {
+    const found = await competitorDomains(project.website_url, opts, QUOTA.competitors);
+    domains = dedupeDomains(found.map((r) => r.domain), self, QUOTA.competitors);
+    if (found.length) {
       await supabase.from("competitors").upsert(
-        domains.map((r) => ({
+        found.slice(0, QUOTA.competitors).map((r) => ({
           user_id: userId,
           project_id: projectId,
           domain: r.domain,
@@ -86,16 +102,18 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     }
   }
 
-  for (const d of domains.slice(0, 2)) {
+  for (const domain of domains) {
+    if (rows.length >= QUOTA.totalKeywords) break;
     try {
-      rows = rows.concat(await competitorKeywords(d.domain, opts));
+      rows = rows.concat(await competitorKeywords(domain, opts, QUOTA.keywordsPerCompetitor));
     } catch {
       /* keep what we have */
     }
   }
 
-  await saveKeywords(supabase, userId, projectId, rows);
-  return { found: rows.length, skipped: false, live: true };
+  const unique = dedupeKeywords(rows, QUOTA.totalKeywords);
+  await saveKeywords(supabase, userId, projectId, unique);
+  return { found: unique.length, skipped: false, live: true, cachedCompetitors: cacheUsable };
 }
 
 export async function saveKeywords(
@@ -113,12 +131,16 @@ export async function saveKeywords(
   }[],
 ) {
   if (!rows.length) return;
+  const { QUOTA, dedupeKeywords } = await import("./quotas");
   const { data: existing } = await supabase
     .from("keyword_research")
     .select("keyword")
     .eq("project_id", projectId);
   const seen = new Set(((existing ?? []) as { keyword: string }[]).map((r) => r.keyword.toLowerCase()));
-  const fresh = rows.filter((r) => !seen.has(r.keyword.toLowerCase()));
+  const fresh = dedupeKeywords(
+    rows.filter((r) => r.keyword && !seen.has(r.keyword.toLowerCase())),
+    QUOTA.totalKeywords,
+  );
   if (!fresh.length) return;
   await supabase.from("keyword_research").insert(
     fresh.map((r) => ({

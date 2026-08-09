@@ -62,14 +62,23 @@ const loc = (o: LocationOpts) => ({
   language_code: o.languageCode ?? "fr",
 });
 
-/** Keyword ideas + volumes for a list of seed keywords. */
-export async function keywordIdeas(seeds: string[], opts: LocationOpts = {}): Promise<KeywordRow[]> {
+/**
+ * Keyword ideas + volumes for a list of seed keywords.
+ * All seeds go out in ONE batched request — never one request per keyword.
+ */
+export async function keywordIdeas(
+  seeds: string[],
+  opts: LocationOpts = {},
+  limit = 30,
+): Promise<KeywordRow[]> {
+  const batch = Array.from(new Set(seeds.map((s) => s.trim().toLowerCase()).filter(Boolean))).slice(0, 20);
+  if (!batch.length) return [];
   const result = await post<
     { items?: { keyword: string; keyword_info?: { search_volume?: number; cpc?: number; competition?: number }; keyword_properties?: { keyword_difficulty?: number }; search_intent_info?: { main_intent?: string } }[] }[]
   >("/dataforseo_labs/google/keyword_ideas/live", {
-    keywords: seeds.slice(0, 20),
+    keywords: batch,
     ...loc(opts),
-    limit: 50,
+    limit,
     order_by: ["keyword_info.search_volume,desc"],
   });
   return (result[0]?.items ?? []).map((i) => ({
@@ -83,14 +92,18 @@ export async function keywordIdeas(seeds: string[], opts: LocationOpts = {}): Pr
 }
 
 /** Keywords a competitor domain already ranks for. */
-export async function competitorKeywords(domain: string, opts: LocationOpts = {}): Promise<KeywordRow[]> {
+export async function competitorKeywords(
+  domain: string,
+  opts: LocationOpts = {},
+  limit = 10,
+): Promise<KeywordRow[]> {
   const clean = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   const result = await post<
     { items?: { keyword_data?: { keyword: string; keyword_info?: { search_volume?: number; cpc?: number; competition?: number }; keyword_properties?: { keyword_difficulty?: number }; search_intent_info?: { main_intent?: string } }; ranked_serp_element?: { serp_item?: { rank_absolute?: number } } }[] }[]
   >("/dataforseo_labs/google/ranked_keywords/live", {
     target: clean,
     ...loc(opts),
-    limit: 50,
+    limit,
     order_by: ["keyword_data.keyword_info.search_volume,desc"],
   });
   return (result[0]?.items ?? []).map((i) => ({
@@ -105,14 +118,14 @@ export async function competitorKeywords(domain: string, opts: LocationOpts = {}
 }
 
 /** Domains competing with the project's own site. */
-export async function competitorDomains(domain: string, opts: LocationOpts = {}) {
+export async function competitorDomains(domain: string, opts: LocationOpts = {}, limit = 5) {
   const clean = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   const result = await post<
     { items?: { domain: string; avg_position?: number; sum_position?: number; intersections?: number; full_domain_metrics?: { organic?: { count?: number; etv?: number } } }[] }[]
   >("/dataforseo_labs/google/competitors_domain/live", {
     target: clean,
     ...loc(opts),
-    limit: 10,
+    limit,
     order_by: ["intersections,desc"],
   });
   return (result[0]?.items ?? []).map((i) => ({
