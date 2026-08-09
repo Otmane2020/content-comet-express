@@ -23,7 +23,19 @@ export const INDUSTRY_GROUPS: { group: string; items: string[] }[] = [
   },
   {
     group: "Tech & SaaS",
-    items: ["B2B SaaS", "Developer tools", "AI & data", "Cybersecurity", "E-learning & edtech", "Web & app agency"],
+    items: [
+      "B2B SaaS",
+      "SEO & GEO software",
+      "AI search optimization",
+      "Marketing software",
+      "Analytics software",
+      "E-commerce software",
+      "Developer tools",
+      "AI & data",
+      "Cybersecurity",
+      "E-learning & edtech",
+      "Web & app agency",
+    ],
   },
   {
     group: "Health & wellness",
