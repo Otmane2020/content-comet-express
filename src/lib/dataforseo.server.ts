@@ -92,6 +92,41 @@ export async function keywordIdeas(
 }
 
 /** Keywords a competitor domain already ranks for. */
+export async function keywordsForSite(
+  domain: string,
+  opts: LocationOpts = {},
+  limit = 30,
+): Promise<KeywordRow[]> {
+  const clean = domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
+  const call = (order_by: string[]) =>
+    post<
+      { items?: { keyword: string; keyword_info?: { search_volume?: number; cpc?: number; competition?: number }; keyword_properties?: { keyword_difficulty?: number }; search_intent_info?: { main_intent?: string } }[] }[]
+    >("/dataforseo_labs/google/keywords_for_site/live", {
+      target: clean,
+      ...loc(opts),
+      limit,
+      include_serp_info: false,
+      order_by,
+    });
+  let result: Awaited<ReturnType<typeof call>>;
+  try {
+    result = await call(["relevance,desc"]);
+  } catch {
+    result = await call(["keyword_info.search_volume,desc"]);
+  }
+  return (result[0]?.items ?? [])
+    .map((i) => ({
+      keyword: i.keyword,
+      search_volume: i.keyword_info?.search_volume ?? null,
+      cpc: i.keyword_info?.cpc ?? null,
+      competition: i.keyword_info?.competition ?? null,
+      difficulty: i.keyword_properties?.keyword_difficulty ?? null,
+      intent: i.search_intent_info?.main_intent ?? null,
+    }))
+    .filter((k) => k.keyword);
+}
+
+/** Keywords a competitor domain already ranks for. */
 export async function competitorKeywords(
   domain: string,
   opts: LocationOpts = {},
