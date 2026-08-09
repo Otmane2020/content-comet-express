@@ -4,7 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ChevronDown, Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { analyzeCompetitor, autoResearch, discoverCompetitors, researchKeywords } from "@/lib/research.functions";
+import {
+  analyzeCompetitor,
+  autoResearch,
+  dataSourceStatus,
+  discoverCompetitors,
+  researchKeywords,
+} from "@/lib/research.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +38,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   const discover = useServerFn(discoverCompetitors);
   const analyze = useServerFn(analyzeCompetitor);
   const auto = useServerFn(autoResearch);
+  const status = useServerFn(dataSourceStatus);
   const started = useRef(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [kwShown, setKwShown] = useState(5);
@@ -62,6 +69,12 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
       if (error) throw error;
       return data as Competitor[];
     },
+  });
+
+  const { data: source } = useQuery({
+    queryKey: ["research-source"],
+    queryFn: () => status({}),
+    staleTime: 5 * 60_000,
   });
 
   async function run(key: string, fn: () => Promise<{ found: number }>) {
