@@ -145,7 +145,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
   // user can immediately pick one for both services.
   useEffect(() => {
     for (const conn of connections) {
-      if (conn.resource_id || options[conn.id]) continue;
+      if (options[conn.id]) continue;
       setOptions((o) => ({ ...o, [conn.id]: [] }));
       void resources({ data: { connectionId: conn.id } })
         .then((res) => setOptions((o) => ({ ...o, [conn.id]: res })))
