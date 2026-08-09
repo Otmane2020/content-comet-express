@@ -57,7 +57,7 @@ export function dedupeDomains(domains: string[], self: string, max: number) {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of domains) {
-    const d = raw?.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
+    const d = raw?.replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
     if (!d || seen.has(d) || !isRealCompetitor(d, self)) continue;
     seen.add(d);
     out.push(d);
