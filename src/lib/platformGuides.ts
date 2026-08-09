@@ -54,15 +54,15 @@ export const PLATFORM_GUIDES: Record<PlatformId, PlatformGuide> = {
     docUrl: "https://devdocs.prestashop-project.org/8/webservice/tutorials/creating-access/",
   },
   shopify: {
-    time: "4 min",
+    time: "1 min",
     summary:
-      "We publish to a Shopify blog through the Admin API. You need a custom app with the write_content scope and your blog ID.",
+      "One-click install: approve the Ranki app in your Shopify admin and you land back on the dashboard, connected. We pick your blog automatically.",
     steps: [
-      { title: "Create a custom app", detail: "Shopify admin → Settings → Apps and sales channels → Develop apps → Create an app." },
-      { title: "Allow content writing", detail: "Configuration → Admin API → tick write_content and read_content, then Save." },
-      { title: "Install and copy the token", detail: "API credentials tab → Install app → copy the Admin API access token (shpat_…)." },
-      { title: "Get the blog ID", detail: "Admin → Content → Blog posts → open your blog: the ID is the number at the end of the URL (…/blogs/123456789)." },
-      { title: "Fill in the form", detail: "Shop domain = mystore.myshopify.com, Blog ID, Admin API token." },
+      { title: "Enter your shop domain", detail: "mystore.myshopify.com — nothing else to prepare." },
+      { title: "Install the app", detail: "Shopify asks you to approve blog + product access for Ranki." },
+      { title: "Back to the dashboard", detail: "You are redirected here automatically and the store shows as Connected." },
+      { title: "Blog chosen for you", detail: "We use your existing blog, or create a “News” blog if the store has none." },
+      { title: "Prefer a manual token?", detail: "Use “Use a custom app token instead” to paste a shpat_… Admin API token and blog ID." },
     ],
     docUrl: "https://help.shopify.com/en/manual/apps/app-types/custom-apps",
   },

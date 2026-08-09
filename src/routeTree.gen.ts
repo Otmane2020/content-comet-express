@@ -26,6 +26,8 @@ import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksRefillCalendarRouteImport } from './routes/api/public/hooks/refill-calendar'
 import { Route as ApiPublicHooksStripeRouteImport } from './routes/api/public/hooks/stripe'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img/$'
+import { Route as ApiPublicShopifyCallbackRouteImport } from './routes/api/public/shopify/callback'
+import { Route as ApiPublicShopifyInstallRouteImport } from './routes/api/public/shopify/install'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -114,6 +116,17 @@ const ApiPublicImgSplatRoute = ApiPublicImgSplatRouteImport.update({
   path: '/api/public/img/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicShopifyCallbackRoute =
+  ApiPublicShopifyCallbackRouteImport.update({
+    id: '/api/public/shopify/callback',
+    path: '/api/public/shopify/callback',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const ApiPublicShopifyInstallRoute = ApiPublicShopifyInstallRouteImport.update({
+  id: '/api/public/shopify/install',
+  path: '/api/public/shopify/install',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -133,6 +146,8 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
+  '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
+  '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -151,6 +166,8 @@ export interface FileRoutesByTo {
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
+  '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
+  '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -171,6 +188,8 @@ export interface FileRoutesById {
   '/api/public/hooks/refill-calendar': typeof ApiPublicHooksRefillCalendarRoute
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
+  '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
+  '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -192,6 +211,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refill-calendar'
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
+    | '/api/public/shopify/callback'
+    | '/api/public/shopify/install'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -210,6 +231,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refill-calendar'
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
+    | '/api/public/shopify/callback'
+    | '/api/public/shopify/install'
   id:
     | '__root__'
     | '/'
@@ -229,6 +252,8 @@ export interface FileRouteTypes {
     | '/api/public/hooks/refill-calendar'
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
+    | '/api/public/shopify/callback'
+    | '/api/public/shopify/install'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -247,6 +272,8 @@ export interface RootRouteChildren {
   ApiPublicHooksRefillCalendarRoute: typeof ApiPublicHooksRefillCalendarRoute
   ApiPublicHooksStripeRoute: typeof ApiPublicHooksStripeRoute
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
+  ApiPublicShopifyCallbackRoute: typeof ApiPublicShopifyCallbackRoute
+  ApiPublicShopifyInstallRoute: typeof ApiPublicShopifyInstallRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -370,6 +397,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicImgSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/shopify/callback': {
+      id: '/api/public/shopify/callback'
+      path: '/api/public/shopify/callback'
+      fullPath: '/api/public/shopify/callback'
+      preLoaderRoute: typeof ApiPublicShopifyCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shopify/install': {
+      id: '/api/public/shopify/install'
+      path: '/api/public/shopify/install'
+      fullPath: '/api/public/shopify/install'
+      preLoaderRoute: typeof ApiPublicShopifyInstallRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -401,6 +442,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksRefillCalendarRoute: ApiPublicHooksRefillCalendarRoute,
   ApiPublicHooksStripeRoute: ApiPublicHooksStripeRoute,
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
+  ApiPublicShopifyCallbackRoute: ApiPublicShopifyCallbackRoute,
+  ApiPublicShopifyInstallRoute: ApiPublicShopifyInstallRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
