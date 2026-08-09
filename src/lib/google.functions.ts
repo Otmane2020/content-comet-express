@@ -139,12 +139,21 @@ export const publishToGmb = createServerFn({ method: "POST" })
       .eq("project_id", data.projectId);
     query = data.contentId
       ? query.eq("id", data.contentId)
-      : query.order("scheduled_date", { ascending: false }).limit(1);
+      : query.order("scheduled_date", { ascending: false }).limit(30);
     const { data: itemRows } = await query;
-    const item = itemRows?.[0];
-    if (!item) throw new Error("No article to post yet.");
+    const hasText = (r: { title?: string | null; excerpt?: string | null; body_md?: string | null }) =>
+      Boolean((r.title ?? "").trim() || (r.excerpt ?? "").trim() || (r.body_md ?? "").trim());
+    const item = data.contentId ? itemRows?.[0] : itemRows?.find(hasText);
+    if (!item) throw new Error("No written article available yet — generate an article first, then share it.");
+    if (!hasText(item)) throw new Error("This article hasn't been written yet — generate its content first.");
 
-    const summary = [item.title, item.excerpt ?? (item.body_md ?? "").replace(/[#*`>]/g, "").slice(0, 900)]
+    const bodyText = (item.body_md ?? "")
+      .replace(/!\[[^\]]*\]\([^)]*\)/g, "")
+      .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+      .replace(/[#*`>_]/g, "")
+      .trim()
+      .slice(0, 900);
+    const summary = [(item.title ?? "").trim(), (item.excerpt ?? "").trim() || bodyText]
       .filter(Boolean)
       .join("\n\n");
 
