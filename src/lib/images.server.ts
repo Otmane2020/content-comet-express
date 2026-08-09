@@ -78,20 +78,28 @@ export function visualSubject(topic: string, industry?: string | null): string {
 }
 
 const NO_TEXT =
-  "The scene contains no writing at all: blank signs, blank screens, blank packaging, blank paper, no books or posters, no logos, no numbers, no letters, no watermark, no captions, no UI text. Every surface is plain and unprinted.";
+  "The image contains no writing at all: no letters, no numbers, no words, no logos, no labels, no signage, no captions, no watermark, no UI text. Every surface is plain and unprinted.";
 
 const STYLE =
-  "Photorealistic documentary photograph, 50mm lens, natural window light, very shallow depth of field, muted editorial color grade. Frame people, hands, architecture, materials and light rather than printed products; keep any packaging, screens or signage out of focus and out of frame. No graphic design elements, no illustration, no collage, no border, no frame.";
+  "Photorealistic, 85mm lens, soft natural light, very shallow depth of field, muted editorial color grade. No graphic design elements, no illustration, no collage, no border, no frame.";
+
+/**
+ * Wide establishing shots always summon garbled signage, so we force a tight
+ * crop on hands, objects, materials and light with a blurred plain backdrop.
+ */
+function scenePrompt(subject: string, setting: string) {
+  return `Close-up editorial still-life photograph inspired by ${subject}${setting}. Tight crop on hands, objects, materials and light against a plain seamless neutral backdrop; the background is a smooth blurred gradient with no shelves, no signage, no screens, no posters, no packaging. ${STYLE} ${NO_TEXT}`;
+}
 
 export function coverPrompt(topic: string, industry: string | null) {
-  const subject = visualSubject(topic, industry);
-  const setting = industry ? ` in a ${industry.toLowerCase()} environment` : "";
-  return `A real-world scene of ${subject}${setting}, photographed candidly. ${STYLE} ${NO_TEXT}`;
+  return scenePrompt(
+    visualSubject(topic, industry),
+    industry ? `, in a ${industry.toLowerCase()} context` : "",
+  );
 }
 
 export function sectionPrompt(heading: string, topic: string) {
-  const subject = visualSubject(`${heading} ${topic}`);
-  return `A real-world scene of ${subject}, photographed candidly. ${STYLE} ${NO_TEXT}`;
+  return scenePrompt(visualSubject(`${heading} ${topic}`), "");
 }
 
 /** Remove inline markdown images (we keep exactly one cover image per article). */
