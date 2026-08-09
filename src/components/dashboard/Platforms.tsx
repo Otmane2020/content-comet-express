@@ -7,7 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { PLATFORM_META, type PlatformId } from "@/lib/geo";
 import { startShopifyInstall } from "@/lib/shopify.functions";
 import { PLATFORM_GUIDES } from "@/lib/platformGuides";
-import { PlatformLogo } from "@/components/PlatformLogo";
+import { CustomSiteLogos, PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -230,7 +230,11 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                       : "border-border hover:border-primary/40 hover:bg-muted/50"
                   }`}
                 >
-                  <PlatformLogo platform={id} className="mt-0.5 size-5 shrink-0" />
+                  {id === "webhook" ? (
+                    <CustomSiteLogos className="mt-0.5 size-5 shrink-0" />
+                  ) : (
+                    <PlatformLogo platform={id} className="mt-0.5 size-5 shrink-0" />
+                  )}
                   <span className="min-w-0">
                     <span className="block truncate text-[12.5px] font-semibold">{meta.label}</span>
                     <span className="mt-0.5 block text-[11.5px] leading-snug text-muted-foreground">
@@ -354,7 +358,11 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                 <DialogHeader className="space-y-0 text-left">
                   <div className="flex items-center gap-3">
                     <span className="flex size-11 items-center justify-center rounded-xl bg-background">
-                      <PlatformLogo platform={guideFor} className="size-6" />
+                      {guideFor === "webhook" ? (
+                        <CustomSiteLogos className="size-6" />
+                      ) : (
+                        <PlatformLogo platform={guideFor} className="size-6" />
+                      )}
                     </span>
                     <div>
                       <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
