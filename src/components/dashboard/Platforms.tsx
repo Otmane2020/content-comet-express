@@ -317,9 +317,6 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                   ))}
                 </ol>
 
-                {guide.tips && guide.tips.length > 0 && (
-                  <></>
-                )}
                 {guide.prompt && (
                   <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2">
