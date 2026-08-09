@@ -256,10 +256,10 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         onChange={set("locale")}
                         className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                       >
-                        <option value="fr">Français</option>
+                        <option value="fr">French</option>
                         <option value="en">English</option>
-                        <option value="es">Español</option>
-                        <option value="de">Deutsch</option>
+                        <option value="es">Spanish</option>
+                        <option value="de">German</option>
                       </select>
                     </div>
                     <div className="sm:col-span-2">
