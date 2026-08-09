@@ -278,5 +278,46 @@ export async function runPublish(
       .update({ status: "published", published_url: firstOk.url })
       .eq("id", item.id);
   }
+
+  // Google Business Profile: share the same piece as a local post.
+  try {
+    const { data: googles } = await supabase
+      .from("google_connections")
+      .select("id, service, resource_id, auto_publish")
+      .eq("project_id", item.project_id)
+      .eq("service", "gmb")
+      .eq("status", "connected");
+    if (googles?.length) {
+      const { accessTokenFor, createGmbPost } = await import("./google.server");
+      for (const conn of googles as any[]) {
+        if (!conn.resource_id || !conn.auto_publish) continue;
+        try {
+          const token = await accessTokenFor(conn.id);
+          await createGmbPost(token, conn.resource_id, {
+            summary: [payload.title, payload.excerpt].filter(Boolean).join("\n\n"),
+            url: firstOk?.url ?? null,
+          });
+          results.push({ platform: "gmb", success: true, message: "Shared on Google Business Profile", url: null });
+          await supabase.from("publish_logs").insert({
+            user_id: userId,
+            content_item_id: item.id,
+            platform: "gmb",
+            success: true,
+            message: "Shared on Google Business Profile",
+          });
+        } catch (e) {
+          const message = e instanceof Error ? e.message : "Google Business Profile error";
+          results.push({ platform: "gmb", success: false, message, url: null });
+          await supabase
+            .from("google_connections")
+            .update({ last_error: message.slice(0, 300) })
+            .eq("id", conn.id);
+        }
+      }
+    }
+  } catch {
+    /* Google sharing is best-effort */
+  }
+
   return { results };
 }
