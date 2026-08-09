@@ -457,6 +457,54 @@ export type Database = {
           },
         ]
       }
+      signup_notifications: {
+        Row: {
+          email: string | null
+          notified_at: string
+          user_id: string
+        }
+        Insert: {
+          email?: string | null
+          notified_at?: string
+          user_id: string
+        }
+        Update: {
+          email?: string | null
+          notified_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      support_tickets: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          message: string
+          status: string
+          subject: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          message: string
+          status?: string
+          subject: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          message?: string
+          status?: string
+          subject?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
