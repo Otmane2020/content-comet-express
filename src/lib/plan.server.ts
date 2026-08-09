@@ -40,16 +40,18 @@ export async function planTopics(
   const list = slots
     .map((s, i) => `${i + 1}. ${s.date} — ${TYPE_META[s.type].label}: ${TYPE_META[s.type].blurb}`)
     .join("\n");
+  const year = new Date().getUTCFullYear();
 
   try {
     const raw = await callOpenRouter({
       json: true,
       maxTokens: 2200,
       system:
-        "You are a generative-engine-optimisation strategist. You answer with strict JSON only.",
+        `You are a generative-engine-optimisation strategist. Today is ${new Date().toISOString().slice(0, 10)} and the current year is ${year}. Never reference a past year as if it were current: if a topic needs a year, always use ${year} (or later). You answer with strict JSON only.`,
       user: `${briefLine(project)}
 
 Create one editorial topic per slot below. Each topic must be a concrete, specific title idea (max 90 chars) matching the slot's content type, non-duplicated, in the project's language.
+Any year mentioned in a title must be ${year}. Never write ${year - 1}, ${year - 2} or older years.
 
 Slots:
 ${list}
@@ -61,7 +63,7 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
     const fallback = fallbackTopics(project, slots);
     return slots.map((slot, i) => ({
       ...slot,
-      topic: byDate.get(slot.date) ?? fallback[i]!.topic,
+      topic: freshenYears(byDate.get(slot.date) ?? fallback[i]!.topic),
     }));
   } catch {
     return fallbackTopics(project, slots);
@@ -81,11 +83,12 @@ export async function writeArticle(
       "Shopping assistant format: comparison table in markdown, buying criteria, price ranges, pros/cons, and a clear recommendation.",
   };
 
+  const year = new Date().getUTCFullYear();
   const raw = await callOpenRouter({
     json: true,
     maxTokens: 3200,
     system:
-      "You are a senior content writer specialised in generative engine optimisation. You answer with strict JSON only.",
+      `You are a senior content writer specialised in generative engine optimisation. Today is ${new Date().toISOString().slice(0, 10)} and the current year is ${year}. Your knowledge cutoff is older than today, so never present ${year - 1} or earlier as the current year, and never label trends with a past year. You answer with strict JSON only.`,
     user: `${briefLine(project)}
 
 Content type: ${TYPE_META[item.content_type].label}
@@ -94,6 +97,7 @@ Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 ${guidance[item.content_type]}
 
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
+Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.
 
 Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"}`,
   });
@@ -101,8 +105,18 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
   const parsed = parseJsonLoose<{ title?: string; excerpt?: string; body_md?: string }>(raw);
   if (!parsed.body_md) throw new Error("The model returned no article body");
   return {
-    title: parsed.title?.trim() || (item.topic ?? "Untitled"),
-    excerpt: parsed.excerpt?.trim() ?? "",
-    body_md: parsed.body_md,
+    title: freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")),
+    excerpt: freshenYears(parsed.excerpt?.trim() ?? ""),
+    body_md: freshenYears(parsed.body_md),
   };
+}
+
+/**
+ * Models are trained on older data and keep writing "trends 2024".
+ * Rewrite any stale year from the last few years to the current one.
+ */
+export function freshenYears(text: string): string {
+  const year = new Date().getUTCFullYear();
+  const stale = Array.from({ length: 6 }, (_, i) => year - 1 - i);
+  return text.replace(/\b(20\d{2})\b/g, (m, y) => (stale.includes(Number(y)) ? String(year) : m));
 }

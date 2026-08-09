@@ -4,7 +4,13 @@ import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { ChevronDown, Radar, RefreshCw, Search, Sparkles, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { analyzeCompetitor, autoResearch, discoverCompetitors, researchKeywords } from "@/lib/research.functions";
+import {
+  analyzeCompetitor,
+  autoResearch,
+  dataSourceStatus,
+  discoverCompetitors,
+  researchKeywords,
+} from "@/lib/research.functions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -32,6 +38,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   const discover = useServerFn(discoverCompetitors);
   const analyze = useServerFn(analyzeCompetitor);
   const auto = useServerFn(autoResearch);
+  const status = useServerFn(dataSourceStatus);
   const started = useRef(false);
   const [autoRunning, setAutoRunning] = useState(false);
   const [kwShown, setKwShown] = useState(5);
@@ -62,6 +69,12 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
       if (error) throw error;
       return data as Competitor[];
     },
+  });
+
+  const { data: source } = useQuery({
+    queryKey: ["research-source"],
+    queryFn: () => status({}),
+    staleTime: 5 * 60_000,
   });
 
   async function run(key: string, fn: () => Promise<{ found: number }>) {
@@ -152,6 +165,18 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
       </div>
 
       <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Run the research</p>
+      {source && !source.live && (
+        <div className="flex items-start gap-3 rounded-xl border border-gold/40 bg-gold-soft/60 p-4">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-gold-foreground" />
+          <p className="text-[12.5px] leading-relaxed text-gold-foreground">
+            <span className="font-semibold">AI-estimated metrics.</span>{" "}
+            {source.reason === "unauthorized"
+              ? "Your DataForSEO credentials are rejected — add the API password from your DataForSEO account (Settings › API access), not your website login."
+              : "Live SEO data is not connected yet, so volumes and difficulty are estimates."}{" "}
+            Keywords and competitors still feed the autopilot.
+          </p>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <div className="surface flex flex-col gap-4 p-5 md:flex-row md:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-3">

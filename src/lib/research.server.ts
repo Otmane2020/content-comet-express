@@ -27,7 +27,7 @@ export async function aiKeywords(
   const { callOpenRouter, parseJsonLoose } = await import("./ai.server");
   const raw = await callOpenRouter({
     system:
-      "You are an SEO data analyst. Return ONLY JSON: {\"keywords\":[{\"keyword\":string,\"search_volume\":number,\"cpc\":number,\"competition\":number,\"difficulty\":number,\"intent\":\"informational|commercial|transactional|navigational\"}]}. Estimate realistic monthly volumes for the given market. 30 items max.",
+      `You are an SEO data analyst. The current year is ${new Date().getUTCFullYear()} — never suggest keywords containing a past year. Return ONLY JSON: {"keywords":[{"keyword":string,"search_volume":number,"cpc":number,"competition":number,"difficulty":number,"intent":"informational|commercial|transactional|navigational"}]}. Estimate realistic monthly volumes for the given market. 30 items max.`,
     user: JSON.stringify({
       business: ctx.name ?? null,
       industry: ctx.industry ?? null,
