@@ -6,7 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
  * Public landing route for OAuth / email-confirmation redirects.
  * Waits for the Supabase session to hydrate, then sends the user to the app.
  */
-export const Route = createFileRoute("/auth/callback")({
+export const Route = createFileRoute("/auth_/callback")({
   ssr: false,
   head: () => ({
     meta: [
