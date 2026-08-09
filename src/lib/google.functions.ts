@@ -174,7 +174,7 @@ export const publishToGmb = createServerFn({ method: "POST" })
 
     let query = context.supabase
       .from("content_items")
-      .select("id, title, excerpt, body_md, published_url")
+      .select("id, title, excerpt, body_md, published_url, slug, cover_image_url")
       .eq("project_id", data.projectId);
     query = data.contentId
       ? query.eq("id", data.contentId)
@@ -192,14 +192,28 @@ export const publishToGmb = createServerFn({ method: "POST" })
       .replace(/[#*`>_]/g, "")
       .trim()
       .slice(0, 900);
-    const summary = [(item.title ?? "").trim(), (item.excerpt ?? "").trim() || bodyText]
-      .filter(Boolean)
-      .join("\n\n");
+    const description = ((item.excerpt ?? "").trim() || bodyText).slice(0, 1200);
+    const summary = [(item.title ?? "").trim(), description].filter(Boolean).join("\n\n");
+
+    // Each post links back to the article itself (its published URL, or our own
+    // public blog page) so the local post carries a real "Learn more" CTA.
+    const { data: project } = await context.supabase
+      .from("projects")
+      .select("website_url")
+      .eq("id", data.projectId)
+      .maybeSingle();
+    const blogUrl = item.slug ? `https://www.ranki.ai/blog/${item.slug}` : null;
+    const ctaUrl = (item.published_url ?? "").trim() || blogUrl || project?.website_url || null;
 
     const { accessTokenFor, createGmbPost } = await import("./google.server");
+    const { absoluteImageUrl } = await import("./images.server");
     try {
       const token = await accessTokenFor(conn.id);
-      await createGmbPost(token, conn.resource_id, { summary, url: item.published_url ?? null });
+      await createGmbPost(token, conn.resource_id, {
+        summary,
+        url: ctaUrl,
+        imageUrl: absoluteImageUrl(item.cover_image_url),
+      });
     } catch (e) {
       const message = e instanceof Error ? e.message : "Google post failed";
       await context.supabase.from("google_connections").update({ last_error: message, status: "error" }).eq("id", conn.id);
