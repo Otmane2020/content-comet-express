@@ -39,7 +39,7 @@ export function DemoSlider() {
 
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => go(1), 6000);
+    const id = setInterval(() => go(1), 2500);
     return () => clearInterval(id);
   }, [paused, go]);
 
@@ -92,13 +92,29 @@ export function DemoSlider() {
                 app.autopilotgeo.com/{active.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
               </span>
             </div>
-            <div className="relative overflow-hidden rounded-xl border border-border bg-background">
+            <div className="group relative overflow-hidden rounded-xl border border-border bg-background">
               <img
                 key={active.label}
                 src={active.src}
                 alt={`${active.label} screen of the AutopilotGEO dashboard`}
                 className="w-full animate-in fade-in duration-500"
               />
+              <button
+                type="button"
+                aria-label="Previous screen"
+                onClick={() => go(-1)}
+                className="absolute left-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-border/80 bg-background/90 opacity-0 shadow-sm backdrop-blur-sm transition-all duration-200 hover:border-gold hover:text-gold-foreground group-hover:opacity-100 focus:opacity-100"
+              >
+                <ChevronLeft className="size-5" />
+              </button>
+              <button
+                type="button"
+                aria-label="Next screen"
+                onClick={() => go(1)}
+                className="absolute right-3 top-1/2 grid size-10 -translate-y-1/2 place-items-center rounded-full border border-border/80 bg-background/90 opacity-0 shadow-sm backdrop-blur-sm transition-all duration-200 hover:border-gold hover:text-gold-foreground group-hover:opacity-100 focus:opacity-100"
+              >
+                <ChevronRight className="size-5" />
+              </button>
             </div>
           </div>
 
