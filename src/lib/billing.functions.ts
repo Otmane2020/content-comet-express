@@ -2,7 +2,13 @@ import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 export const createCheckout = createServerFn({ method: "POST" })
-  .inputValidator((input: { cycle: "monthly" | "annual"; origin: string; userId?: string; email?: string; next?: string }) => {
+  .inputValidator((input: {
+    cycle: "monthly" | "annual";
+    origin: string;
+    userId?: string | undefined;
+    email?: string | undefined;
+    next?: string | undefined;
+  }) => {
     if (input.cycle !== "monthly" && input.cycle !== "annual") throw new Error("Invalid cycle");
     if (!/^https?:\/\//.test(input.origin)) throw new Error("Invalid origin");
     return input;
