@@ -152,7 +152,7 @@ type AnyClient = { from: (table: string) => any };
 export async function runPublish(
   supabase: AnyClient,
   userId: string,
-  data: { itemId: string; integrationIds?: string[] },
+  data: { itemId: string; integrationIds?: string[] | undefined },
 ) {
   const { slugify } = await import("./geo");
   const { renderMarkdown } = await import("./markdown");
