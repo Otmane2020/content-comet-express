@@ -154,11 +154,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         competitors: f.competitors.trim() ? f.competitors : r.competitors.join("\n"),
         keywords: f.keywords.trim() ? f.keywords : r.keywords.slice(0, 10).map((k) => k.keyword).join(", "),
       }));
-      toast.success(
-        r.source === "dataforseo"
-          ? `Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`
-          : `AI-estimated market: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`,
-      );
+      toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Market scan failed");
     } finally {

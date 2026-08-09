@@ -18,79 +18,29 @@ export function hasDataForSeo() {
   return Boolean(process.env["DATAFORSEO_LOGIN"] && process.env["DATAFORSEO_PASSWORD"]);
 }
 
-/** AI estimate used when DataForSEO credentials are missing or rejected. */
-export async function aiKeywords(
-  seeds: string[],
-  ctx: { name?: string | null; industry?: string | null; locale?: string | null; domain?: string | null },
-  competitorDomain?: string,
-): Promise<KwRow[]> {
-  const { callOpenRouter, parseJsonLoose } = await import("./ai.server");
-  const raw = await callOpenRouter({
-    system:
-      `You are an SEO data analyst. The current year is ${new Date().getUTCFullYear()} — never suggest keywords containing a past year. Return ONLY JSON: {"keywords":[{"keyword":string,"search_volume":number,"cpc":number,"competition":number,"difficulty":number,"intent":"informational|commercial|transactional|navigational"}]}. Estimate realistic monthly volumes for the given market. 30 items max.`,
-    user: JSON.stringify({
-      business: ctx.name ?? null,
-      industry: ctx.industry ?? null,
-      market: localeOpts(ctx.locale ?? null),
-      website: ctx.domain ?? null,
-      seeds,
-      competitor_domain: competitorDomain ?? null,
-      task: competitorDomain
-        ? "List the keywords this competitor domain most likely ranks for."
-        : "Expand these seeds into high-intent keyword opportunities.",
-    }),
-    json: true,
-    maxTokens: 2000,
-  });
-  const parsed = parseJsonLoose<{ keywords?: KwRow[] }>(raw);
-  return (parsed.keywords ?? [])
-    .filter((k) => k && typeof k.keyword === "string" && k.keyword.trim())
-    .slice(0, 40)
-    .map((k) => ({
-      keyword: k.keyword.trim(),
-      search_volume: Number.isFinite(k.search_volume as number) ? Number(k.search_volume) : null,
-      cpc: Number.isFinite(k.cpc as number) ? Number(k.cpc) : null,
-      competition: Number.isFinite(k.competition as number) ? Number(k.competition) : null,
-      difficulty: Number.isFinite(k.difficulty as number) ? Number(k.difficulty) : null,
-      intent: k.intent ?? null,
-      competitor_domain: competitorDomain ?? null,
-    }));
-}
+export const DFS_REQUIRED =
+  "Live SEO data is not connected. Add your DataForSEO API login and API password (DataForSEO dashboard › API access) — no estimated data is used.";
 
-export async function aiCompetitors(
-  domain: string,
-  ctx: { name?: string | null; industry?: string | null; locale?: string | null },
-) {
-  const { callOpenRouter, parseJsonLoose } = await import("./ai.server");
-  const raw = await callOpenRouter({
-    system:
-      "You are an SEO analyst. Return ONLY JSON: {\"competitors\":[{\"domain\":string,\"why\":string}]}. Real, existing websites competing in the same market. Max 8.",
-    user: JSON.stringify({ site: domain, business: ctx.name ?? null, industry: ctx.industry ?? null, market: localeOpts(ctx.locale ?? null) }),
-    json: true,
-    maxTokens: 800,
-  });
-  const parsed = parseJsonLoose<{ competitors?: { domain: string; why?: string }[] }>(raw);
-  return (parsed.competitors ?? [])
-    .filter((c) => c?.domain)
-    .slice(0, 8)
-    .map((c) => ({
-      domain: c.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase(),
-      intersections: 0,
-      avg_position: null as number | null,
-      organic_keywords: null as number | null,
-      organic_traffic: null as number | null,
-      why: c.why ?? null,
-      source: "ai" as const,
-    }));
+/** Throws unless DataForSEO credentials are present and accepted. */
+export async function requireLiveDataForSeo() {
+  const { dfsPing } = await import("./dataforseo.server");
+  const ping = await dfsPing();
+  if (!ping.live) {
+    throw new Error(
+      ping.reason === "unauthorized"
+        ? "DataForSEO rejected your credentials. Use the API password from your DataForSEO account (API access), not your website login."
+        : DFS_REQUIRED,
+    );
+  }
 }
 
 type Sb = { from: (t: string) => any };
 
 /**
  * Full hands-free research pass for one project: seed expansion, competitor
- * discovery, and competitor keyword extraction. Uses DataForSEO when
- * credentials work, otherwise falls back to AI estimates so the client always
- * sees data. No-ops when keywords already exist unless `force`.
+ * discovery, and competitor keyword extraction. Live DataForSEO data only —
+ * there is no estimated fallback. No-ops when keywords already exist unless
+ * `force`.
  */
 export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
   const { keywordIdeas, competitorDomains, competitorKeywords } = await import("./dataforseo.server");
@@ -101,14 +51,14 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     .single();
   if (!project) throw new Error("Project not found");
 
-  const live = hasDataForSeo();
   const { count } = await supabase
     .from("keyword_research")
     .select("id", { count: "exact", head: true })
     .eq("project_id", projectId);
-  if (!force && (count ?? 0) > 0) return { found: 0, skipped: true, live };
+  if (!force && (count ?? 0) > 0) return { found: 0, skipped: true, live: true };
 
-  const ctx = { ...project, domain: project.website_url ?? null };
+  await requireLiveDataForSeo();
+
   const seeds: string[] = (project.keywords ?? []).filter(Boolean).slice(0, 10);
   const fallback = project.name ?? project.industry ?? "";
   const usedSeeds = seeds.length ? seeds : fallback ? [fallback] : [];
@@ -116,22 +66,12 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   let rows: KwRow[] = [];
 
   if (usedSeeds.length) {
-    try {
-      if (!live) throw new Error("no-dfs");
-      rows = await keywordIdeas(usedSeeds, opts);
-    } catch {
-      rows = await aiKeywords(usedSeeds, ctx);
-    }
+    rows = await keywordIdeas(usedSeeds, opts);
   }
 
   let domains: { domain: string }[] = [];
   if (project.website_url) {
-    try {
-      if (!live) throw new Error("no-dfs");
-      domains = await competitorDomains(project.website_url, opts);
-    } catch {
-      domains = await aiCompetitors(project.website_url, project);
-    }
+    domains = await competitorDomains(project.website_url, opts);
     if (domains.length) {
       await supabase.from("competitors").upsert(
         domains.map((r) => ({
@@ -148,15 +88,14 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
 
   for (const d of domains.slice(0, 2)) {
     try {
-      const more = live ? await competitorKeywords(d.domain, opts) : await aiKeywords([d.domain], ctx, d.domain);
-      rows = rows.concat(more);
+      rows = rows.concat(await competitorKeywords(d.domain, opts));
     } catch {
       /* keep what we have */
     }
   }
 
   await saveKeywords(supabase, userId, projectId, rows);
-  return { found: rows.length, skipped: false, live };
+  return { found: rows.length, skipped: false, live: true };
 }
 
 export async function saveKeywords(

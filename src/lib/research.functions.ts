@@ -21,7 +21,7 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => projectInput.parse(input))
   .handler(async ({ data, context }) => {
     const { competitorDomains } = await import("./dataforseo.server");
-    const { localeOpts, hasDataForSeo, aiCompetitors } = await import("./research.server");
+    const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
@@ -29,14 +29,12 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       .eq("id", data.projectId)
       .single();
     if (!project?.website_url) throw new Error("Add your website URL in Settings first.");
+    await requireLiveDataForSeo();
 
-    let rows: { domain: string; [k: string]: unknown }[] = [];
-    try {
-      if (!hasDataForSeo()) throw new Error("no-dfs");
-      rows = await competitorDomains(project.website_url, localeOpts(project.locale));
-    } catch {
-      rows = await aiCompetitors(project.website_url, project);
-    }
+    const rows: { domain: string; [k: string]: unknown }[] = await competitorDomains(
+      project.website_url,
+      localeOpts(project.locale),
+    );
     if (rows.length) {
       await supabase.from("competitors").upsert(
         rows.map((r) => ({
@@ -60,20 +58,15 @@ export const researchKeywords = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { keywordIdeas } = await import("./dataforseo.server");
-    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords } = await import("./research.server");
+    const { localeOpts, saveKeywords, requireLiveDataForSeo } = await import("./research.server");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
       .select("name, industry, locale, website_url")
       .eq("id", data.projectId)
       .single();
-    let rows: KwRow[] = [];
-    try {
-      if (!hasDataForSeo()) throw new Error("no-dfs");
-      rows = await keywordIdeas(data.seeds, localeOpts(project?.locale ?? null));
-    } catch {
-      rows = await aiKeywords(data.seeds, { ...(project ?? {}), domain: project?.website_url ?? null });
-    }
+    await requireLiveDataForSeo();
+    const rows: KwRow[] = await keywordIdeas(data.seeds, localeOpts(project?.locale ?? null));
     await saveKeywords(supabase, userId, data.projectId, rows);
     return { found: rows.length };
   });
@@ -84,7 +77,7 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => projectInput.extend({ domain: z.string().min(3).max(200) }).parse(input))
   .handler(async ({ data, context }) => {
     const { competitorKeywords } = await import("./dataforseo.server");
-    const { localeOpts, saveKeywords, hasDataForSeo, aiKeywords } = await import("./research.server");
+    const { localeOpts, saveKeywords, requireLiveDataForSeo } = await import("./research.server");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
@@ -92,13 +85,8 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
       .eq("id", data.projectId)
       .single();
     const clean = data.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    let rows: KwRow[] = [];
-    try {
-      if (!hasDataForSeo()) throw new Error("no-dfs");
-      rows = await competitorKeywords(data.domain, localeOpts(project?.locale ?? null));
-    } catch {
-      rows = await aiKeywords([clean], { ...(project ?? {}), domain: project?.website_url ?? null }, clean);
-    }
+    await requireLiveDataForSeo();
+    const rows: KwRow[] = await competitorKeywords(data.domain, localeOpts(project?.locale ?? null));
     await supabase.from("competitors").upsert(
       {
         user_id: userId,

@@ -52,7 +52,7 @@ export const detectBusiness = createServerFn({ method: "POST" })
     };
   });
 
-/** Step 2: auto-detect competitors + keywords with DataForSEO (AI fallback). */
+/** Step 2: auto-detect competitors + keywords with live DataForSEO data only. */
 export const detectMarket = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -67,36 +67,24 @@ export const detectMarket = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { normalizeUrl } = await import("./scrape.server");
-    const { localeOpts, hasDataForSeo, aiCompetitors, aiKeywords } = await import("./research.server");
+    const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
     const { competitorDomains, keywordIdeas } = await import("./dataforseo.server");
 
     const website = normalizeUrl(data.website);
     const domain = website.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
-    const ctx = { name: data.name ?? null, industry: data.industry ?? null, locale: data.locale ?? null, domain };
     const opts = localeOpts(data.locale ?? null);
-    const live = hasDataForSeo();
+    await requireLiveDataForSeo();
 
-    let competitors: { domain: string }[] = [];
-    try {
-      if (!live) throw new Error("no-dfs");
-      competitors = await competitorDomains(domain, opts);
-    } catch {
-      competitors = await aiCompetitors(domain, ctx);
-    }
+    const competitors: { domain: string }[] = await competitorDomains(domain, opts);
 
     const seeds = (data.seeds ?? []).filter(Boolean).slice(0, 10);
     const usedSeeds = seeds.length ? seeds : [data.industry ?? data.name ?? domain];
-    let keywords: { keyword: string; search_volume: number | null; difficulty: number | null }[] = [];
-    try {
-      if (!live) throw new Error("no-dfs");
-      keywords = await keywordIdeas(usedSeeds, opts);
-    } catch {
-      keywords = await aiKeywords(usedSeeds, ctx);
-    }
+    const keywords: { keyword: string; search_volume: number | null; difficulty: number | null }[] =
+      await keywordIdeas(usedSeeds, opts);
 
     return {
-      live,
-      source: live ? ("dataforseo" as const) : ("ai" as const),
+      live: true,
+      source: "dataforseo" as const,
       competitors: competitors
         .map((c) => c.domain)
         .filter((d) => d && d !== domain)
