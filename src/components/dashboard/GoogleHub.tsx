@@ -145,20 +145,6 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     }
   }, [connections, options, resources]);
 
-  // Someone who signed in with Google is asked for Search Console + Business
-  // Profile access right away, in a single consent screen.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (sessionStorage.getItem("ranki:google-scopes") !== "1") return;
-    if (connections.length) {
-      sessionStorage.removeItem("ranki:google-scopes");
-      return;
-    }
-    sessionStorage.removeItem("ranki:google-scopes");
-    void startConnect("all");
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connections.length]);
-
   async function choose(conn: Connection, opt: { id: string; label: string }) {
     await pick({ data: { connectionId: conn.id, resourceId: opt.id, resourceName: opt.label } });
     setOptions((o) => ({ ...o, [conn.id]: [] }));
