@@ -1,7 +1,11 @@
-export function localeOpts(locale: string | null) {
+/**
+ * Language and target market are two different things: a French business can
+ * publish in English. `targetCountry` wins over the language default.
+ */
+export function localeOpts(locale: string | null, targetCountry?: string | null) {
   const lang = (locale ?? "fr-FR").slice(0, 2).toLowerCase();
   const byLang: Record<string, string> = { fr: "France", en: "United States", es: "Spain", de: "Germany", it: "Italy", nl: "Netherlands", pt: "Portugal" };
-  return { languageCode: lang, locationName: byLang[lang] ?? "France" };
+  return { languageCode: lang, locationName: targetCountry?.trim() || byLang[lang] || "France" };
 }
 
 export type KwRow = {
@@ -12,7 +16,12 @@ export type KwRow = {
   difficulty: number | null;
   intent: string | null;
   competitor_domain?: string | null;
+  origin?: KwOrigin;
+  relevance_score?: number | null;
 };
+
+/** Why a keyword is in the list: the site itself, a seed expansion, or a rival. */
+export type KwOrigin = "site" | "seed" | "competitor";
 
 export function hasDataForSeo() {
   return Boolean(process.env["DATAFORSEO_LOGIN"] && process.env["DATAFORSEO_PASSWORD"]);
