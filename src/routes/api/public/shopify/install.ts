@@ -17,7 +17,8 @@ export const Route = createFileRoute("/api/public/shopify/install")({
         // callback creates the account from the store data and signs them in.
         const raw = url.searchParams.get("state");
         const state = mod.verifyState(raw);
-        return redirect(mod.authorizeUrl(shop, state && raw ? raw : "", origin));
+        const nonce = `install-${Date.now().toString(36)}`;
+        return redirect(mod.authorizeUrl(shop, state && raw ? raw : nonce, origin));
       },
     },
   },
