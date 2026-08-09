@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Unplug } from "lucide-react";
+import { Check, CheckCircle2, ExternalLink, MapPin, RefreshCw, Search, Send, Unplug } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   disconnectGoogle,
@@ -13,6 +13,13 @@ import {
   syncSearchConsole,
 } from "@/lib/google.functions";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 type Service = "gmb" | "gsc";
 
@@ -72,6 +79,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
 
   const [busy, setBusy] = useState<string | null>(null);
   const [options, setOptions] = useState<Record<string, { id: string; label: string; sub: string }[]>>({});
+  const [draft, setDraft] = useState<Record<string, string>>({});
 
   const { data: connections = [] } = useQuery({
     queryKey: ["google", projectId],
@@ -109,7 +117,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     void qc.invalidateQueries({ queryKey: ["google", projectId] });
   }, [projectId, qc]);
 
-  async function startConnect(service: Service | "all") {
+  async function startConnect(service: Service) {
     setBusy(service);
     try {
       const res = await connect({ data: { projectId, service, origin: window.location.origin } });
@@ -147,7 +155,6 @@ export function GoogleHub({ projectId }: { projectId: string }) {
 
   async function choose(conn: Connection, opt: { id: string; label: string }) {
     await pick({ data: { connectionId: conn.id, resourceId: opt.id, resourceName: opt.label } });
-    setOptions((o) => ({ ...o, [conn.id]: [] }));
     toast.success(`Linked to ${opt.label}.`);
     void qc.invalidateQueries({ queryKey: ["google", projectId] });
   }
