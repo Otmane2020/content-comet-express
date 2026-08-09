@@ -279,6 +279,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
           e instanceof Error ? `Day 1 will be written shortly (${e.message})` : "Day 1 will be written shortly",
         );
       }
+      localStorage.removeItem(DRAFT_KEY);
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
