@@ -415,13 +415,67 @@ export function GoogleHub({ projectId }: { projectId: string }) {
         })}
       </div>
 
+      {gmbConn?.resource_id && (
+        <div className="surface p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h3 className="flex items-center gap-2 font-display text-lg font-semibold">
+                <MapPin className="size-4 text-primary" /> Local posts
+              </h3>
+              <p className="max-w-xl text-[12.5px] text-muted-foreground">
+                Each article is shared on its own: title, description and a “Learn more” button linking straight to the
+                article — never a bare headline.
+              </p>
+            </div>
+          </div>
+
+          {articles.length === 0 ? (
+            <p className="mt-4 text-sm text-muted-foreground">No written article yet.</p>
+          ) : (
+            <ul className="mt-4 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
+              {articles.map((a) => (
+                <li key={a.id} className="flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-primary/5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[13.5px] font-medium">{a.title ?? "Untitled"}</p>
+                    <p className="truncate text-[12px] text-muted-foreground">
+                      {(a.excerpt ?? "").trim() || "No description yet"}
+                    </p>
+                  </div>
+                  <span className="hidden shrink-0 font-mono text-[11px] text-muted-foreground sm:block">
+                    {a.scheduled_date ?? ""}
+                  </span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="shrink-0"
+                    disabled={busy === a.id}
+                    onClick={async () => {
+                      setBusy(a.id);
+                      try {
+                        const res = await post({ data: { projectId, contentId: a.id } });
+                        toast.success(`Posted “${res.title}” to your listing.`);
+                      } catch (e) {
+                        toast.error(e instanceof Error ? e.message : "Post failed");
+                      } finally {
+                        setBusy(null);
+                      }
+                    }}
+                  >
+                    <Send className={`size-4 ${busy === a.id ? "animate-pulse" : ""}`} /> Post
+                  </Button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="surface p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h3 className="font-display text-lg font-semibold">Search performance</h3>
             <p className="text-[12.5px] text-muted-foreground">Last 28 days from Search Console.</p>
           </div>
-          <span className="hidden" aria-hidden />
           <div className="flex gap-6 font-mono text-[12px]">
             <span>
               <span className="block text-muted-foreground">clicks</span>
