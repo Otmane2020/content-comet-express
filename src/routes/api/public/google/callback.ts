@@ -24,34 +24,40 @@ export const Route = createFileRoute("/api/public/google/callback")({
         try {
           const tokens = await exchangeCode(code, origin);
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-          const { data: conn, error } = await supabaseAdmin
-            .from("google_connections")
-            .upsert(
-              {
-                user_id: payload.userId,
-                project_id: payload.projectId,
-                service: payload.service,
-                account_email: emailFromIdToken(tokens.id_token),
-                status: "connected",
-                last_error: null,
-              },
-              { onConflict: "project_id,service" },
-            )
-            .select("id")
-            .single();
-          if (error || !conn) throw new Error(error?.message ?? "could not save connection");
+          const email = emailFromIdToken(tokens.id_token);
+          // A combined consent grants both scopes, so store one connection per service.
+          const services = payload.service === "all" ? (["gsc", "gmb"] as const) : ([payload.service] as const);
 
-          await supabaseAdmin.from("google_tokens").upsert(
-            {
-              connection_id: conn.id,
-              access_token: tokens.access_token,
-              refresh_token: tokens.refresh_token ?? null,
-              scope: tokens.scope ?? null,
-              expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-              updated_at: new Date().toISOString(),
-            },
-            { onConflict: "connection_id" },
-          );
+          for (const service of services) {
+            const { data: conn, error } = await supabaseAdmin
+              .from("google_connections")
+              .upsert(
+                {
+                  user_id: payload.userId,
+                  project_id: payload.projectId,
+                  service,
+                  account_email: email,
+                  status: "connected",
+                  last_error: null,
+                },
+                { onConflict: "project_id,service" },
+              )
+              .select("id")
+              .single();
+            if (error || !conn) throw new Error(error?.message ?? "could not save connection");
+
+            await supabaseAdmin.from("google_tokens").upsert(
+              {
+                connection_id: conn.id,
+                access_token: tokens.access_token,
+                refresh_token: tokens.refresh_token ?? null,
+                scope: tokens.scope ?? null,
+                expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              { onConflict: "connection_id" },
+            );
+          }
 
           return back(origin, { tab: "local", google: "connected", service: payload.service });
         } catch (e) {
