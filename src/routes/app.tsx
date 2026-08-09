@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { buildPlan } from "@/lib/autopilot.functions";
 import { notifySignup } from "@/lib/support.functions";
+import { startGoogleConnect } from "@/lib/google.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { Calendar } from "@/components/dashboard/Calendar";
@@ -77,6 +78,21 @@ function Dashboard() {
     void announceSignup({ data: undefined }).catch(() => undefined);
   }, [user, announceSignup]);
 
+  const { data: project, isLoading: projectLoading } = useQuery({
+    queryKey: ["project", user?.id],
+    enabled: !!user,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("*")
+        .order("created_at")
+        .limit(1)
+        .maybeSingle();
+      if (error) throw error;
+      return data as Project | null;
+    },
+  });
+
   // Someone who just signed in with Google is asked once, right away, for
   // Search Console + Business Profile access — wherever they land in the app.
   const startGoogle = useServerFn(startGoogleConnect);
@@ -105,21 +121,6 @@ function Dashboard() {
       cancelled = true;
     };
   }, [user, project, startGoogle]);
-
-  const { data: project, isLoading: projectLoading } = useQuery({
-    queryKey: ["project", user?.id],
-    enabled: !!user,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("*")
-        .order("created_at")
-        .limit(1)
-        .maybeSingle();
-      if (error) throw error;
-      return data as Project | null;
-    },
-  });
 
   if (loading || (user && projectLoading)) {
     return (
