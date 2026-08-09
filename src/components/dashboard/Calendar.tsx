@@ -11,7 +11,6 @@ import {
   PenLine,
   Send,
   Sparkles,
-  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { generateArticle, illustrateArticle, publishItem } from "@/lib/autopilot.functions";
@@ -162,6 +161,13 @@ export function Calendar({ projectId }: { projectId: string }) {
                 </span>
                 <span className="font-display text-lg font-bold leading-none">{d.getDate()}</span>
               </div>
+              {item.cover_image_url && (
+                <img
+                  src={item.cover_image_url}
+                  alt=""
+                  className="hidden size-14 shrink-0 rounded-xl object-cover sm:block"
+                />
+              )}
               <div className="min-w-40 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta?.tone ?? ""}`}>
@@ -275,14 +281,6 @@ export function Calendar({ projectId }: { projectId: string }) {
                 ) : (
                   <div className="paper-grid h-32 w-full bg-secondary sm:h-40" />
                 )}
-                <button
-                  type="button"
-                  onClick={() => setOpenId(null)}
-                  className="absolute right-3 top-3 rounded-full bg-background/85 p-2 text-foreground backdrop-blur transition-colors hover:bg-background"
-                  aria-label="Close"
-                >
-                  <X className="size-4" />
-                </button>
               </div>
 
               <div className="px-6 sm:px-10">
