@@ -13,6 +13,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { GoogleGlyph } from "@/components/GoogleGlyph";
 import { generateArticle, illustrateArticle, publishItem } from "@/lib/autopilot.functions";
 import { STATUS_META, TYPE_META, type ContentType } from "@/lib/geo";
 import { renderMarkdown } from "@/lib/markdown";
@@ -61,16 +62,30 @@ export function Calendar({ projectId }: { projectId: string }) {
 
   const open = useMemo(() => items.find((i) => i.id === openId) ?? null, [items, openId]);
 
-  const { data: gmbConnected = false } = useQuery({
-    queryKey: ["gmb-connected", projectId],
+  // GMB is only relevant when the user connected a location AND kept sharing on.
+  const { data: gmbSharing = false } = useQuery({
+    queryKey: ["gmb-sharing", projectId],
     queryFn: async () => {
       const { data } = await supabase
         .from("google_connections")
-        .select("resource_id")
+        .select("resource_id, auto_publish, status")
         .eq("project_id", projectId)
         .eq("service", "gmb")
         .maybeSingle();
-      return Boolean(data?.resource_id);
+      return Boolean(data?.resource_id && data.auto_publish && data.status === "connected");
+    },
+  });
+
+  // Items already shared on the listing keep the badge even if sharing is later turned off.
+  const { data: gmbPostedIds = [] } = useQuery({
+    queryKey: ["gmb-posted", projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("publish_logs")
+        .select("content_item_id")
+        .eq("platform", "gmb")
+        .eq("success", true);
+      return (data ?? []).map((r) => r.content_item_id as string);
     },
   });
 
@@ -294,9 +309,13 @@ export function Calendar({ projectId }: { projectId: string }) {
                       SHOPPING FEED
                     </span>
                   )}
-                  {gmbConnected && (
-                    <span className="flex items-center gap-1 rounded-full bg-gold-soft px-2 py-0.5 text-[10.5px] font-bold text-gold-foreground">
-                      <span className="size-1.5 rounded-full bg-gold" aria-hidden />
+                  {(gmbPostedIds.includes(item.id) ||
+                    (gmbSharing && item.content_type === "local_aeo")) && (
+                    <span
+                      className="flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-bold"
+                      title="Shared as a Google Business Profile local post"
+                    >
+                      <GoogleGlyph className="size-3" />
                       GMB
                     </span>
                   )}
