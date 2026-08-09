@@ -2,13 +2,23 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { ChevronLeft, ChevronRight, ExternalLink, Loader2, PenLine, Send, Sparkles } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Image as ImageIcon,
+  Loader2,
+  PenLine,
+  Send,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { generateArticle, publishItem } from "@/lib/autopilot.functions";
+import { generateArticle, illustrateArticle, publishItem } from "@/lib/autopilot.functions";
 import { STATUS_META, TYPE_META, type ContentType } from "@/lib/geo";
 import { renderMarkdown } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 
@@ -22,14 +32,17 @@ type Item = {
   body_md: string | null;
   status: string;
   published_url: string | null;
+  cover_image_url: string | null;
 };
 
 export function Calendar({ projectId }: { projectId: string }) {
   const qc = useQueryClient();
   const generate = useServerFn(generateArticle);
   const publish = useServerFn(publishItem);
+  const illustrate = useServerFn(illustrateArticle);
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; body: string } | null>(null);
+  const [editing, setEditing] = useState(false);
   const [page, setPage] = useState(0);
   const PER_PAGE = 5;
 
