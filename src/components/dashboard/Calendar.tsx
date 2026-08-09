@@ -181,9 +181,28 @@ export function Calendar({ projectId }: { projectId: string }) {
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <h3 className="font-display text-[15px] font-bold">Rolling schedule</h3>
-        <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-          {items.length ? `${page * PER_PAGE + 1}–${Math.min((page + 1) * PER_PAGE, items.length)} of ${items.length}` : "—"}
-        </p>
+        <div className="flex items-center gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={illustrateAll}
+            disabled={!!bulk || isLoading}
+            className="gap-1.5 border-gold/50 text-[12.5px] hover:bg-gold-soft"
+          >
+            {bulk ? (
+              <>
+                <Loader2 className="size-3.5 animate-spin" /> Illustrating {bulk.done}/{bulk.total}
+              </>
+            ) : (
+              <>
+                <ImageIcon className="size-3.5" /> Illustrate all articles
+              </>
+            )}
+          </Button>
+          <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+            {items.length ? `${page * PER_PAGE + 1}–${Math.min((page + 1) * PER_PAGE, items.length)} of ${items.length}` : "—"}
+          </p>
+        </div>
       </div>
 
       <div className="mt-3 space-y-3">
