@@ -208,6 +208,7 @@ export type Database = {
           scheduled_date: string
           slug: string | null
           status: string
+          target_keyword: string | null
           title: string | null
           topic: string | null
           updated_at: string
@@ -226,6 +227,7 @@ export type Database = {
           scheduled_date: string
           slug?: string | null
           status?: string
+          target_keyword?: string | null
           title?: string | null
           topic?: string | null
           updated_at?: string
@@ -244,6 +246,7 @@ export type Database = {
           scheduled_date?: string
           slug?: string | null
           status?: string
+          target_keyword?: string | null
           title?: string | null
           topic?: string | null
           updated_at?: string

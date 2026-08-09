@@ -35,10 +35,14 @@ export function fallbackTopics(project: ProjectBrief, slots: { date: string; typ
 
 export async function planTopics(
   project: ProjectBrief,
-  slots: { date: string; type: ContentType }[],
+  slots: { date: string; type: ContentType; keyword?: string | null }[],
 ) {
   const list = slots
-    .map((s, i) => `${i + 1}. ${s.date} — ${TYPE_META[s.type].label}: ${TYPE_META[s.type].blurb}`)
+    .map(
+      (s, i) =>
+        `${i + 1}. ${s.date} — ${TYPE_META[s.type].label}: ${TYPE_META[s.type].blurb}` +
+        (s.keyword ? ` | target keyword: "${s.keyword}"` : ""),
+    )
     .join("\n");
   const year = new Date().getUTCFullYear();
 
@@ -51,6 +55,7 @@ export async function planTopics(
       user: `${briefLine(project)}
 
 Create one editorial topic per slot below. Each topic must be a concrete, specific title idea (max 90 chars) matching the slot's content type, non-duplicated, in the project's language.
+When a slot has a target keyword, the topic must be built around that exact keyword and read naturally.
 Any year mentioned in a title must be ${year}. Never write ${year - 1}, ${year - 2} or older years.
 Topics must be about what this business sells and the problems its buyers search for — never about the internal operations of the industries its customers belong to.
 

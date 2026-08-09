@@ -54,7 +54,7 @@ type Sb = { from: (t: string) => any };
  * whole calendar. Live DataForSEO data only — no estimated fallback.
  */
 export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
-  const { keywordIdeas, keywordsForSite, competitorDomains, competitorKeywords } = await import(
+  const { keywordSuggestions, keywordsForSite, competitorDomains, competitorKeywords } = await import(
     "./dataforseo.server"
   );
   const { QUOTA, dedupeKeywords, dedupeDomains, isFresh } = await import("./quotas");
@@ -109,9 +109,32 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   const category = await productSeeds(biz, QUOTA.seeds);
   const usedSeeds = Array.from(new Set([...category, ...relevantSeeds])).slice(0, QUOTA.seeds);
   if (usedSeeds.length) {
-    const ideas = await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
-    rows = rows.concat(ideas.map((r) => ({ ...r, origin: "seed" as const })));
+    // Phrase-match suggestions per seed: every result contains the seed, so the
+    // list can never drift to high-volume, off-topic terms.
+    const perSeed = Math.max(6, Math.ceil(QUOTA.keywords / Math.max(1, usedSeeds.length)) + 4);
+    const batches = await Promise.all(
+      usedSeeds.map((s) => keywordSuggestions(s, opts, perSeed).catch(() => [] as KwRow[])),
+    );
+    for (const batch of batches) {
+      rows = rows.concat(batch.map((r) => ({ ...r, origin: "seed" as const })));
+    }
   }
+
+  // Lexical guard: site/competitor rows must share a meaningful word with the
+  // seeds before they even reach the AI relevance pass.
+  const seedTokens = new Set(
+    usedSeeds
+      .flatMap((s) => s.split(/\s+/))
+      .map((w) => w.replace(/[^a-z0-9]/gi, "").toLowerCase())
+      .filter((w) => w.length > 3),
+  );
+  const onTopic = (r: KwRow) =>
+    !seedTokens.size ||
+    r.origin === "seed" ||
+    r.keyword
+      .toLowerCase()
+      .split(/\s+/)
+      .some((w) => seedTokens.has(w.replace(/[^a-z0-9]/gi, "")));
 
   const self = (project.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
   let domains: string[] = [];
@@ -166,7 +189,7 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     }
   }
 
-  const unique = dedupeKeywords(rows, QUOTA.totalKeywords * 4);
+  const unique = dedupeKeywords(rows.filter(onTopic), QUOTA.totalKeywords * 4);
   const saved = await saveKeywords(supabase, userId, projectId, unique, biz);
   return { found: saved, skipped: false, live: true, cachedCompetitors: cacheUsable };
 }
