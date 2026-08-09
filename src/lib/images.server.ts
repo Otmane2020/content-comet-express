@@ -53,17 +53,53 @@ export async function storeImage(userId: string, key: string, bytes: Uint8Array,
   return `/api/public/img/${path}`;
 }
 
+/**
+ * Text keeps appearing because the model is handed a headline ("Top 10 SEO
+ * Strategies…") and words like "magazine cover" — it then paints a poster.
+ * So we never send the title: we distill it into a plain scene subject and
+ * ask for a documentary photograph of surfaces with nothing printed on them.
+ */
+const STOPWORDS = new Set([
+  "the","a","an","and","or","for","to","of","in","on","with","your","you","how","why","what",
+  "best","top","guide","tips","strategies","ultimate","complete","ways","things","must",
+  "should","need","know","2024","2025","2026","2027","vs","using","use","get","make",
+]);
+
+/** Turn a headline into a short, neutral visual subject (no numbers, no headline words). */
+export function visualSubject(topic: string, industry?: string | null): string {
+  const words = topic
+    .toLowerCase()
+    .replace(/["“”'’:|—–\-()]/g, " ")
+    .replace(/\d+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+  const subject = words.slice(0, 4).join(" ").trim();
+  return subject || (industry ? industry.toLowerCase() : "modern business workspace");
+}
+
 const NO_TEXT =
-  "Absolutely no text of any kind: no words, no letters, no numbers, no captions, no titles, no headlines, no typography, no signage, no labels, no packaging text, no book or magazine covers with writing, no handwriting, no subtitles, no watermark, no logo, no brand name, no UI or screen text. Pure photographic image only.";
+  "The image contains no writing at all: no letters, no numbers, no words, no logos, no labels, no signage, no captions, no watermark, no UI text. Every surface is plain and unprinted.";
+
+const STYLE =
+  "Photorealistic, 85mm lens, soft natural light, very shallow depth of field, muted editorial color grade. No graphic design elements, no illustration, no collage, no border, no frame.";
+
+/**
+ * Wide establishing shots always summon garbled signage, so we force a tight
+ * crop on hands, objects, materials and light with a blurred plain backdrop.
+ */
+function scenePrompt(subject: string, setting: string) {
+  return `Close-up editorial still-life photograph inspired by ${subject}${setting}. Tight crop on hands, objects, materials and light against a plain seamless neutral backdrop; the background is a smooth blurred gradient with no shelves, no signage, no screens, no posters, no packaging. ${STYLE} ${NO_TEXT}`;
+}
 
 export function coverPrompt(topic: string, industry: string | null) {
-  return `Editorial magazine cover photograph illustrating: ${topic}. ${
-    industry ? `Industry: ${industry}. ` : ""
-  }Cinematic natural light, shallow depth of field, premium interior-magazine aesthetic. ${NO_TEXT}`;
+  return scenePrompt(
+    visualSubject(topic, industry),
+    industry ? `, in a ${industry.toLowerCase()} context` : "",
+  );
 }
 
 export function sectionPrompt(heading: string, topic: string) {
-  return `Editorial magazine photograph for the section "${heading}" of an article about ${topic}. Natural light, realistic, premium lifestyle photography. ${NO_TEXT}`;
+  return scenePrompt(visualSubject(`${heading} ${topic}`), "");
 }
 
 /** Remove inline markdown images (we keep exactly one cover image per article). */
