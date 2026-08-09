@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
 import { DemoSlider } from "@/components/DemoSlider";
+import { Footer } from "@/components/Footer";
 import { CustomSiteLogos, PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { createCheckout } from "@/lib/billing.functions";
@@ -191,6 +192,12 @@ function Landing() {
               className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
             >
               Blog
+            </Link>
+            <Link
+              to="/about"
+              className="mr-2 hidden text-[13px] text-muted-foreground transition-colors hover:text-foreground sm:inline"
+            >
+              About
             </Link>
             <Button asChild variant="ghost" size="sm">
               <Link to="/auth">Sign in</Link>
@@ -451,12 +458,8 @@ function Landing() {
         </Button>
       </section>
 
-      <footer className="border-t border-border py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-5 text-center text-[13px] text-muted-foreground">
-          <BrandLockup />
-          <p>© {new Date().getFullYear()} AutopilotGEO — generative search, on autopilot.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }
+
