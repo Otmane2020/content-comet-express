@@ -29,6 +29,7 @@ import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img/$
 import { Route as ApiPublicShopifyBillingRouteImport } from './routes/api/public/shopify/billing'
 import { Route as ApiPublicShopifyCallbackRouteImport } from './routes/api/public/shopify/callback'
 import { Route as ApiPublicShopifyInstallRouteImport } from './routes/api/public/shopify/install'
+import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -133,6 +134,12 @@ const ApiPublicShopifyInstallRoute = ApiPublicShopifyInstallRouteImport.update({
   path: '/api/public/shopify/install',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LovableEmailTransactionalPreviewRoute =
+  LovableEmailTransactionalPreviewRouteImport.update({
+    id: '/lovable/email/transactional/preview',
+    path: '/lovable/email/transactional/preview',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -155,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -176,6 +184,7 @@ export interface FileRoutesByTo {
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -199,6 +208,7 @@ export interface FileRoutesById {
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
+  '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -223,6 +233,7 @@ export interface FileRouteTypes {
     | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/install'
+    | '/lovable/email/transactional/preview'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -244,6 +255,7 @@ export interface FileRouteTypes {
     | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/install'
+    | '/lovable/email/transactional/preview'
   id:
     | '__root__'
     | '/'
@@ -266,6 +278,7 @@ export interface FileRouteTypes {
     | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/install'
+    | '/lovable/email/transactional/preview'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -287,6 +300,7 @@ export interface RootRouteChildren {
   ApiPublicShopifyBillingRoute: typeof ApiPublicShopifyBillingRoute
   ApiPublicShopifyCallbackRoute: typeof ApiPublicShopifyCallbackRoute
   ApiPublicShopifyInstallRoute: typeof ApiPublicShopifyInstallRoute
+  LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -431,6 +445,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicShopifyInstallRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/lovable/email/transactional/preview': {
+      id: '/lovable/email/transactional/preview'
+      path: '/lovable/email/transactional/preview'
+      fullPath: '/lovable/email/transactional/preview'
+      preLoaderRoute: typeof LovableEmailTransactionalPreviewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -465,7 +486,18 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicShopifyBillingRoute: ApiPublicShopifyBillingRoute,
   ApiPublicShopifyCallbackRoute: ApiPublicShopifyCallbackRoute,
   ApiPublicShopifyInstallRoute: ApiPublicShopifyInstallRoute,
+  LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}
