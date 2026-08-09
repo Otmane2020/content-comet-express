@@ -168,6 +168,8 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
         )}
       </div>
 
+      <PublishSchedule projectId={projectId} />
+
       {/* Add */}
       <div className="surface grid gap-8 p-6 lg:grid-cols-[1fr_1fr]">
         <div>
