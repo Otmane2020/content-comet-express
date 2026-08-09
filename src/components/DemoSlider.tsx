@@ -39,7 +39,7 @@ export function DemoSlider() {
 
   useEffect(() => {
     if (paused) return;
-    const id = setInterval(() => go(1), 6000);
+    const id = setInterval(() => go(1), 2500);
     return () => clearInterval(id);
   }, [paused, go]);
 
