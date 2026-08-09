@@ -261,7 +261,6 @@ export function Calendar({ projectId }: { projectId: string }) {
         }}
       >
         <DialogContent
-          showCloseButton={false}
           className="max-h-[92vh] w-[96vw] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"
         >
           {open && draft && (
