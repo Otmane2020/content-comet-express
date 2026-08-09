@@ -83,9 +83,22 @@ export const generateArticle = createServerFn({ method: "POST" })
     await supabase.from("content_items").update({ status: "generating" }).eq("id", data.itemId);
 
     try {
+      // Shopping pieces compare the real catalogue of the connected store.
+      let products: Awaited<ReturnType<typeof import("./catalog.server").fetchCatalog>> = [];
+      if (item.content_type === "shopping") {
+        const { fetchCatalog, CATALOG_PLATFORMS } = await import("./catalog.server");
+        const { data: stores } = await supabase
+          .from("integrations")
+          .select("platform, config")
+          .eq("project_id", item.project_id)
+          .eq("status", "connected")
+          .in("platform", CATALOG_PLATFORMS as unknown as string[]);
+        products = await fetchCatalog((stores ?? []) as never);
+      }
       const article = await writeArticle(
         { ...project, keywords: project.keywords ?? [] },
         { content_type: item.content_type as ContentType, topic: item.topic },
+        { products },
       );
       const { error: updateError } = await supabase
         .from("content_items")
