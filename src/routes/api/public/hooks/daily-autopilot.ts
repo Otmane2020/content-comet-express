@@ -161,6 +161,60 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
             }
           }
 
+          // 4. Google: local post on Business Profile + Search Console refresh
+          try {
+            const { data: googles } = await supabaseAdmin
+              .from("google_connections")
+              .select("id, service, resource_id, auto_publish")
+              .eq("project_id", project.id)
+              .eq("status", "connected");
+            const { accessTokenFor, createGmbPost, gscQuery } = await import("@/lib/google.server");
+            for (const conn of googles ?? []) {
+              if (!conn.resource_id) continue;
+              try {
+                const token = await accessTokenFor(conn.id);
+                if (conn.service === "gmb" && conn.auto_publish) {
+                  await createGmbPost(token, conn.resource_id, {
+                    summary: [title ?? item.topic, excerpt].filter(Boolean).join("\n\n"),
+                    url: project.website_url,
+                  });
+                  published += 1;
+                }
+                if (conn.service === "gsc") {
+                  const rows: Record<string, unknown>[] = [];
+                  for (const dimension of ["query", "page", "date"] as const) {
+                    for (const r of await gscQuery(token, conn.resource_id, dimension)) {
+                      rows.push({
+                        user_id: project.user_id,
+                        project_id: project.id,
+                        dimension,
+                        label: r.keys?.[0] ?? "",
+                        clicks: r.clicks ?? 0,
+                        impressions: r.impressions ?? 0,
+                        ctr: r.ctr ?? 0,
+                        position: r.position ?? null,
+                        captured_at: new Date().toISOString(),
+                      });
+                    }
+                  }
+                  if (rows.length) {
+                    await supabaseAdmin
+                      .from("search_metrics")
+                      .upsert(rows as never, { onConflict: "project_id,dimension,label" });
+                  }
+                }
+                await supabaseAdmin.from("google_connections").update({ last_error: null }).eq("id", conn.id);
+              } catch (e) {
+                await supabaseAdmin
+                  .from("google_connections")
+                  .update({ last_error: e instanceof Error ? e.message.slice(0, 300) : "Google error" })
+                  .eq("id", conn.id);
+              }
+            }
+          } catch {
+            /* Google is best-effort */
+          }
+
           summary.push({ project: project.name, wrote, published });
         }
 

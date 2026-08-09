@@ -114,6 +114,100 @@ export type Database = {
           },
         ]
       }
+      google_connections: {
+        Row: {
+          account_email: string | null
+          auto_publish: boolean
+          created_at: string
+          id: string
+          last_error: string | null
+          metadata: Json
+          project_id: string
+          resource_id: string | null
+          resource_name: string | null
+          service: string
+          status: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          account_email?: string | null
+          auto_publish?: boolean
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          metadata?: Json
+          project_id: string
+          resource_id?: string | null
+          resource_name?: string | null
+          service: string
+          status?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          account_email?: string | null
+          auto_publish?: boolean
+          created_at?: string
+          id?: string
+          last_error?: string | null
+          metadata?: Json
+          project_id?: string
+          resource_id?: string | null
+          resource_name?: string | null
+          service?: string
+          status?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_connections_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      google_tokens: {
+        Row: {
+          access_token: string | null
+          connection_id: string
+          created_at: string
+          expires_at: string | null
+          refresh_token: string | null
+          scope: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_token?: string | null
+          connection_id: string
+          created_at?: string
+          expires_at?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string | null
+          connection_id?: string
+          created_at?: string
+          expires_at?: string | null
+          refresh_token?: string | null
+          scope?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_tokens_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: true
+            referencedRelation: "google_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       integrations: {
         Row: {
           auto_publish: boolean
@@ -309,6 +403,53 @@ export type Database = {
             columns: ["integration_id"]
             isOneToOne: false
             referencedRelation: "integrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      search_metrics: {
+        Row: {
+          captured_at: string
+          clicks: number
+          ctr: number
+          dimension: string
+          id: string
+          impressions: number
+          label: string
+          position: number | null
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          captured_at?: string
+          clicks?: number
+          ctr?: number
+          dimension: string
+          id?: string
+          impressions?: number
+          label: string
+          position?: number | null
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          captured_at?: string
+          clicks?: number
+          ctr?: number
+          dimension?: string
+          id?: string
+          impressions?: number
+          label?: string
+          position?: number | null
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "search_metrics_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
