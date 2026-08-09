@@ -112,6 +112,38 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
           }
 
           // 3. publish to every auto destination
+          // 2b. illustrate with Cloudflare images (cover + first sections)
+          let coverUrl = item.cover_image_url as string | null;
+          if (body && !coverUrl) {
+            try {
+              const { generateImageBytes, storeImage, coverPrompt, sectionPrompt, injectImages, headings } =
+                await import("@/lib/images.server");
+              const origin = new URL(request.url).origin;
+              const topic = title ?? item.topic ?? "article";
+              const cover = await generateImageBytes(coverPrompt(topic, project.industry));
+              coverUrl = await storeImage(project.user_id, `${item.id}-cover`, cover, origin);
+              const inline: { heading: string; url: string }[] = [];
+              for (const [i, heading] of headings(body).slice(0, 2).entries()) {
+                try {
+                  const bytes = await generateImageBytes(sectionPrompt(heading, topic));
+                  inline.push({
+                    heading,
+                    url: await storeImage(project.user_id, `${item.id}-s${i}`, bytes, origin),
+                  });
+                } catch {
+                  /* keep going without this section image */
+                }
+              }
+              body = injectImages(body, inline);
+              await supabaseAdmin
+                .from("content_items")
+                .update({ cover_image_url: coverUrl, body_md: body })
+                .eq("id", item.id);
+            } catch {
+              /* images are optional */
+            }
+          }
+
           const { data: integrations } = await supabaseAdmin
             .from("integrations")
             .select("*")
