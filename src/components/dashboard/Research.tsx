@@ -95,11 +95,39 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="font-display text-[25px] font-bold leading-tight">Keywords &amp; rivals</h1>
-        <p className="mt-1 text-[14.5px] text-muted-foreground">
-          The market research that feeds every article the autopilot writes.
-        </p>
+      {/* Explainer banner — brand indigo → deep with gold accents */}
+      <header className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background sm:p-8">
+        <div
+          className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-gold/25 blur-3xl"
+          aria-hidden
+        />
+        <div className="relative">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/20 px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">
+            <Sparkles className="size-3" />
+            Market research
+          </span>
+          <h1 className="mt-3 font-display text-[26px] font-bold leading-tight sm:text-[30px]">
+            Keywords &amp; rivals
+          </h1>
+          <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-background/75">
+            This is the fuel of your autopilot. We read what your market searches for and what your
+            competitors already rank on — then every article of the 30-day calendar is written around
+            those exact terms.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+            {[
+              { n: "01", t: "We find the keywords", d: "Real volume, CPC and difficulty for your topics." },
+              { n: "02", t: "We scan your rivals", d: "Their winning terms become your opportunities." },
+              { n: "03", t: "The autopilot writes", d: "Best-volume, low-difficulty terms are used first." },
+            ].map((s) => (
+              <div key={s.n} className="rounded-xl bg-background/10 p-3.5 backdrop-blur-sm">
+                <p className="font-mono text-[11px] font-bold text-gold">{s.n}</p>
+                <p className="mt-1 text-[13.5px] font-semibold">{s.t}</p>
+                <p className="mt-0.5 text-[12px] leading-snug text-background/65">{s.d}</p>
+              </div>
+            ))}
+          </div>
+        </div>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-3">
@@ -203,22 +231,41 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
                 No competitor tracked yet.
               </p>
             ) : (
-              competitors.map((c) => (
-                <div
-                  key={c.id}
-                  className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0"
-                >
-                  <span className="size-2 shrink-0 rounded-full bg-gold" />
-                  <span className="flex-1 truncate text-[13.5px] font-medium">{c.domain}</span>
+              <>
+                {competitors.slice(0, compShown).map((c, i) => (
+                  <div
+                    key={c.id}
+                    className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0"
+                  >
+                    <span className="w-5 shrink-0 font-mono text-[11px] text-muted-foreground">
+                      {String(i + 1).padStart(2, "0")}
+                    </span>
+                    <span className="size-2 shrink-0 rounded-full bg-gold" />
+                    <span className="flex-1 truncate text-[13.5px] font-medium">{c.domain}</span>
+                    <button
+                      type="button"
+                      className="rounded-md border border-border px-2.5 py-1 text-[11.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
+                      onClick={() => run("comp", () => analyze({ data: { projectId, domain: c.domain } }))}
+                    >
+                      Pull keywords
+                    </button>
+                  </div>
+                ))}
+                {competitors.length > 5 && (
                   <button
                     type="button"
-                    className="rounded-md border border-border px-2.5 py-1 text-[11.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
-                    onClick={() => run("comp", () => analyze({ data: { projectId, domain: c.domain } }))}
+                    onClick={() => setCompShown((n) => (n >= competitors.length ? 5 : n + 5))}
+                    className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-[9px] border border-border py-2 text-[12.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
                   >
-                    Pull keywords
+                    <ChevronDown
+                      className={`size-3.5 transition-transform ${compShown >= competitors.length ? "rotate-180" : ""}`}
+                    />
+                    {compShown >= competitors.length
+                      ? "Show less"
+                      : `Show more (${competitors.length - compShown} left)`}
                   </button>
-                </div>
-              ))
+                )}
+              </>
             )}
           </div>
         </div>
