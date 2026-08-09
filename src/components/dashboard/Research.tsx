@@ -92,19 +92,47 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   }, [auto, keywords.length, kwLoading, projectId, qc]);
 
   return (
-    <div className="space-y-5">
-      <div className="grid gap-5 lg:grid-cols-2">
-        <div className="surface p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
-              <Search className="size-4.5" />
-            </span>
-            <h2 className="font-display text-lg font-semibold">Keyword research</h2>
+    <div className="space-y-6">
+      <header>
+        <h1 className="font-display text-[25px] font-bold leading-tight">Keywords &amp; rivals</h1>
+        <p className="mt-1 text-[14.5px] text-muted-foreground">
+          The market research that feeds every article the autopilot writes.
+        </p>
+      </header>
+
+      <div className="grid gap-4 sm:grid-cols-3">
+        {[
+          { label: "Keywords tracked", value: keywords.length, sub: "ranked by monthly volume" },
+          { label: "Competitors watched", value: competitors.length, sub: "domains fighting for your terms" },
+          {
+            label: "Total monthly volume",
+            value: keywords.reduce((sum, k) => sum + (k.search_volume ?? 0), 0).toLocaleString("en-US"),
+            sub: "searches across all keywords",
+          },
+        ].map((stat) => (
+          <div key={stat.label} className="surface p-5">
+            <p className="text-[13px] text-muted-foreground">{stat.label}</p>
+            <p className="mt-2 font-display text-2xl font-bold">{stat.value}</p>
+            <p className="mt-0.5 text-[12px] text-muted-foreground">{stat.sub}</p>
           </div>
-          <p className="mt-2 text-[13px] text-muted-foreground">
-            Seed keywords are expanded with live volume, CPC and difficulty from DataForSEO.
-          </p>
-          <Label htmlFor="seeds" className="mt-4 block">Seed keywords</Label>
+        ))}
+      </div>
+
+      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Run the research</p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <div className="surface flex flex-col p-6">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
+              <Search className="size-[19px]" />
+            </span>
+            <div>
+              <h2 className="font-display text-base font-semibold">Keyword research</h2>
+              <p className="text-[12.5px] text-muted-foreground">
+                Live volume, CPC and difficulty for your seed terms.
+              </p>
+            </div>
+          </div>
+          <Label htmlFor="seeds" className="mt-5 block text-[12.5px]">Seed keywords</Label>
           <Input
             id="seeds"
             value={seeds}
@@ -112,8 +140,9 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             placeholder="plombier paris, dépannage fuite"
             className="mt-1.5"
           />
+          <p className="mt-1.5 text-[11.5px] text-muted-foreground">Separate each term with a comma.</p>
           <Button
-            className="mt-3 w-full bg-deep text-background hover:bg-deep/90"
+            className="mt-5 w-full bg-deep text-background hover:bg-deep/90"
             disabled={busy === "kw"}
             onClick={() =>
               run("kw", () =>
@@ -130,18 +159,26 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
           </Button>
         </div>
 
-        <div className="surface p-5">
-          <div className="flex items-center gap-2">
-            <span className="flex size-9 items-center justify-center rounded-[11px] bg-gold/15 text-gold-foreground">
-              <Radar className="size-4.5" />
+        <div className="surface flex flex-col p-6">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-[11px] bg-gold-soft text-gold-foreground">
+              <Radar className="size-[19px]" />
             </span>
-            <h2 className="font-display text-lg font-semibold">Competitors</h2>
+            <div>
+              <h2 className="font-display text-base font-semibold">Competitors</h2>
+              <p className="text-[12.5px] text-muted-foreground">
+                Take the keywords your rivals already win.
+              </p>
+            </div>
           </div>
-          <p className="mt-2 text-[13px] text-muted-foreground">
-            Discover who ranks against your site, then steal the keywords they already win.
-          </p>
-          <div className="mt-4 flex gap-2">
-            <Input value={domain} onChange={(e) => setDomain(e.target.value)} placeholder="competitor.com" />
+          <Label htmlFor="rival" className="mt-5 block text-[12.5px]">Competitor domain</Label>
+          <div className="mt-1.5 flex gap-2">
+            <Input
+              id="rival"
+              value={domain}
+              onChange={(e) => setDomain(e.target.value)}
+              placeholder="competitor.com"
+            />
             <Button
               variant="outline"
               disabled={busy === "comp" || !domain.trim()}
@@ -152,77 +189,128 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
           </div>
           <Button
             variant="ghost"
-            className="mt-2 w-full"
+            className="mt-2 w-full text-[13px] text-primary hover:bg-primary/5"
             disabled={busy === "disc"}
             onClick={() => run("disc", () => discover({ data: { projectId } }))}
           >
             {busy === "disc" ? "Scanning…" : "Auto-discover my competitors"}
           </Button>
-          <div className="mt-3 space-y-1.5">
-            {competitors.map((c) => (
-              <div key={c.id} className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-[13px]">
-                <span className="font-medium">{c.domain}</span>
-                <button
-                  type="button"
-                  className="text-[12px] text-primary hover:underline"
-                  onClick={() => run("comp", () => analyze({ data: { projectId, domain: c.domain } }))}
+          <div className="mt-4 border-t border-border">
+            {competitors.length === 0 ? (
+              <p className="pt-3 text-[12.5px] text-muted-foreground">
+                No competitor tracked yet.
+              </p>
+            ) : (
+              competitors.map((c) => (
+                <div
+                  key={c.id}
+                  className="flex items-center gap-3 border-b border-border py-2.5 last:border-b-0"
                 >
-                  Pull keywords
-                </button>
-              </div>
-            ))}
+                  <span className="size-2 shrink-0 rounded-full bg-gold" />
+                  <span className="flex-1 truncate text-[13.5px] font-medium">{c.domain}</span>
+                  <button
+                    type="button"
+                    className="rounded-md border border-border px-2.5 py-1 text-[11.5px] font-semibold text-primary transition-colors hover:bg-primary/5"
+                    onClick={() => run("comp", () => analyze({ data: { projectId, domain: c.domain } }))}
+                  >
+                    Pull keywords
+                  </button>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
 
-      <div className="surface p-5">
-        <div className="flex items-center gap-2">
-          <TrendingUp className="size-4 text-primary" />
-          <h2 className="font-display text-lg font-semibold">Keyword opportunities</h2>
-          <span className="ml-auto font-mono text-[11px] text-muted-foreground">{keywords.length} tracked</span>
+      <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+        Keyword opportunities
+      </p>
+      <div className="surface p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 items-center justify-center rounded-[11px] bg-success-soft text-success">
+              <TrendingUp className="size-[19px]" />
+            </span>
+            <div>
+              <h2 className="font-display text-base font-semibold">What to write about</h2>
+              <p className="text-[12.5px] text-muted-foreground">
+                {keywords.length} keyword{keywords.length === 1 ? "" : "s"} tracked, best volume first.
+              </p>
+            </div>
+          </div>
           <button
             type="button"
-            className="flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 rounded-[9px] border border-border bg-card px-3 py-2 text-[12.5px] font-semibold transition-colors hover:bg-muted disabled:opacity-50"
             disabled={autoRunning || busy !== null}
             onClick={() => run("auto", () => auto({ data: { projectId, force: true } }))}
           >
-            <RefreshCw className={`size-3 ${autoRunning || busy === "auto" ? "animate-spin" : ""}`} />
+            <RefreshCw className={`size-3.5 ${autoRunning || busy === "auto" ? "animate-spin" : ""}`} />
             Refresh
           </button>
         </div>
         {autoRunning || busy === "auto" ? (
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
-            <Sparkles className="size-4 animate-pulse text-gold-foreground" />
-            Analyzing your market and competitors — this runs automatically, no action needed.
-          </p>
+          <div className="mt-5 rounded-xl border border-border bg-secondary/40 px-4 py-8 text-center">
+            <Sparkles className="mx-auto size-6 animate-pulse text-gold-foreground" />
+            <p className="mx-auto mt-3 max-w-sm text-[13.5px] leading-relaxed text-muted-foreground">
+              Analyzing your market and competitors — this runs automatically, no action needed.
+            </p>
+          </div>
         ) : keywords.length === 0 ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            Nothing yet — add keywords or a website URL in Settings, then hit Refresh.
-          </p>
+          <div className="mt-5 rounded-xl border border-dashed border-border px-6 py-12 text-center">
+            <h3 className="font-display text-base font-semibold">No keyword yet</h3>
+            <p className="mx-auto mt-1.5 max-w-sm text-[13.5px] leading-relaxed text-muted-foreground">
+              Add keywords or your website URL in Settings, then hit Refresh — the research runs on its own.
+            </p>
+          </div>
         ) : (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full text-left text-[13px]">
-              <thead className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          <div className="mt-5 overflow-x-auto">
+            <table className="w-full border-collapse text-left">
+              <thead>
                 <tr>
-                  <th className="py-2">Keyword</th>
-                  <th className="py-2">Volume</th>
-                  <th className="py-2">CPC</th>
-                  <th className="py-2">Difficulty</th>
-                  <th className="py-2">Intent</th>
-                  <th className="py-2">Source</th>
+                  {["Keyword", "Volume", "CPC", "Difficulty", "Intent", "Source"].map((h) => (
+                    <th
+                      key={h}
+                      className="border-b border-border px-2 py-2.5 text-[11px] font-bold uppercase tracking-[0.06em] text-muted-foreground"
+                    >
+                      {h}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {keywords.map((k) => (
-                  <tr key={k.id} className="border-t border-border">
-                    <td className="py-2 pr-3 font-medium">{k.keyword}</td>
-                    <td className="py-2 pr-3 font-mono">{k.search_volume ?? "—"}</td>
-                    <td className="py-2 pr-3 font-mono">{k.cpc != null ? `${k.cpc.toFixed(2)}` : "—"}</td>
-                    <td className="py-2 pr-3 font-mono">{k.difficulty ?? "—"}</td>
-                    <td className="py-2 pr-3 text-muted-foreground">{k.intent ?? "—"}</td>
-                    <td className="py-2 text-muted-foreground">{k.competitor_domain ?? "seed"}</td>
-                  </tr>
-                ))}
+                {keywords.map((k) => {
+                  const diff = k.difficulty ?? null;
+                  const diffTone =
+                    diff == null
+                      ? "bg-muted text-muted-foreground"
+                      : diff < 34
+                        ? "bg-success-soft text-success"
+                        : diff < 67
+                          ? "bg-warning-soft text-warning"
+                          : "bg-destructive/10 text-destructive";
+                  return (
+                    <tr key={k.id} className="border-b border-border last:border-b-0">
+                      <td className="px-2 py-3 text-[13.5px] font-medium">{k.keyword}</td>
+                      <td className="px-2 py-3 font-mono text-[13px]">
+                        {k.search_volume != null ? k.search_volume.toLocaleString("en-US") : "—"}
+                      </td>
+                      <td className="px-2 py-3 font-mono text-[13px]">
+                        {k.cpc != null ? `€${k.cpc.toFixed(2)}` : "—"}
+                      </td>
+                      <td className="px-2 py-3">
+                        <span
+                          className={`inline-block rounded-full px-2.5 py-1 font-mono text-[11.5px] font-bold ${diffTone}`}
+                        >
+                          {diff ?? "—"}
+                        </span>
+                      </td>
+                      <td className="px-2 py-3 text-[13px] text-muted-foreground">{k.intent ?? "—"}</td>
+                      <td className="px-2 py-3 text-[12.5px] text-muted-foreground">
+                        {k.competitor_domain ?? "seed"}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
