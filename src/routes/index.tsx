@@ -46,7 +46,8 @@ const PLAN_FEATURES = [
   "GEO, SEO, AEO, Local & Shopping rotation",
   "Unlimited destinations (WordPress, Woo, PrestaShop, Shopify, webhook)",
   "Keyword research & competitor mining",
-  "AI cover and in-article images",
+  "AI cover + in-article images on every article, text-free",
+  "One-click \"Illustrate all\" for the whole 30-day calendar",
   "Google Business Profile posts & Search Console sync",
   "Auto-publish every morning",
 ];
