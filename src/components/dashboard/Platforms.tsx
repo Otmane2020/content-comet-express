@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { BookOpen, Check, ExternalLink, HelpCircle, Plug, ShieldCheck, Timer, Trash2 } from "lucide-react";
+import { BookOpen, Check, Clock, Copy, ExternalLink, HelpCircle, Plug, ShieldCheck, Timer, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PLATFORM_META, type PlatformId } from "@/lib/geo";
 import { PLATFORM_GUIDES } from "@/lib/platformGuides";
@@ -16,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { PublishSchedule } from "./PublishSchedule";
 
 type Integration = {
   id: string;
@@ -167,6 +168,8 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
         )}
       </div>
 
+      <PublishSchedule projectId={projectId} />
+
       {/* Add */}
       <div className="surface grid gap-8 p-6 lg:grid-cols-[1fr_1fr]">
         <div>
@@ -314,6 +317,35 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                   ))}
                 </ol>
 
+                {guide.prompt && (
+                  <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-primary">
+                          Prompt for Lovable / Bolt / Replit
+                        </p>
+                        <p className="mt-0.5 text-[12px] text-muted-foreground">
+                          Paste this in your builder — it creates the database table and the secured
+                          endpoint for you.
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="bg-background text-[12px]"
+                        onClick={() => {
+                          void navigator.clipboard.writeText(guide.prompt!);
+                          toast.success("Prompt copied — paste it into your builder.");
+                        }}
+                      >
+                        <Copy className="mr-1.5 size-3.5" /> Copy prompt
+                      </Button>
+                    </div>
+                    <pre className="mt-3 max-h-64 overflow-auto whitespace-pre-wrap rounded-lg bg-deep p-3 text-[11.5px] leading-relaxed text-background/85">
+{guide.prompt}
+                    </pre>
+                  </div>
+                )}
                 {guide.tips && guide.tips.length > 0 && (
                   <div className="rounded-xl border border-gold/30 bg-gold-soft/50 p-4">
                     <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-gold-foreground">

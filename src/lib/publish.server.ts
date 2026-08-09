@@ -8,6 +8,8 @@ export type PublishPayload = {
   markdown: string;
   contentType: string;
   scheduledDate: string;
+  coverUrl?: string | null;
+  keywords?: string[];
 };
 
 export type PublishResult = { url: string | null; message: string };
@@ -114,7 +116,13 @@ async function publishWebhook(config: Config, payload: PublishPayload): Promise<
       "Content-Type": "application/json",
       ...(config["secret"] ? { "x-autopilot-secret": config["secret"]! } : {}),
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify({
+      ...payload,
+      cover_url: payload.coverUrl ?? null,
+      keywords: payload.keywords ?? [],
+      content_type: payload.contentType,
+      published_at: new Date().toISOString(),
+    }),
   });
   if (!res.ok) throw new Error(`Your endpoint refused the article ${await readError(res)}`);
   const text = await res.text();
@@ -186,6 +194,8 @@ export async function runPublish(
     markdown: item.body_md,
     contentType: item.content_type,
     scheduledDate: item.scheduled_date,
+    coverUrl: item.cover_image_url ?? null,
+    keywords: (item.keywords as string[] | null) ?? [],
   };
 
   const results: { platform: string; success: boolean; message: string; url: string | null }[] = [];
