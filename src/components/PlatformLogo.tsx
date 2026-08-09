@@ -1,4 +1,4 @@
-import type { SVGProps as ReactSVGProps } from "react";
+import type { ReactElement, SVGProps as ReactSVGProps } from "react";
 import type { PlatformId } from "@/lib/geo";
 
 type SVGProps = ReactSVGProps<SVGSVGElement>;
@@ -33,7 +33,7 @@ const LovableBoltLogo = (p: SVGProps) => (
   </svg>
 );
 
-const MAP: Record<PlatformId, (p: SVGProps) => JSX.Element> = {
+const MAP: Record<PlatformId, (p: SVGProps) => ReactElement> = {
   wordpress: WordPressLogo,
   woocommerce: WooCommerceLogo,
   prestashop: PrestaShopLogo,
