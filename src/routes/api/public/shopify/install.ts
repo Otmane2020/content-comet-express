@@ -12,14 +12,12 @@ export const Route = createFileRoute("/api/public/shopify/install")({
         const shop = mod.normalizeShop(url.searchParams.get("shop"));
         if (!shop) return redirect(`${origin}/app?tab=platforms&shopify=error&message=invalid_shop`);
 
-        const state = mod.verifyState(url.searchParams.get("state"));
-        // Installs started from Shopify carry no state: bounce through the app so
-        // the signed-in user can be attached, then come back here.
-        if (!state) {
-          return redirect(`${origin}/app?tab=platforms&connect_shopify=${encodeURIComponent(shop)}`);
-        }
-
-        return redirect(mod.authorizeUrl(shop, url.searchParams.get("state")!, origin));
+        // With state: a signed-in merchant is adding this store to their project.
+        // Without state (install from Shopify, or "Continue with Shopify"): the
+        // callback creates the account from the store data and signs them in.
+        const raw = url.searchParams.get("state");
+        const state = mod.verifyState(raw);
+        return redirect(mod.authorizeUrl(shop, state && raw ? raw : "", origin));
       },
     },
   },
