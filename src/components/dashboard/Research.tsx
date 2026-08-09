@@ -165,6 +165,18 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
       </div>
 
       <p className="text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">Run the research</p>
+      {source && !source.live && (
+        <div className="flex items-start gap-3 rounded-xl border border-gold/40 bg-gold-soft/60 p-4">
+          <Sparkles className="mt-0.5 size-4 shrink-0 text-gold-foreground" />
+          <p className="text-[12.5px] leading-relaxed text-gold-foreground">
+            <span className="font-semibold">AI-estimated metrics.</span>{" "}
+            {source.reason === "unauthorized"
+              ? "Your DataForSEO credentials are rejected — add the API password from your DataForSEO account (Settings › API access), not your website login."
+              : "Live SEO data is not connected yet, so volumes and difficulty are estimates."}{" "}
+            Keywords and competitors still feed the autopilot.
+          </p>
+        </div>
+      )}
       <div className="flex flex-col gap-3">
         <div className="surface flex flex-col gap-4 p-5 md:flex-row md:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-3">
