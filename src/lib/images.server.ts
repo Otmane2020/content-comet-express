@@ -81,7 +81,7 @@ const NO_TEXT =
   "The scene contains no writing at all: blank signs, blank screens, blank packaging, blank paper, no books or posters, no logos, no numbers, no letters, no watermark, no captions, no UI text. Every surface is plain and unprinted.";
 
 const STYLE =
-  "Photorealistic documentary photograph, 35mm lens, natural window light, shallow depth of field, muted editorial color grade, no graphic design elements, no illustration, no collage, no border, no frame.";
+  "Photorealistic documentary photograph, 50mm lens, natural window light, very shallow depth of field, muted editorial color grade. Frame people, hands, architecture, materials and light rather than printed products; keep any packaging, screens or signage out of focus and out of frame. No graphic design elements, no illustration, no collage, no border, no frame.";
 
 export function coverPrompt(topic: string, industry: string | null) {
   const subject = visualSubject(topic, industry);
