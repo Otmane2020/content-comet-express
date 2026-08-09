@@ -53,17 +53,45 @@ export async function storeImage(userId: string, key: string, bytes: Uint8Array,
   return `/api/public/img/${path}`;
 }
 
+/**
+ * Text keeps appearing because the model is handed a headline ("Top 10 SEO
+ * Strategies…") and words like "magazine cover" — it then paints a poster.
+ * So we never send the title: we distill it into a plain scene subject and
+ * ask for a documentary photograph of surfaces with nothing printed on them.
+ */
+const STOPWORDS = new Set([
+  "the","a","an","and","or","for","to","of","in","on","with","your","you","how","why","what",
+  "best","top","guide","tips","strategies","ultimate","complete","ways","things","must",
+  "should","need","know","2024","2025","2026","2027","vs","using","use","get","make",
+]);
+
+/** Turn a headline into a short, neutral visual subject (no numbers, no headline words). */
+export function visualSubject(topic: string, industry?: string | null): string {
+  const words = topic
+    .toLowerCase()
+    .replace(/["“”'’:|—–\-()]/g, " ")
+    .replace(/\d+/g, " ")
+    .split(/\s+/)
+    .filter((w) => w.length > 2 && !STOPWORDS.has(w));
+  const subject = words.slice(0, 4).join(" ").trim();
+  return subject || (industry ? industry.toLowerCase() : "modern business workspace");
+}
+
 const NO_TEXT =
-  "Absolutely no text of any kind: no words, no letters, no numbers, no captions, no titles, no headlines, no typography, no signage, no labels, no packaging text, no book or magazine covers with writing, no handwriting, no subtitles, no watermark, no logo, no brand name, no UI or screen text. Pure photographic image only.";
+  "The scene contains no writing at all: blank signs, blank screens, blank packaging, blank paper, no books or posters, no logos, no numbers, no letters, no watermark, no captions, no UI text. Every surface is plain and unprinted.";
+
+const STYLE =
+  "Photorealistic documentary photograph, 35mm lens, natural window light, shallow depth of field, muted editorial color grade, no graphic design elements, no illustration, no collage, no border, no frame.";
 
 export function coverPrompt(topic: string, industry: string | null) {
-  return `Editorial magazine cover photograph illustrating: ${topic}. ${
-    industry ? `Industry: ${industry}. ` : ""
-  }Cinematic natural light, shallow depth of field, premium interior-magazine aesthetic. ${NO_TEXT}`;
+  const subject = visualSubject(topic, industry);
+  const setting = industry ? ` in a ${industry.toLowerCase()} environment` : "";
+  return `A real-world scene of ${subject}${setting}, photographed candidly. ${STYLE} ${NO_TEXT}`;
 }
 
 export function sectionPrompt(heading: string, topic: string) {
-  return `Editorial magazine photograph for the section "${heading}" of an article about ${topic}. Natural light, realistic, premium lifestyle photography. ${NO_TEXT}`;
+  const subject = visualSubject(`${heading} ${topic}`);
+  return `A real-world scene of ${subject}, photographed candidly. ${STYLE} ${NO_TEXT}`;
 }
 
 /** Remove inline markdown images (we keep exactly one cover image per article). */
