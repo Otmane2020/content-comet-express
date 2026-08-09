@@ -24,6 +24,16 @@ export function renderMarkdown(md: string): string {
       continue;
     }
     const heading = /^(#{1,4})\s+(.*)$/.exec(line);
+    const image = /^!\[(.*?)\]\((https?:\/\/[^\s)]+)\)$/.exec(line);
+    if (image) {
+      closeList();
+      out.push(
+        `<figure><img src="${image[2]}" alt="${esc(image[1] ?? "")}" loading="lazy" />${
+          image[1] ? `<figcaption>${esc(image[1])}</figcaption>` : ""
+        }</figure>`,
+      );
+      continue;
+    }
     if (heading) {
       closeList();
       const level = Math.min(heading[1]!.length + 1, 5);
