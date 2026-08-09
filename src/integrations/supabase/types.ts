@@ -14,6 +14,56 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_mentions: {
+        Row: {
+          answer: string | null
+          brands: string[]
+          checked_at: string
+          created_at: string
+          engine: string
+          id: string
+          mentioned: boolean
+          project_id: string
+          prompt: string
+          rank: number | null
+          user_id: string
+        }
+        Insert: {
+          answer?: string | null
+          brands?: string[]
+          checked_at?: string
+          created_at?: string
+          engine: string
+          id?: string
+          mentioned?: boolean
+          project_id: string
+          prompt: string
+          rank?: number | null
+          user_id: string
+        }
+        Update: {
+          answer?: string | null
+          brands?: string[]
+          checked_at?: string
+          created_at?: string
+          engine?: string
+          id?: string
+          mentioned?: boolean
+          project_id?: string
+          prompt?: string
+          rank?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_mentions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       articles: {
         Row: {
           content_type: string | null
