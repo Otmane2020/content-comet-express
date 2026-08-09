@@ -22,7 +22,7 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { competitorDomains } = await import("./dataforseo.server");
     const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
-    const { QUOTA, isFresh } = await import("./quotas");
+    const { QUOTA, isFresh, dedupeDomains } = await import("./quotas");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
