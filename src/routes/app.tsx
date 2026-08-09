@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { CalendarDays, LineChart, LogOut, MapPin, Plug, RefreshCw, Settings2 } from "lucide-react";
+import { CalendarDays, LineChart, LogOut, MapPin, Plug, RefreshCw, Settings2, Crown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { buildPlan } from "@/lib/autopilot.functions";
@@ -16,6 +16,14 @@ import { GoogleHub } from "@/components/dashboard/GoogleHub";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export const Route = createFileRoute("/app")({
   head: () => ({
@@ -154,13 +162,21 @@ function Dashboard() {
       </aside>
 
       <main className="min-w-0 flex-1">
-        <header className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-5 py-4">
-          <div>
-            <h1 className="font-display text-lg font-bold">{project.name}</h1>
-            <p className="font-mono text-[11px] text-muted-foreground">
-              {project.website_url ?? "no website"} · {project.locale}
-            </p>
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 bg-gradient-to-r from-background via-background to-muted/30 px-5 py-4">
+          <div className="flex items-center gap-3">
+            <div className="flex size-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-primary/70 shadow-sm shadow-primary/20">
+              <span className="font-display text-base font-bold text-primary-foreground">
+                {project.name?.slice(0, 2).toUpperCase() || "AB"}
+              </span>
+            </div>
+            <div>
+              <h1 className="font-display text-lg font-bold leading-tight">{project.name}</h1>
+              <p className="font-mono text-[11px] text-muted-foreground">
+                {project.website_url ?? "no website"} · {project.locale}
+              </p>
+            </div>
           </div>
+
           <div className="flex items-center gap-2">
             <div className="flex gap-1 md:hidden">
               {nav.map((entry) => (
@@ -174,9 +190,49 @@ function Dashboard() {
                 </Button>
               ))}
             </div>
-            <Button size="sm" variant="outline" onClick={refill} disabled={refilling}>
+            <Button size="sm" variant="outline" onClick={refill} disabled={refilling} className="gap-1.5">
               <RefreshCw className={`size-4 ${refilling ? "animate-spin" : ""}`} /> Refill 30 days
             </Button>
+
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  className="group flex items-center gap-2.5 rounded-full border border-border/70 bg-background pl-1.5 pr-3 py-1 shadow-sm transition-all hover:border-primary/40 hover:shadow-md"
+                >
+                  <Avatar className="size-8 border border-primary/20">
+                    <AvatarFallback className="bg-gradient-to-br from-primary to-primary/70 text-[10px] font-bold text-primary-foreground">
+                      {user.email?.slice(0, 2).toUpperCase() || "AD"}
+                    </AvatarFallback>
+                  </Avatar>
+                  <div className="hidden text-left sm:block">
+                    <p className="max-w-[140px] truncate text-[11px] font-semibold leading-tight">{user.email}</p>
+                    <p className="flex items-center gap-1 text-[10px] font-medium text-amber-500">
+                      <Crown className="size-2.5" /> Admin
+                    </p>
+                  </div>
+                </button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-3 py-2">
+                  <p className="text-xs font-semibold">Signed in as</p>
+                  <p className="truncate text-[11px] text-muted-foreground">{user.email}</p>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setTab("settings")} className="gap-2 text-xs">
+                  <Settings2 className="size-3.5" /> Project settings
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={async () => {
+                    await supabase.auth.signOut();
+                    navigate({ to: "/", replace: true });
+                  }}
+                  className="gap-2 text-xs text-destructive focus:text-destructive"
+                >
+                  <LogOut className="size-3.5" /> Sign out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </header>
 
