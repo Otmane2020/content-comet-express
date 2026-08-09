@@ -63,7 +63,7 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
     const fallback = fallbackTopics(project, slots);
     return slots.map((slot, i) => ({
       ...slot,
-      topic: byDate.get(slot.date) ?? fallback[i]!.topic,
+      topic: freshenYears(byDate.get(slot.date) ?? fallback[i]!.topic),
     }));
   } catch {
     return fallbackTopics(project, slots);
