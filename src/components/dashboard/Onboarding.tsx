@@ -8,13 +8,18 @@ import {
   Building2,
   CalendarDays,
   Check,
+  Loader2,
+  Plus,
   Radar,
   Rocket,
   Send,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan } from "@/lib/autopilot.functions";
+import { detectBusiness, detectMarket } from "@/lib/detect.functions";
+import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +73,17 @@ const FORMATS = [
 
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
   const build = useServerFn(buildPlan);
+  const detectBiz = useServerFn(detectBusiness);
+  const detectMkt = useServerFn(detectMarket);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanningMarket, setScanningMarket] = useState(false);
+  const [detected, setDetected] = useState<string | null>(null);
+  const [market, setMarket] = useState<{
+    source: "dataforseo" | "ai";
+    competitors: string[];
+    keywords: { keyword: string; volume: number | null; difficulty: number | null }[];
+  } | null>(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     name: "",
@@ -76,7 +91,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     industry: "",
     audience: "",
     tone: "expert",
-    locale: "fr",
+    locale: "en",
     keywords: "",
     competitors: "",
   });
@@ -85,6 +100,84 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const canNext = step !== 0 || form.name.trim().length > 1;
+
+  async function autodetectBusiness() {
+    if (!form.website_url.trim()) {
+      toast.error("Add your website URL first.");
+      return;
+    }
+    setScanning(true);
+    try {
+      const d = await detectBiz({ data: { website: form.website_url } });
+      setForm((f) => ({
+        ...f,
+        name: f.name || (d.name ?? ""),
+        industry: d.industry ?? f.industry,
+        audience: d.audience ?? f.audience,
+        tone: d.tone,
+        locale: d.locale,
+        keywords: f.keywords || d.keywords.join(", "),
+      }));
+      setDetected(d.summary);
+      toast.success("Website analysed — fields filled in.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not read that website");
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function autodetectMarket() {
+    if (!form.website_url.trim()) {
+      toast.error("Add your website URL in step 1 first.");
+      return;
+    }
+    setScanningMarket(true);
+    try {
+      const r = await detectMkt({
+        data: {
+          website: form.website_url,
+          name: form.name || undefined,
+          industry: form.industry || undefined,
+          locale: form.locale,
+          seeds: form.keywords
+            .split(",")
+            .map((k) => k.trim())
+            .filter(Boolean)
+            .slice(0, 10),
+        },
+      });
+      setMarket(r);
+      setForm((f) => ({
+        ...f,
+        competitors: f.competitors.trim() ? f.competitors : r.competitors.join("\n"),
+        keywords: f.keywords.trim() ? f.keywords : r.keywords.slice(0, 10).map((k) => k.keyword).join(", "),
+      }));
+      toast.success(
+        r.source === "dataforseo"
+          ? `Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`
+          : `AI-estimated market: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Market scan failed");
+    } finally {
+      setScanningMarket(false);
+    }
+  }
+
+  const addKeyword = (kw: string) =>
+    setForm((f) => {
+      const list = f.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+      if (list.some((k) => k.toLowerCase() === kw.toLowerCase())) return f;
+      return { ...f, keywords: [...list, kw].join(", ") };
+    });
+
+  const addCompetitor = (domain: string) =>
+    setForm((f) => {
+      const list = f.competitors.split(/[\n,]/).map((c) => c.trim()).filter(Boolean);
+      if (list.some((c) => c.toLowerCase() === domain.toLowerCase())) return f;
+      return { ...f, competitors: [...list, domain].join("\n") };
+    });
 
   async function submit() {
     setBusy(true);
