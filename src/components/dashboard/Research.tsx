@@ -24,6 +24,8 @@ type Keyword = {
   difficulty: number | null;
   intent: string | null;
   competitor_domain: string | null;
+  relevance_score: number | null;
+  origin: string | null;
 };
 
 type Competitor = { id: string; domain: string; metrics: Record<string, unknown>; last_checked_at: string | null };
@@ -49,8 +51,9 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
     queryFn: async () => {
       const { data, error } = await supabase
         .from("keyword_research")
-        .select("id, keyword, search_volume, cpc, competition, difficulty, intent, competitor_domain")
+        .select("id, keyword, search_volume, cpc, competition, difficulty, intent, competitor_domain, relevance_score, origin")
         .eq("project_id", projectId)
+        .order("relevance_score", { ascending: false, nullsFirst: false })
         .order("search_volume", { ascending: false, nullsFirst: false })
         .limit(100);
       if (error) throw error;
@@ -132,7 +135,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             {[
               { n: "01", t: "We find the keywords", d: "Real volume, CPC and difficulty for your topics." },
               { n: "02", t: "We scan your rivals", d: "Their winning terms become your opportunities." },
-              { n: "03", t: "The autopilot writes", d: "Best-volume, low-difficulty terms are used first." },
+              { n: "03", t: "The autopilot writes", d: "Most relevant, buyer-intent terms are used first — not just the biggest volume." },
             ].map((s) => (
               <div key={s.n} className="rounded-xl bg-background/10 p-3.5 backdrop-blur-sm">
                 <p className="font-mono text-[11px] font-bold text-gold">{s.n}</p>

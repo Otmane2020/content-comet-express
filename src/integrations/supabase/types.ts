@@ -413,7 +413,9 @@ export type Database = {
           id: string
           intent: string | null
           keyword: string
+          origin: string | null
           project_id: string
+          relevance_score: number | null
           search_volume: number | null
           source: string
           used: boolean
@@ -428,7 +430,9 @@ export type Database = {
           id?: string
           intent?: string | null
           keyword: string
+          origin?: string | null
           project_id: string
+          relevance_score?: number | null
           search_volume?: number | null
           source?: string
           used?: boolean
@@ -443,7 +447,9 @@ export type Database = {
           id?: string
           intent?: string | null
           keyword?: string
+          origin?: string | null
           project_id?: string
+          relevance_score?: number | null
           search_volume?: number | null
           source?: string
           used?: boolean
@@ -469,6 +475,7 @@ export type Database = {
           locale: string | null
           name: string
           publish_hour: number
+          target_country: string | null
           timezone: string
           tone: string | null
           updated_at: string
@@ -484,6 +491,7 @@ export type Database = {
           locale?: string | null
           name: string
           publish_hour?: number
+          target_country?: string | null
           timezone?: string
           tone?: string | null
           updated_at?: string
@@ -499,6 +507,7 @@ export type Database = {
           locale?: string | null
           name?: string
           publish_hour?: number
+          target_country?: string | null
           timezone?: string
           tone?: string | null
           updated_at?: string

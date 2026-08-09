@@ -70,8 +70,9 @@ export const detectMarket = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { normalizeUrl } = await import("./scrape.server");
     const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
-    const { competitorDomains, keywordIdeas } = await import("./dataforseo.server");
+    const { competitorDomains, keywordIdeas, keywordsForSite } = await import("./dataforseo.server");
     const { QUOTA, dedupeKeywords, dedupeDomains } = await import("./quotas");
+    const { scoreRelevance, compositeScore, MIN_RELEVANCE } = await import("./relevance.server");
 
     const website = normalizeUrl(data.website);
     const domain = website.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
@@ -80,16 +81,43 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     const competitors: { domain: string }[] = await competitorDomains(domain, opts, QUOTA.competitors);
 
-    const seeds = (data.seeds ?? []).filter(Boolean).slice(0, QUOTA.seeds);
-    const usedSeeds = seeds.length ? seeds : [data.industry ?? data.name ?? domain];
-    const keywords: { keyword: string; search_volume: number | null; difficulty: number | null }[] =
-      await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
+    // Site first: DataForSEO tells us what the domain actually ranks for,
+    // before any AI-guessed seed can steer the scan into the wrong industry.
+    let siteRows: Awaited<ReturnType<typeof keywordsForSite>> = [];
+    try {
+      siteRows = await keywordsForSite(domain, opts, QUOTA.keywords);
+    } catch {
+      /* fall back to seeds only */
+    }
+    const usedSeeds = Array.from(
+      new Set([
+        ...siteRows.slice(0, QUOTA.seeds).map((r) => r.keyword),
+        ...(data.seeds ?? []).filter(Boolean),
+      ]),
+    ).slice(0, QUOTA.seeds);
+    const ideas = usedSeeds.length
+      ? await keywordIdeas(usedSeeds, opts, QUOTA.keywords)
+      : await keywordIdeas([data.industry ?? data.name ?? domain], opts, QUOTA.keywords);
+
+    const merged = dedupeKeywords([...siteRows, ...ideas].filter((k) => k?.keyword), QUOTA.keywords * 3);
+    const scores = await scoreRelevance(
+      { name: data.name ?? null, website_url: website, industry: data.industry ?? null },
+      merged.map((k) => k.keyword),
+    );
+    const ranked = merged
+      .map((k) => ({ k, rel: scores[k.keyword.toLowerCase()] ?? 60 }))
+      .filter((x) => (Object.keys(scores).length ? x.rel >= MIN_RELEVANCE : true))
+      .sort((a, b) => compositeScore(b.k, b.rel) - compositeScore(a.k, a.rel))
+      .slice(0, QUOTA.keywords);
 
     return {
       live: true,
       source: "dataforseo" as const,
       competitors: dedupeDomains(competitors.map((c) => c.domain), domain, QUOTA.competitors),
-      keywords: dedupeKeywords(keywords.filter((k) => k?.keyword), QUOTA.keywords)
-        .map((k) => ({ keyword: k.keyword, volume: k.search_volume ?? null, difficulty: k.difficulty ?? null })),
+      keywords: ranked.map(({ k }) => ({
+        keyword: k.keyword,
+        volume: k.search_volume ?? null,
+        difficulty: k.difficulty ?? null,
+      })),
     };
   });
