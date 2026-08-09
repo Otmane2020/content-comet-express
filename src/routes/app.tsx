@@ -3,7 +3,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
-import { CalendarDays, LogOut, Plug, RefreshCw, Settings2 } from "lucide-react";
+import { CalendarDays, LineChart, LogOut, Plug, RefreshCw, Settings2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { buildPlan } from "@/lib/autopilot.functions";
@@ -11,6 +11,7 @@ import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
+import { Research } from "@/components/dashboard/Research";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -28,7 +29,7 @@ export const Route = createFileRoute("/app")({
   component: Dashboard,
 });
 
-type Tab = "calendar" | "platforms" | "settings";
+type Tab = "calendar" | "research" | "platforms" | "settings";
 
 type Project = {
   id: string;
@@ -101,6 +102,7 @@ function Dashboard() {
 
   const nav: { id: Tab; label: string; icon: typeof CalendarDays }[] = [
     { id: "calendar", label: "30-day calendar", icon: CalendarDays },
+    { id: "research", label: "Keywords & rivals", icon: LineChart },
     { id: "platforms", label: "Destinations", icon: Plug },
     { id: "settings", label: "Settings", icon: Settings2 },
   ];
@@ -172,6 +174,7 @@ function Dashboard() {
 
         <div className="p-5">
           {tab === "calendar" && <Calendar projectId={project.id} />}
+          {tab === "research" && <Research projectId={project.id} seedKeywords={project.keywords ?? []} />}
           {tab === "platforms" && <Platforms projectId={project.id} userId={user.id} />}
           {tab === "settings" && <ProjectSettings project={project} />}
         </div>

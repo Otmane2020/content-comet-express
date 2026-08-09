@@ -14,6 +14,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      competitors: {
+        Row: {
+          created_at: string
+          domain: string
+          id: string
+          last_checked_at: string | null
+          metrics: Json
+          project_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          domain: string
+          id?: string
+          last_checked_at?: string | null
+          metrics?: Json
+          project_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          domain?: string
+          id?: string
+          last_checked_at?: string | null
+          metrics?: Json
+          project_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "competitors_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       content_items: {
         Row: {
           body_md: string | null
@@ -119,6 +157,62 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "integrations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      keyword_research: {
+        Row: {
+          competition: number | null
+          competitor_domain: string | null
+          cpc: number | null
+          created_at: string
+          difficulty: number | null
+          id: string
+          intent: string | null
+          keyword: string
+          project_id: string
+          search_volume: number | null
+          source: string
+          used: boolean
+          user_id: string
+        }
+        Insert: {
+          competition?: number | null
+          competitor_domain?: string | null
+          cpc?: number | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          intent?: string | null
+          keyword: string
+          project_id: string
+          search_volume?: number | null
+          source?: string
+          used?: boolean
+          user_id: string
+        }
+        Update: {
+          competition?: number | null
+          competitor_domain?: string | null
+          cpc?: number | null
+          created_at?: string
+          difficulty?: number | null
+          id?: string
+          intent?: string | null
+          keyword?: string
+          project_id?: string
+          search_volume?: number | null
+          source?: string
+          used?: boolean
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "keyword_research_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
