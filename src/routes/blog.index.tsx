@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { CalendarDays, Clock } from "lucide-react";
+import { Footer } from "@/components/Footer";
 import { BLOG_POSTS } from "@/lib/blog";
+
 
 export const Route = createFileRoute("/blog/")({
   head: () => {
