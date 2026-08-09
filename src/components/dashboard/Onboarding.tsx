@@ -663,6 +663,44 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       {form.industry ? ` · ${form.industry}` : ""} · {form.tone} tone ·{" "}
                       {form.locale.toUpperCase()} · 30 articles planned.
                     </div>
+
+                    {subActive === false && (
+                      <div className="rounded-2xl border border-gold/40 bg-gold-soft/40 p-5">
+                        <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
+                          <ShieldCheck className="size-4 text-gold" /> Activate your plan to launch
+                        </div>
+                        <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
+                          The autopilot writes, illustrates and publishes daily. Pick a billing cycle —
+                          you can enter a promo code on the secure checkout page.
+                        </p>
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                          {([
+                            { id: "monthly", price: "$9.99", per: "/month", note: "Cancel anytime" },
+                            { id: "annual", price: "$7.99", per: "/month", note: "Billed yearly · save 20%" },
+                          ] as const).map((p) => (
+                            <button
+                              key={p.id}
+                              type="button"
+                              onClick={() => setCycle(p.id)}
+                              className={`rounded-xl border p-4 text-left transition ${
+                                cycle === p.id
+                                  ? "border-gold bg-background shadow-sm"
+                                  : "border-border bg-background/60 hover:border-gold/50"
+                              }`}
+                            >
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-xl font-bold text-foreground">{p.price}</span>
+                                <span className="text-[12px] text-muted-foreground">{p.per}</span>
+                              </div>
+                              <p className="mt-1 text-[11.5px] text-muted-foreground">{p.note}</p>
+                            </button>
+                          ))}
+                        </div>
+                        <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                          <Tag className="size-3.5 text-gold" /> Got a promo code? Apply it at checkout.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 )}
               </motion.div>
@@ -689,11 +727,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 >
                   Continue <ArrowRight className="ml-1.5 size-4" />
                 </Button>
+              ) : subActive === false ? (
+                <Button
+                  type="button"
+                  onClick={startCheckout}
+                  disabled={busy}
+                  className="bg-deep text-background hover:bg-deep/90"
+                >
+                  {busy ? "Opening checkout…" : "Subscribe & launch"}
+                  <Rocket className="ml-1.5 size-4" />
+                </Button>
               ) : (
                 <Button
                   type="button"
                   onClick={submit}
-                  disabled={busy}
+                  disabled={busy || subActive === null}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
                   {busy ? "Planning 30 days…" : "Launch my autopilot"}
