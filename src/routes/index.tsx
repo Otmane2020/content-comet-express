@@ -13,8 +13,11 @@ import {
   Search,
   Send,
   Sparkles,
+  Star,
+  TrendingUp,
   Zap,
 } from "lucide-react";
+
 import { BrandLockup } from "@/components/BrandMark";
 import { DemoSlider } from "@/components/DemoSlider";
 import { Footer } from "@/components/Footer";
@@ -276,7 +279,58 @@ function Landing() {
         </div>
       </header>
 
+      <section className="border-y border-border bg-gradient-to-b from-background to-secondary/30">
+        <div className="mx-auto max-w-6xl px-5 py-16 lg:py-24">
+          <div className="grid gap-12 lg:grid-cols-2 lg:items-center">
+            <div>
+              <span className="inline-flex items-center gap-2 rounded-full border border-gold/40 bg-gold-soft px-3 py-1 font-mono text-[11px] font-semibold tracking-wide text-gold-foreground">
+                <Sparkles className="size-3.5" /> WIN GENERATIVE SEARCH
+              </span>
+              <h2 className="mt-5 text-3xl font-bold sm:text-4xl lg:text-5xl">
+                Buyers ask AI which brand to choose. <span className="text-primary">Make sure it&apos;s yours.</span>
+              </h2>
+              <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
+                AutopilotGEO creates, optimizes and publishes the content that ChatGPT, Gemini and
+                Perplexity actually cite — every day, on autopilot.
+              </p>
+              <div className="mt-7 flex flex-wrap gap-3">
+                <Button asChild size="lg" className="bg-deep text-background hover:bg-deep/90">
+                  <Link to="/auth">
+                    Claim my AI citations <ArrowRight className="size-4" />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="surface p-5 text-center sm:text-left">
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+                  <Globe2 className="size-5" />
+                </span>
+                <p className="mt-4 font-display text-3xl font-bold">500+</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">active sites ranking on AI</p>
+              </div>
+              <div className="surface p-5 text-center sm:text-left">
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+                  <Star className="size-5" />
+                </span>
+                <p className="mt-4 font-display text-3xl font-bold">4.9/5</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">founder reviews</p>
+              </div>
+              <div className="surface p-5 text-center sm:text-left">
+                <span className="inline-flex size-10 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+                  <TrendingUp className="size-5" />
+                </span>
+                <p className="mt-4 font-display text-3xl font-bold">+60%</p>
+                <p className="mt-1 text-[13px] text-muted-foreground">visibility lift on average</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <DemoSlider />
+
 
       <section className="mx-auto max-w-6xl px-5 py-16">
         <h2 className="text-2xl font-bold">How the autopilot runs</h2>
