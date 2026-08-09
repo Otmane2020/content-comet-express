@@ -201,7 +201,7 @@ export async function runPublish(
   data: { itemId: string; integrationIds?: string[] | undefined },
 ) {
   const { slugify } = await import("./geo");
-  const { renderMarkdown } = await import("./markdown");
+  const { renderMagazineHtml } = await import("./markdown");
 
   const { data: item, error } = await supabase
     .from("content_items")
@@ -220,15 +220,16 @@ export async function runPublish(
   const { data: integrations } = await query;
   if (!integrations?.length) throw new Error("No connected platform for this project");
 
-  const cover = item.cover_image_url
-    ? `<figure><img src="${item.cover_image_url}" alt="${item.title ?? ""}" /></figure>`
-    : "";
-
   const payload: PublishPayload = {
     title: item.title ?? item.topic ?? "Untitled",
     slug: item.slug ?? slugify(item.title ?? item.topic ?? "article"),
     excerpt: item.excerpt ?? "",
-    html: cover + renderMarkdown(item.body_md),
+    html: renderMagazineHtml({
+      title: item.title ?? item.topic ?? "Untitled",
+      excerpt: item.excerpt,
+      coverUrl: item.cover_image_url,
+      markdown: item.body_md,
+    }),
     markdown: item.body_md,
     contentType: item.content_type,
     scheduledDate: item.scheduled_date,
