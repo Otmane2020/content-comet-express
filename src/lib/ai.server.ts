@@ -17,7 +17,7 @@ export async function callOpenRouter(opts: {
     headers: {
       Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
-      "X-Title": "AutopilotGEO",
+      "X-Title": "Ranki.ai",
     },
     body: JSON.stringify({
       model: opts.model ?? DEFAULT_MODEL,

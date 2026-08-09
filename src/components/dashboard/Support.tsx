@@ -52,7 +52,7 @@ export function Support() {
         </div>
         <div className="flex flex-wrap gap-4 text-[12px] text-muted-foreground">
           <span className="flex items-center gap-1.5">
-            <Mail className="size-3.5 text-primary" /> support@autopilotgeo.com
+            <Mail className="size-3.5 text-primary" /> support@ranki.ai
           </span>
           <span className="flex items-center gap-1.5">
             <Clock className="size-3.5 text-amber-500" /> Reply within 24h

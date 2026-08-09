@@ -24,7 +24,7 @@ export function BrandLockup({ dark = false }: { dark?: boolean }) {
         <span
           className={`block font-display text-[17px] font-bold ${dark ? "text-background" : "text-foreground"}`}
         >
-          AutopilotGEO
+          Ranki.ai
         </span>
       </span>
     </span>

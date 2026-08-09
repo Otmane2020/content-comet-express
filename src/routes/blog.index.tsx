@@ -21,25 +21,25 @@ export const Route = createFileRoute("/blog/")({
     const schema = {
       "@context": "https://schema.org",
       "@type": "Blog",
-      name: "AutopilotGEO Blog",
+      name: "Ranki.ai Blog",
       description: "Guides on GEO, AI content automation, local SEO and Google Business Profile.",
-      url: "https://autopilotgeo.com/blog",
+      url: "https://www.ranki.ai/blog",
       blogPost: BLOG_POSTS.map((post) => ({
         "@type": "BlogPosting",
         headline: post.title,
-        url: `https://autopilotgeo.com/blog/${post.slug}`,
+        url: `https://www.ranki.ai/blog/${post.slug}`,
         datePublished: post.publishedAt,
       })),
     };
     return {
       meta: [
-        { title: "Blog — AutopilotGEO" },
+        { title: "Blog — Ranki.ai" },
         {
           name: "description",
           content:
             "Guides on GEO, AI content automation, local SEO and Google Business Profile. Practical advice for founders and marketers.",
         },
-        { property: "og:title", content: "Blog — AutopilotGEO" },
+        { property: "og:title", content: "Blog — Ranki.ai" },
         {
           property: "og:description",
           content: "Guides on GEO, AI content automation, local SEO and Google Business Profile.",
@@ -47,7 +47,7 @@ export const Route = createFileRoute("/blog/")({
         { property: "og:type", content: "website" },
         { name: "twitter:card", content: "summary" },
       ],
-      links: [{ rel: "canonical", href: "https://autopilotgeo.com/blog" }],
+      links: [{ rel: "canonical", href: "https://www.ranki.ai/blog" }],
       scripts: [
         {
           type: "application/ld+json",
@@ -68,7 +68,7 @@ function BlogIndex() {
       <div className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
-            AutopilotGEO
+            Ranki.ai
           </Link>
           <nav className="flex items-center gap-4 text-[13px]">
             <Link to="/" className="text-muted-foreground hover:text-foreground">
@@ -84,7 +84,7 @@ function BlogIndex() {
 
       <main className="mx-auto max-w-6xl px-5 py-12">
         <div className="mx-auto max-w-2xl text-center">
-          <h1 className="font-display text-3xl font-bold sm:text-4xl">AutopilotGEO Blog</h1>
+          <h1 className="font-display text-3xl font-bold sm:text-4xl">Ranki.ai Blog</h1>
           <p className="mt-4 text-[15px] leading-relaxed text-muted-foreground">
             Practical guides on GEO, AI content automation, local SEO and Google Business Profile.
           </p>

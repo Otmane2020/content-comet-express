@@ -34,27 +34,27 @@ export const Route = createFileRoute("/blog/$slug")({
           headline: title,
           description: description ?? undefined,
           image: article?.cover_url ?? undefined,
-          author: { "@type": "Organization", name: "AutopilotGEO" },
-          publisher: { "@type": "Organization", name: "AutopilotGEO" },
+          author: { "@type": "Organization", name: "Ranki.ai" },
+          publisher: { "@type": "Organization", name: "Ranki.ai" },
           datePublished,
           dateModified: datePublished,
           mainEntityOfPage: {
             "@type": "WebPage",
-            "@id": `https://autopilotgeo.com/blog/${params.slug}`,
+            "@id": `https://www.ranki.ai/blog/${params.slug}`,
           },
         }
       : null;
     return {
       meta: [
-        { title: title ? `${title} — AutopilotGEO` : "Post — AutopilotGEO" },
+        { title: title ? `${title} — Ranki.ai` : "Post — Ranki.ai" },
         {
           name: "description",
-          content: description ?? "Read the full article on AutopilotGEO.",
+          content: description ?? "Read the full article on Ranki.ai.",
         },
-        { property: "og:title", content: title ?? "Post — AutopilotGEO" },
+        { property: "og:title", content: title ?? "Post — Ranki.ai" },
         {
           property: "og:description",
-          content: description ?? "Read the full article on AutopilotGEO.",
+          content: description ?? "Read the full article on Ranki.ai.",
         },
         { property: "og:type", content: "article" },
         { name: "twitter:card", content: article?.cover_url ? "summary_large_image" : "summary" },
@@ -65,7 +65,7 @@ export const Route = createFileRoute("/blog/$slug")({
             ]
           : []),
       ],
-      links: [{ rel: "canonical", href: `https://autopilotgeo.com/blog/${params.slug}` }],
+      links: [{ rel: "canonical", href: `https://www.ranki.ai/blog/${params.slug}` }],
       scripts: schema
         ? [
             {
@@ -95,7 +95,7 @@ function BlogPost() {
         <div className="border-b border-border">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
             <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
-              AutopilotGEO
+              Ranki.ai
             </Link>
             <nav className="flex items-center gap-4 text-[13px]">
               <Link to="/" className="text-muted-foreground hover:text-foreground">
@@ -151,7 +151,7 @@ function BlogPost() {
       <div className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
-            AutopilotGEO
+            Ranki.ai
           </Link>
           <nav className="flex items-center gap-4 text-[13px]">
             <Link to="/" className="text-muted-foreground hover:text-foreground">

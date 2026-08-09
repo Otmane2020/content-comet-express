@@ -8,7 +8,7 @@ export const GOOGLE_SCOPES: Record<GoogleService, string> = {
 export type GoogleService = "gmb" | "gsc";
 
 function stateKey() {
-  return process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"] || "autopilotgeo";
+  return process.env["SUPABASE_SERVICE_ROLE_KEY"] || process.env["SUPABASE_PUBLISHABLE_KEY"] || "ranki";
 }
 
 export type StatePayload = {

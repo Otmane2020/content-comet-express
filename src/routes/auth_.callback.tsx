@@ -10,10 +10,10 @@ export const Route = createFileRoute("/auth_/callback")({
   ssr: false,
   head: () => ({
     meta: [
-      { title: "Signing you in — AutopilotGEO" },
-      { name: "description", content: "Finishing your AutopilotGEO sign-in." },
-      { property: "og:title", content: "Signing you in — AutopilotGEO" },
-      { property: "og:description", content: "Finishing your AutopilotGEO sign-in." },
+      { title: "Signing you in — Ranki.ai" },
+      { name: "description", content: "Finishing your Ranki.ai sign-in." },
+      { property: "og:title", content: "Signing you in — Ranki.ai" },
+      { property: "og:description", content: "Finishing your Ranki.ai sign-in." },
       { name: "robots", content: "noindex" },
     ],
   }),

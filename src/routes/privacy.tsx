@@ -4,17 +4,17 @@ import { Footer } from "@/components/Footer";
 export const Route = createFileRoute("/privacy")({
   head: () => ({
     meta: [
-      { title: "Privacy Policy — AutopilotGEO" },
+      { title: "Privacy Policy — Ranki.ai" },
       {
         name: "description",
-        content: "Privacy policy for AutopilotGEO by AutoPilot Geo Ltd.",
+        content: "Privacy policy for Ranki.ai by Ranki AI Ltd.",
       },
-      { property: "og:title", content: "Privacy Policy — AutopilotGEO" },
-      { property: "og:description", content: "Privacy policy for AutopilotGEO by AutoPilot Geo Ltd." },
+      { property: "og:title", content: "Privacy Policy — Ranki.ai" },
+      { property: "og:description", content: "Privacy policy for Ranki.ai by Ranki AI Ltd." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary" },
     ],
-    links: [{ rel: "canonical", href: "https://autopilotgeo.com/privacy" }],
+    links: [{ rel: "canonical", href: "https://www.ranki.ai/privacy" }],
   }),
   component: PrivacyPage,
 });
@@ -25,7 +25,7 @@ function PrivacyPage() {
       <div className="border-b border-border">
         <div className="mx-auto flex max-w-6xl items-center justify-between px-5 py-4">
           <Link to="/" className="font-display text-lg font-bold tracking-tight text-foreground">
-            AutopilotGEO
+            Ranki.ai
           </Link>
           <nav className="flex items-center gap-4 text-[13px]">
             <Link to="/" className="text-muted-foreground hover:text-foreground">
@@ -49,10 +49,10 @@ function PrivacyPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">Who we are</h2>
             <p className="mt-2">
-              AutopilotGEO is operated by AutoPilot Geo Ltd, Suite 4, Piccadilly House, Manchester, M1
+              Ranki.ai is operated by Ranki AI Ltd, Suite 4, Piccadilly House, Manchester, M1
               1AB, United Kingdom. If you have questions about this policy, email us at{" "}
-              <a href="mailto:support@autopilotgeo.com" className="text-primary hover:underline">
-                support@autopilotgeo.com
+              <a href="mailto:support@ranki.ai" className="text-primary hover:underline">
+                support@ranki.ai
               </a>
               .
             </p>
@@ -70,7 +70,7 @@ function PrivacyPage() {
           <section>
             <h2 className="font-display text-lg font-semibold text-foreground">How we use data</h2>
             <ul className="mt-2 list-disc space-y-1 pl-5">
-              <li>To provide and maintain the AutopilotGEO service.</li>
+              <li>To provide and maintain the Ranki.ai service.</li>
               <li>To generate, publish and schedule content on your connected platforms.</li>
               <li>To process payments and send account-related emails.</li>
               <li>To analyse usage and improve features.</li>
@@ -81,7 +81,7 @@ function PrivacyPage() {
             <h2 className="font-display text-lg font-semibold text-foreground">Data sharing</h2>
             <p className="mt-2">
               We do not sell your personal data. We share data only with service providers necessary to
-              run AutopilotGEO (hosting, AI providers, payment processors) and only when required by law.
+              run Ranki.ai (hosting, AI providers, payment processors) and only when required by law.
             </p>
           </section>
 

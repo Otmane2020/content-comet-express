@@ -89,14 +89,14 @@ export function DemoSlider() {
               <span className="size-2.5 rounded-full bg-gold/70" />
               <span className="size-2.5 rounded-full bg-success/60" />
               <span className="ml-2 truncate font-mono text-[11px] text-muted-foreground">
-                app.autopilotgeo.com/{active.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
+                app.ranki.ai/{active.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}
               </span>
             </div>
             <div className="group relative overflow-hidden rounded-xl border border-border bg-background">
               <img
                 key={active.label}
                 src={active.src}
-                alt={`${active.label} screen of the AutopilotGEO dashboard`}
+                alt={`${active.label} screen of the Ranki.ai dashboard`}
                 className="w-full animate-in fade-in duration-500"
               />
               <button

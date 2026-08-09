@@ -69,7 +69,7 @@ export const createCheckout = createServerFn({ method: "POST" })
       "line_items[0][price_data][currency]": "usd",
       "line_items[0][price_data][unit_amount]": annual ? "9590" : "999",
       "line_items[0][price_data][recurring][interval]": annual ? "year" : "month",
-      "line_items[0][price_data][product_data][name]": "AutopilotGEO",
+      "line_items[0][price_data][product_data][name]": "Ranki.ai",
       "line_items[0][price_data][product_data][description]": annual
         ? "Full autopilot — billed yearly (20% off)"
         : "Full autopilot — billed monthly",

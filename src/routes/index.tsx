@@ -29,7 +29,7 @@ import { PLATFORM_META, ROTATION, TYPE_META } from "@/lib/geo";
 const FAQ = [
   {
     q: "Do I need to install a plugin?",
-    a: "No. AutopilotGEO publishes through the official APIs of WordPress, WooCommerce, PrestaShop and Shopify, or posts the article to your own endpoint.",
+    a: "No. Ranki.ai publishes through the official APIs of WordPress, WooCommerce, PrestaShop and Shopify, or posts the article to your own endpoint.",
   },
   {
     q: "Who writes the articles?",
@@ -82,22 +82,22 @@ const CAPABILITIES = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "AutopilotGEO — 30 Days of AI SEO Content, Auto-Published" },
+      { title: "Ranki.ai — 30 Days of AI SEO Content, Auto-Published" },
       {
         name: "description",
         content:
           "A rolling 30-day calendar of GEO, SEO and AEO content written by DeepSeek and published automatically to WordPress, WooCommerce, PrestaShop, Shopify and your own site.",
       },
-      { property: "og:title", content: "AutopilotGEO — 30 Days of AI SEO Content, Auto-Published" },
+      { property: "og:title", content: "Ranki.ai — 30 Days of AI SEO Content, Auto-Published" },
       {
         property: "og:description",
         content: "Plan, write and publish a month of generative-search content on autopilot.",
       },
-      { property: "og:url", content: "https://autopilotgeo.com/" },
+      { property: "og:url", content: "https://www.ranki.ai/" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
-    links: [{ rel: "canonical", href: "https://autopilotgeo.com/" }],
+    links: [{ rel: "canonical", href: "https://www.ranki.ai/" }],
     scripts: [
       {
         type: "application/ld+json",
@@ -162,7 +162,7 @@ function Landing() {
             <Sparkles className="size-3.5" /> NEW
           </span>
           <span className="opacity-90">
-            AutopilotGEO writes and publishes one article a day to your CMS — keywords, competitors,
+            Ranki.ai writes and publishes one article a day to your CMS — keywords, competitors,
             images and Google included.
           </span>
           <a href="#demo" className="font-semibold text-gold underline-offset-4 hover:underline">
@@ -227,7 +227,7 @@ function Landing() {
               <span className="text-primary"> without you.</span>
             </h1>
             <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-              AutopilotGEO builds a rolling 30-day editorial calendar for your business, writes every
+              Ranki.ai builds a rolling 30-day editorial calendar for your business, writes every
               article with DeepSeek through OpenRouter, and pushes it live to WordPress, WooCommerce,
               PrestaShop, Shopify and your Lovable, Bolt or Replit site.
             </p>
@@ -290,7 +290,7 @@ function Landing() {
                 Buyers ask AI which brand to choose. <span className="text-primary">Make sure it&apos;s yours.</span>
               </h2>
               <p className="mt-5 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
-                AutopilotGEO creates, optimizes and publishes the content that ChatGPT, Gemini and
+                Ranki.ai creates, optimizes and publishes the content that ChatGPT, Gemini and
                 Perplexity actually cite — every day, on autopilot.
               </p>
               <div className="mt-7 flex flex-wrap gap-3">
@@ -338,7 +338,7 @@ function Landing() {
         </span>
         <h2 className="mt-4 text-2xl font-bold">Your first article is written the moment you finish setup</h2>
         <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">
-          As soon as your 30-day calendar is planned, AutopilotGEO writes the day-1 GEO article, generates its
+          As soon as your 30-day calendar is planned, Ranki.ai writes the day-1 GEO article, generates its
           text-free cover image, and — if your Google Business Profile is connected — adds a Local piece for the
           same day and posts it straight to Google Business Profile.
         </p>
@@ -488,7 +488,7 @@ function Landing() {
           <div className="surface relative overflow-hidden p-8 ring-2 ring-gold/50">
             <span className="absolute inset-x-0 top-0 h-1 bg-gold" aria-hidden />
             <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
-              AutopilotGEO — full access
+              Ranki.ai — full access
             </p>
             <p className="mt-3 flex items-end gap-2">
               <span className="font-display text-5xl font-bold">

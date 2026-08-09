@@ -33,7 +33,7 @@ export async function scrapeSite(input: string): Promise<SiteSnapshot> {
   const url = normalizeUrl(input);
   const res = await fetch(url, {
     headers: {
-      "user-agent": "Mozilla/5.0 (compatible; AutopilotGEO/1.0; +https://autopilotgeo.com)",
+      "user-agent": "Mozilla/5.0 (compatible; Ranki.ai/1.0; +https://www.ranki.ai)",
       accept: "text/html,application/xhtml+xml",
     },
     redirect: "follow",
