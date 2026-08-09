@@ -111,7 +111,7 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   if (usedSeeds.length) {
     // Phrase-match suggestions per seed: every result contains the seed, so the
     // list can never drift to high-volume, off-topic terms.
-    const perSeed = Math.max(6, Math.ceil(QUOTA.keywords / Math.max(1, usedSeeds.length)) + 4);
+    const perSeed = Math.max(15, Math.ceil((QUOTA.totalKeywords * 2) / Math.max(1, usedSeeds.length)));
     const batches = await Promise.all(
       usedSeeds.map((s) => keywordSuggestions(s, opts, perSeed).catch(() => [] as KwRow[])),
     );
