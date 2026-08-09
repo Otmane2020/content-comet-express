@@ -27,18 +27,6 @@ export function Footer() {
             </Link>
           </div>
 
-          <div className="text-[12px] leading-relaxed text-muted-foreground">
-            <p className="font-medium text-foreground">AutoPilot Geo Ltd</p>
-            <p>Suite 4, Piccadilly House</p>
-            <p>Manchester, M1 1AB</p>
-            <p>United Kingdom</p>
-            <p className="mt-1">
-              <a href="mailto:support@autopilotgeo.com" className="hover:text-foreground">
-                support@autopilotgeo.com
-              </a>
-            </p>
-          </div>
-
           <p className="text-[11px] text-muted-foreground">
             © {new Date().getFullYear()} AutopilotGEO — generative search, on autopilot.
           </p>
