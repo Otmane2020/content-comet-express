@@ -13,8 +13,11 @@ import {
   Search,
   Send,
   Sparkles,
+  Star,
+  TrendingUp,
   Zap,
 } from "lucide-react";
+
 import { BrandLockup } from "@/components/BrandMark";
 import { DemoSlider } from "@/components/DemoSlider";
 import { Footer } from "@/components/Footer";
