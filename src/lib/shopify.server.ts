@@ -17,7 +17,13 @@ export function normalizeShop(input: string | null | undefined) {
   return /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(host) ? host : null;
 }
 
-export type ShopifyState = { userId: string; projectId: string; origin: string; ts: number };
+export type ShopifyState = {
+  userId: string;
+  projectId: string;
+  origin: string;
+  ts: number;
+  shop?: string;
+};
 
 export function signState(payload: ShopifyState) {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
