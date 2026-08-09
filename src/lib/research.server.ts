@@ -131,12 +131,16 @@ export async function saveKeywords(
   }[],
 ) {
   if (!rows.length) return;
+  const { QUOTA, dedupeKeywords } = await import("./quotas");
   const { data: existing } = await supabase
     .from("keyword_research")
     .select("keyword")
     .eq("project_id", projectId);
   const seen = new Set(((existing ?? []) as { keyword: string }[]).map((r) => r.keyword.toLowerCase()));
-  const fresh = rows.filter((r) => !seen.has(r.keyword.toLowerCase()));
+  const fresh = dedupeKeywords(
+    rows.filter((r) => r.keyword && !seen.has(r.keyword.toLowerCase())),
+    QUOTA.totalKeywords,
+  );
   if (!fresh.length) return;
   await supabase.from("keyword_research").insert(
     fresh.map((r) => ({
