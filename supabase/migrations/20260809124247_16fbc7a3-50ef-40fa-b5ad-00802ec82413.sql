@@ -1,0 +1,1 @@
+DELETE FROM public.articles WHERE slug = 'test-ingest';
