@@ -1,8 +1,90 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowRight, Bot, CalendarDays, Check, Globe2, Send, Sparkles } from "lucide-react";
+import {
+  ArrowRight,
+  BarChart3,
+  Bot,
+  CalendarDays,
+  Check,
+  Globe2,
+  MapPin,
+  Search,
+  Send,
+  Sparkles,
+  Zap,
+} from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { PLATFORM_META, ROTATION, TYPE_META } from "@/lib/geo";
+
+const FAQ = [
+  {
+    q: "Do I need to install a plugin?",
+    a: "No. AutopilotGEO publishes through the official APIs of WordPress, WooCommerce, PrestaShop and Shopify, or posts the article to your own endpoint.",
+  },
+  {
+    q: "Who writes the articles?",
+    a: "DeepSeek through OpenRouter writes every piece in your language and tone, using your keywords, your competitors' winning queries and your Search Console data.",
+  },
+  {
+    q: "Can I review before publishing?",
+    a: "Yes. Every slot lands as an editable draft. Turn auto-publish on per destination when you trust the output.",
+  },
+  {
+    q: "What is GEO exactly?",
+    a: "Generative Engine Optimisation: writing so ChatGPT, Perplexity, Gemini and AI Overviews quote your brand instead of a competitor.",
+  },
+];
+
+const PLANS = [
+  {
+    name: "Solo",
+    price: "29",
+    blurb: "One site, the full 30-day rotation.",
+    features: ["1 project", "30 articles / month", "2 destinations", "Keyword research"],
+  },
+  {
+    name: "Studio",
+    price: "79",
+    blurb: "For shops that live on search.",
+    features: [
+      "3 projects",
+      "Unlimited destinations",
+      "Competitor keyword mining",
+      "Google Business Profile posts",
+      "Search Console sync",
+    ],
+    featured: true,
+  },
+  {
+    name: "Agency",
+    price: "199",
+    blurb: "Run autopilot for your clients.",
+    features: ["15 projects", "Client-ready calendars", "Priority generation", "Webhook delivery"],
+  },
+];
+
+const CAPABILITIES = [
+  {
+    icon: Search,
+    title: "Keywords & rivals",
+    body: "Live volume, CPC and difficulty, plus the queries your competitors already win — mined automatically.",
+  },
+  {
+    icon: MapPin,
+    title: "Google Business Profile",
+    body: "Connect your listing and the article of the day goes out as a local post, every morning.",
+  },
+  {
+    icon: BarChart3,
+    title: "Search Console feedback",
+    body: "28-day clicks, impressions and positions flow back in, so the next articles target what actually moves.",
+  },
+  {
+    icon: Zap,
+    title: "Daily autopilot job",
+    body: "The window refills, today's piece gets written and pushed everywhere auto-publish is on. No clicks needed.",
+  },
+];
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -17,6 +99,22 @@ export const Route = createFileRoute("/")({
       {
         property: "og:description",
         content: "Plan, write and publish a month of generative-search content on autopilot.",
+      },
+      { property: "og:url", content: "/" },
+    ],
+    links: [{ rel: "canonical", href: "/" }],
+    scripts: [
+      {
+        type: "application/ld+json",
+        children: JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: FAQ.map((f) => ({
+            "@type": "Question",
+            name: f.q,
+            acceptedAnswer: { "@type": "Answer", text: f.a },
+          })),
+        }),
       },
     ],
   }),
