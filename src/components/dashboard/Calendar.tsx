@@ -61,6 +61,19 @@ export function Calendar({ projectId }: { projectId: string }) {
 
   const open = useMemo(() => items.find((i) => i.id === openId) ?? null, [items, openId]);
 
+  const { data: gmbConnected = false } = useQuery({
+    queryKey: ["gmb-connected", projectId],
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("google_connections")
+        .select("resource_id")
+        .eq("project_id", projectId)
+        .eq("service", "gmb")
+        .maybeSingle();
+      return Boolean(data?.resource_id);
+    },
+  });
+
   const genMutation = useMutation({
     mutationFn: (itemId: string) => generate({ data: { itemId } }),
     onSuccess: () => {
@@ -262,6 +275,12 @@ export function Calendar({ projectId }: { projectId: string }) {
                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>
                     {status.label}
                   </span>
+                  {gmbConnected && item.content_type === "local_aeo" && (
+                    <span className="flex items-center gap-1 rounded-full bg-gold-soft px-2 py-0.5 text-[10.5px] font-bold text-gold-foreground">
+                      <span className="size-1.5 rounded-full bg-gold" aria-hidden />
+                      GMB
+                    </span>
+                  )}
                 </div>
                 <p className="mt-1.5 block w-full truncate text-left text-[14.5px] font-semibold transition-colors group-hover:text-primary">
                   {item.title ?? item.topic ?? "Untitled slot"}
