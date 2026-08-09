@@ -1,4 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useState } from "react";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowRight,
   BarChart3,
@@ -6,6 +8,7 @@ import {
   CalendarDays,
   Check,
   Globe2,
+  Loader2,
   MapPin,
   Search,
   Send,
@@ -13,7 +16,9 @@ import {
   Zap,
 } from "lucide-react";
 import { BrandLockup } from "@/components/BrandMark";
+import { PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
+import { createCheckout } from "@/lib/billing.functions";
 import { PLATFORM_META, ROTATION, TYPE_META } from "@/lib/geo";
 
 const FAQ = [
@@ -35,32 +40,14 @@ const FAQ = [
   },
 ];
 
-const PLANS = [
-  {
-    name: "Solo",
-    price: "29",
-    blurb: "One site, the full 30-day rotation.",
-    features: ["1 project", "30 articles / month", "2 destinations", "Keyword research"],
-  },
-  {
-    name: "Studio",
-    price: "79",
-    blurb: "For shops that live on search.",
-    features: [
-      "3 projects",
-      "Unlimited destinations",
-      "Competitor keyword mining",
-      "Google Business Profile posts",
-      "Search Console sync",
-    ],
-    featured: true,
-  },
-  {
-    name: "Agency",
-    price: "199",
-    blurb: "Run autopilot for your clients.",
-    features: ["15 projects", "Client-ready calendars", "Priority generation", "Webhook delivery"],
-  },
+const PLAN_FEATURES = [
+  "30 articles a month, on a rolling calendar",
+  "GEO, SEO, AEO, Local & Shopping rotation",
+  "Unlimited destinations (WordPress, Woo, PrestaShop, Shopify, webhook)",
+  "Keyword research & competitor mining",
+  "AI cover and in-article images",
+  "Google Business Profile posts & Search Console sync",
+  "Auto-publish every morning",
 ];
 
 const CAPABILITIES = [
@@ -140,6 +127,25 @@ const STEPS = [
 ];
 
 function Landing() {
+  const [annual, setAnnual] = useState(true);
+  const [loading, setLoading] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const startCheckout = useServerFn(createCheckout);
+
+  const onSubscribe = async () => {
+    setLoading(true);
+    setCheckoutError(null);
+    try {
+      const { url } = await startCheckout({
+        data: { cycle: annual ? "annual" : "monthly", origin: window.location.origin },
+      });
+      window.location.href = url;
+    } catch {
+      setCheckoutError("Checkout is unavailable right now. Please try again in a moment.");
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <nav className="sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur">
@@ -256,9 +262,17 @@ function Landing() {
           </div>
           <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {Object.entries(PLATFORM_META).map(([id, meta]) => (
-              <div key={id} className="surface p-5">
-                <p className="font-display font-semibold">{meta.label}</p>
-                <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.hint}</p>
+              <div
+                key={id}
+                className="surface group flex items-start gap-4 p-5 transition-all hover:border-primary/40 hover:shadow-sm"
+              >
+                <span className="inline-flex size-12 shrink-0 items-center justify-center rounded-xl border border-border bg-background shadow-sm transition-transform group-hover:scale-105">
+                  <PlatformLogo platform={id} className="size-7" />
+                </span>
+                <div>
+                  <p className="font-display font-semibold">{meta.label}</p>
+                  <p className="mt-1.5 text-[13px] text-muted-foreground">{meta.hint}</p>
+                </div>
               </div>
             ))}
           </div>
@@ -308,45 +322,70 @@ function Landing() {
       </section>
 
       <section id="pricing" className="mx-auto max-w-6xl px-5 py-16">
-        <h2 className="text-2xl font-bold">Simple pricing</h2>
-        <p className="mt-2 text-[15px] text-muted-foreground">
-          Every plan includes the rolling calendar, DeepSeek writing and auto-publishing.
-        </p>
-        <div className="mt-8 grid gap-4 lg:grid-cols-3">
-          {PLANS.map((plan) => (
-            <div
-              key={plan.name}
-              className={`surface flex flex-col p-6 ${plan.featured ? "ring-2 ring-gold/60" : ""}`}
+        <div className="text-center">
+          <h2 className="text-2xl font-bold">One price. Everything included.</h2>
+          <p className="mt-2 text-[15px] text-muted-foreground">
+            No tiers, no per-article billing. Save 20% when you pay yearly.
+          </p>
+          <div className="mt-6 inline-flex items-center gap-1 rounded-full border border-border bg-secondary/60 p-1">
+            <button
+              type="button"
+              onClick={() => setAnnual(false)}
+              className={`rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors ${!annual ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
             >
-              <div className="flex items-center justify-between">
-                <p className="font-display text-lg font-semibold">{plan.name}</p>
-                {plan.featured && (
-                  <span className="rounded-full bg-gold-soft px-2.5 py-0.5 font-mono text-[10px] font-semibold text-gold-foreground">
-                    POPULAR
-                  </span>
-                )}
-              </div>
-              <p className="mt-3">
-                <span className="font-display text-4xl font-bold">€{plan.price}</span>
-                <span className="text-[13px] text-muted-foreground"> / month</span>
-              </p>
-              <p className="mt-2 text-[13px] text-muted-foreground">{plan.blurb}</p>
-              <ul className="mt-5 space-y-2 text-[13px] text-foreground/80">
-                {plan.features.map((f) => (
-                  <li key={f} className="flex items-center gap-2">
-                    <Check className="size-4 text-success" /> {f}
-                  </li>
-                ))}
-              </ul>
-              <Button
-                asChild
-                className={`mt-6 ${plan.featured ? "bg-deep text-background hover:bg-deep/90" : ""}`}
-                variant={plan.featured ? "default" : "outline"}
-              >
-                <Link to="/auth">Start with {plan.name}</Link>
-              </Button>
-            </div>
-          ))}
+              Monthly
+            </button>
+            <button
+              type="button"
+              onClick={() => setAnnual(true)}
+              className={`flex items-center gap-2 rounded-full px-4 py-1.5 text-[13px] font-semibold transition-colors ${annual ? "bg-background text-foreground shadow-sm" : "text-muted-foreground"}`}
+            >
+              Yearly
+              <span className="rounded-full bg-gold-soft px-2 py-0.5 font-mono text-[10px] text-gold-foreground">
+                −20%
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div className="mx-auto mt-8 max-w-xl">
+          <div className="surface relative overflow-hidden p-8 ring-2 ring-gold/50">
+            <span className="absolute inset-x-0 top-0 h-1 bg-gold" aria-hidden />
+            <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
+              AutopilotGEO — full access
+            </p>
+            <p className="mt-3 flex items-end gap-2">
+              <span className="font-display text-5xl font-bold">
+                ${annual ? "7.99" : "9.99"}
+              </span>
+              <span className="pb-1.5 text-[13px] text-muted-foreground">/ month, USD</span>
+            </p>
+            <p className="mt-1.5 text-[13px] text-muted-foreground">
+              {annual ? "Billed $95.90 once a year — two months free." : "Billed monthly, cancel anytime."}
+            </p>
+            <ul className="mt-6 space-y-2.5 text-[13.5px] text-foreground/85">
+              {PLAN_FEATURES.map((f) => (
+                <li key={f} className="flex items-start gap-2">
+                  <Check className="mt-0.5 size-4 shrink-0 text-success" /> {f}
+                </li>
+              ))}
+            </ul>
+            <Button
+              onClick={onSubscribe}
+              disabled={loading}
+              className="mt-7 w-full bg-deep text-background hover:bg-deep/90"
+              size="lg"
+            >
+              {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+              {annual ? "Start yearly — save 20%" : "Start monthly"}
+            </Button>
+            {checkoutError && (
+              <p className="mt-3 text-center text-[13px] text-destructive">{checkoutError}</p>
+            )}
+            <p className="mt-3 text-center text-[12px] text-muted-foreground">
+              Secure payment by Stripe. Cancel in one click.
+            </p>
+          </div>
         </div>
       </section>
 
