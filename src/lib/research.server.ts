@@ -46,17 +46,21 @@ export async function requireLiveDataForSeo() {
 type Sb = { from: (t: string) => any };
 
 /**
- * Full hands-free research pass for one project: seed expansion, competitor
- * discovery, and competitor keyword extraction. Live DataForSEO data only —
- * there is no estimated fallback. No-ops when keywords already exist unless
- * `force`.
+ * Full hands-free research pass for one project:
+ *   site keywords → seeds → keyword ideas → competitors → competitor keywords
+ *   → relevance scoring → save.
+ * DataForSEO decides the topic of the site (keywords_for_site) before any
+ * stored/AI seed is used, so a wrong industry guess can no longer steer the
+ * whole calendar. Live DataForSEO data only — no estimated fallback.
  */
 export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
-  const { keywordIdeas, competitorDomains, competitorKeywords } = await import("./dataforseo.server");
+  const { keywordIdeas, keywordsForSite, competitorDomains, competitorKeywords } = await import(
+    "./dataforseo.server"
+  );
   const { QUOTA, dedupeKeywords, dedupeDomains, isFresh } = await import("./quotas");
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, industry, locale, website_url, keywords")
+    .select("id, name, industry, audience, locale, target_country, website_url, keywords")
     .eq("id", projectId)
     .single();
   if (!project) throw new Error("Project not found");
@@ -69,14 +73,30 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
 
   await requireLiveDataForSeo();
 
-  const seeds: string[] = (project.keywords ?? []).filter(Boolean).slice(0, QUOTA.seeds);
-  const fallback = project.name ?? project.industry ?? "";
-  const usedSeeds = seeds.length ? seeds : fallback ? [fallback] : [];
-  const opts = localeOpts(project.locale ?? null);
+  const opts = localeOpts(project.locale ?? null, project.target_country ?? null);
   let rows: KwRow[] = [];
 
+  // 1. What the site itself is actually about, straight from DataForSEO.
+  let siteSeeds: string[] = [];
+  if (project.website_url) {
+    try {
+      const siteRows = await keywordsForSite(project.website_url, opts, QUOTA.keywords);
+      rows = siteRows.map((r) => ({ ...r, origin: "site" as const }));
+      siteSeeds = siteRows.slice(0, QUOTA.seeds).map((r) => r.keyword);
+    } catch {
+      /* fall through to stored seeds */
+    }
+  }
+
+  // 2. Expand with seeds — site terms first, stored/AI keywords second.
+  const storedSeeds: string[] = (project.keywords ?? []).filter(Boolean);
+  const usedSeeds = Array.from(new Set([...siteSeeds, ...storedSeeds].map((s) => s.trim()).filter(Boolean))).slice(
+    0,
+    QUOTA.seeds,
+  );
   if (usedSeeds.length) {
-    rows = await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
+    const ideas = await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
+    rows = rows.concat(ideas.map((r) => ({ ...r, origin: "seed" as const })));
   }
 
   const self = (project.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
@@ -114,54 +134,78 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   for (const domain of domains) {
     if (rows.length >= QUOTA.totalKeywords) break;
     try {
-      rows = rows.concat(await competitorKeywords(domain, opts, QUOTA.keywordsPerCompetitor));
+      const compRows = await competitorKeywords(domain, opts, QUOTA.keywordsPerCompetitor);
+      rows = rows.concat(compRows.map((r) => ({ ...r, origin: "competitor" as const })));
     } catch {
       /* keep what we have */
     }
   }
 
-  const unique = dedupeKeywords(rows, QUOTA.totalKeywords);
-  await saveKeywords(supabase, userId, projectId, unique);
-  return { found: unique.length, skipped: false, live: true, cachedCompetitors: cacheUsable };
+  const unique = dedupeKeywords(rows, QUOTA.totalKeywords * 3);
+  const saved = await saveKeywords(supabase, userId, projectId, unique, {
+    name: project.name,
+    website_url: project.website_url,
+    industry: project.industry,
+    audience: project.audience,
+  });
+  return { found: saved, skipped: false, live: true, cachedCompetitors: cacheUsable };
 }
 
+/**
+ * Scores relevance (AI, relevance only — metrics stay DataForSEO's), drops
+ * off-topic noise, ranks by the composite score and upserts so a refresh
+ * really refreshes existing metrics instead of ignoring them.
+ */
 export async function saveKeywords(
   supabase: Sb,
   userId: string,
   projectId: string,
-  rows: {
-    keyword: string;
-    search_volume: number | null;
-    cpc: number | null;
-    competition: number | null;
-    difficulty: number | null;
-    intent: string | null;
-    competitor_domain?: string | null;
-  }[],
-) {
-  if (!rows.length) return;
+  rows: KwRow[],
+  profile?: { name?: string | null; website_url?: string | null; industry?: string | null; audience?: string | null },
+): Promise<number> {
+  if (!rows.length) return 0;
   const { QUOTA, dedupeKeywords } = await import("./quotas");
-  const { data: existing } = await supabase
-    .from("keyword_research")
-    .select("keyword")
-    .eq("project_id", projectId);
-  const seen = new Set(((existing ?? []) as { keyword: string }[]).map((r) => r.keyword.toLowerCase()));
-  const fresh = dedupeKeywords(
-    rows.filter((r) => r.keyword && !seen.has(r.keyword.toLowerCase())),
-    QUOTA.totalKeywords,
-  );
-  if (!fresh.length) return;
-  await supabase.from("keyword_research").insert(
-    fresh.map((r) => ({
+  const { scoreRelevance, compositeScore, MIN_RELEVANCE } = await import("./relevance.server");
+
+  const candidates = dedupeKeywords(rows.filter((r) => r.keyword), QUOTA.totalKeywords * 3);
+  const biz =
+    profile ??
+    ((
+      await supabase
+        .from("projects")
+        .select("name, website_url, industry, audience")
+        .eq("id", projectId)
+        .single()
+    ).data as { name?: string | null; website_url?: string | null; industry?: string | null; audience?: string | null } | null) ??
+    {};
+
+  const scores = await scoreRelevance(biz, candidates.map((r) => r.keyword));
+  const scored = candidates.map((r) => {
+    const relevance = scores[r.keyword.trim().toLowerCase()] ?? r.relevance_score ?? 60;
+    return { row: r, relevance, rank: compositeScore(r, relevance) };
+  });
+  const kept = scored
+    .filter((s) => s.relevance >= (Object.keys(scores).length ? MIN_RELEVANCE : 0))
+    .sort((a, b) => b.rank - a.rank)
+    .slice(0, QUOTA.totalKeywords);
+  if (!kept.length) return 0;
+
+  const { error } = await supabase.from("keyword_research").upsert(
+    kept.map(({ row, relevance }) => ({
       user_id: userId,
       project_id: projectId,
-      keyword: r.keyword,
-      search_volume: r.search_volume,
-      cpc: r.cpc,
-      competition: r.competition,
-      difficulty: r.difficulty,
-      intent: r.intent,
-      competitor_domain: r.competitor_domain ?? null,
+      keyword: row.keyword,
+      search_volume: row.search_volume,
+      cpc: row.cpc,
+      competition: row.competition,
+      difficulty: row.difficulty,
+      intent: row.intent,
+      competitor_domain: row.competitor_domain ?? null,
+      origin: row.origin ?? (row.competitor_domain ? "competitor" : "seed"),
+      relevance_score: relevance,
     })),
+    { onConflict: "project_id,keyword" },
   );
+  if (error) throw new Error(error.message);
+  return kept.length;
 }
