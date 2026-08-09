@@ -77,6 +77,35 @@ function Dashboard() {
     void announceSignup({ data: undefined }).catch(() => undefined);
   }, [user, announceSignup]);
 
+  // Someone who just signed in with Google is asked once, right away, for
+  // Search Console + Business Profile access — wherever they land in the app.
+  const startGoogle = useServerFn(startGoogleConnect);
+  useEffect(() => {
+    if (typeof window === "undefined" || !user || !project) return;
+    if (sessionStorage.getItem("ranki:google-scopes") !== "1") return;
+    let cancelled = false;
+    void (async () => {
+      const { count } = await supabase
+        .from("google_connections")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", project.id);
+      if (cancelled) return;
+      sessionStorage.removeItem("ranki:google-scopes");
+      if (count && count > 0) return;
+      try {
+        const res = await startGoogle({
+          data: { projectId: project.id, service: "all", origin: window.location.origin },
+        });
+        window.location.href = res.url;
+      } catch {
+        /* the user can still connect from Local & Search */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [user, project, startGoogle]);
+
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", user?.id],
     enabled: !!user,
