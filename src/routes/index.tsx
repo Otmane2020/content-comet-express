@@ -333,6 +333,45 @@ function Landing() {
 
 
       <section className="mx-auto max-w-6xl px-5 py-16">
+        <span className="inline-flex items-center gap-2 rounded-full bg-gold-soft px-3 py-1 text-[11.5px] font-bold uppercase tracking-[0.14em] text-gold-foreground">
+          Day 1, before you do anything
+        </span>
+        <h2 className="mt-4 text-2xl font-bold">Your first article is written the moment you finish setup</h2>
+        <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-muted-foreground">
+          As soon as your 30-day calendar is planned, AutopilotGEO writes the day-1 GEO article, generates its
+          text-free cover image, and — if your Google Business Profile is connected — adds a Local piece for the
+          same day and posts it straight to Google Business Profile.
+        </p>
+        <div className="mt-8 grid gap-4 md:grid-cols-3">
+          {[
+            {
+              tag: "GEO",
+              title: "Day-1 article generated",
+              body: "A full GEO article built from your keywords and competitors, ready to read and publish.",
+            },
+            {
+              tag: "IMAGE",
+              title: "Cover image created",
+              body: "A magazine-style illustration is generated automatically — no text, no logos, no stock clichés.",
+            },
+            {
+              tag: "GMB",
+              title: "Local post to Google",
+              body: "With Google Business Profile connected, a Local item appears in your calendar with a GMB badge and is posted to your listing.",
+            },
+          ].map((c) => (
+            <div key={c.tag} className="surface p-6">
+              <span className="rounded-md bg-deep px-2 py-0.5 font-mono text-[10.5px] font-bold text-background">
+                {c.tag}
+              </span>
+              <h3 className="mt-4 text-lg font-semibold">{c.title}</h3>
+              <p className="mt-2 text-[14px] leading-relaxed text-muted-foreground">{c.body}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-6xl px-5 py-16">
         <h2 className="text-2xl font-bold">How the autopilot runs</h2>
         <div className="mt-8 grid gap-4 md:grid-cols-3">
           {STEPS.map((step) => (
