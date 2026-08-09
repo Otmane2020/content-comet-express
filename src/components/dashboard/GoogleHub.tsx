@@ -43,6 +43,16 @@ type Metric = {
   position: number | null;
 };
 
+type Mention = {
+  id: string;
+  engine: string;
+  prompt: string;
+  mentioned: boolean;
+  rank: number | null;
+  brands: string[] | null;
+  checked_at: string;
+};
+
 const META: Record<Service, { title: string; blurb: string; pick: string; icon: typeof MapPin }> = {
   gmb: {
     title: "Google Business Profile",
