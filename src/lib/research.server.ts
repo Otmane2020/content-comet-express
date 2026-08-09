@@ -88,12 +88,26 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     }
   }
 
-  // 2. Expand with seeds — site terms first, stored/AI keywords second.
+  const biz = {
+    name: project.name,
+    website_url: project.website_url,
+    industry: project.industry,
+    audience: project.audience,
+  };
+  const { productSeeds, scoreRelevance, scoreCompetitorDomains, MIN_RELEVANCE, MIN_COMPETITOR_RELEVANCE } =
+    await import("./relevance.server");
+
+  // 2. Expand with seeds. Site terms and stored seeds are kept only when they
+  //    describe the product; product-category seeds fill the rest, so a
+  //    high-volume off-topic term can never steer the whole calendar.
   const storedSeeds: string[] = (project.keywords ?? []).filter(Boolean);
-  const usedSeeds = Array.from(new Set([...siteSeeds, ...storedSeeds].map((s) => s.trim()).filter(Boolean))).slice(
-    0,
-    QUOTA.seeds,
+  const rawSeeds = Array.from(
+    new Set([...siteSeeds, ...storedSeeds].map((s) => s.trim().toLowerCase()).filter(Boolean)),
   );
+  const seedScores = rawSeeds.length ? await scoreRelevance(biz, rawSeeds) : {};
+  const relevantSeeds = rawSeeds.filter((s) => (seedScores[s] ?? 0) >= MIN_RELEVANCE);
+  const category = await productSeeds(biz, QUOTA.seeds);
+  const usedSeeds = Array.from(new Set([...category, ...relevantSeeds])).slice(0, QUOTA.seeds);
   if (usedSeeds.length) {
     const ideas = await keywordIdeas(usedSeeds, opts, QUOTA.keywords);
     rows = rows.concat(ideas.map((r) => ({ ...r, origin: "seed" as const })));
@@ -117,7 +131,12 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   } else if (project.website_url) {
     // Over-fetch: platforms/aggregators are stripped out, so ask for more than we keep.
     const raw = await competitorDomains(project.website_url, opts, QUOTA.competitors * 5);
-    domains = dedupeDomains(raw.map((r) => r.domain), self, QUOTA.competitors);
+    const shortlist = dedupeDomains(raw.map((r) => r.domain), self, QUOTA.competitors * 4);
+    // Ranking for the same words is not enough: the domain must sell to the
+    // same buyers before we mine its keywords.
+    const compScores = await scoreCompetitorDomains(biz, shortlist);
+    const validated = shortlist.filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE);
+    domains = (validated.length ? validated : []).slice(0, QUOTA.competitors);
     const found = domains
       .map((d) => raw.find((r) => r.domain.replace(/^www\./, "").toLowerCase() === d))
       .filter(Boolean) as typeof raw;
@@ -129,7 +148,7 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
           user_id: userId,
           project_id: projectId,
           domain: r.domain,
-          metrics: r,
+          metrics: { ...r, relevance: compScores[r.domain.replace(/^www\./, "").toLowerCase()] ?? null },
           last_checked_at: new Date().toISOString(),
         })),
         { onConflict: "project_id,domain" },
@@ -147,13 +166,8 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     }
   }
 
-  const unique = dedupeKeywords(rows, QUOTA.totalKeywords * 3);
-  const saved = await saveKeywords(supabase, userId, projectId, unique, {
-    name: project.name,
-    website_url: project.website_url,
-    industry: project.industry,
-    audience: project.audience,
-  });
+  const unique = dedupeKeywords(rows, QUOTA.totalKeywords * 4);
+  const saved = await saveKeywords(supabase, userId, projectId, unique, biz);
   return { found: saved, skipped: false, live: true, cachedCompetitors: cacheUsable };
 }
 
@@ -186,13 +200,16 @@ export async function saveKeywords(
     {};
 
   const scores = await scoreRelevance(biz, candidates.map((r) => r.keyword));
+  const graded = Object.keys(scores).length > 0;
   const scored = candidates.map((r) => {
-    const relevance = scores[r.keyword.trim().toLowerCase()] ?? r.relevance_score ?? 60;
+    // No score = not judged relevant. Never fall back to a passing default:
+    // that is how high-volume off-topic terms used to survive.
+    const relevance = graded ? (scores[r.keyword.trim().toLowerCase()] ?? r.relevance_score ?? 0) : 100;
     return { row: r, relevance, rank: compositeScore(r, relevance) };
   });
   const kept = scored
-    .filter((s) => s.relevance >= (Object.keys(scores).length ? MIN_RELEVANCE : 0))
-    .sort((a, b) => b.rank - a.rank)
+    .filter((s) => !graded || s.relevance >= MIN_RELEVANCE)
+    .sort((a, b) => b.rank - a.rank || (b.row.search_volume ?? 0) - (a.row.search_volume ?? 0))
     .slice(0, QUOTA.totalKeywords);
   if (!kept.length) return 0;
 
@@ -213,5 +230,15 @@ export async function saveKeywords(
     { onConflict: "project_id,keyword" },
   );
   if (error) throw new Error(error.message);
+  // Sweep out off-topic terms stored by an earlier, volume-driven pass.
+  // Keywords already used by an article are left alone.
+  if (graded) {
+    await supabase
+      .from("keyword_research")
+      .delete()
+      .eq("project_id", projectId)
+      .eq("used", false)
+      .or(`relevance_score.is.null,relevance_score.lt.${MIN_RELEVANCE}`);
+  }
   return kept.length;
 }
