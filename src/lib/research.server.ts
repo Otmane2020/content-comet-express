@@ -200,13 +200,16 @@ export async function saveKeywords(
     {};
 
   const scores = await scoreRelevance(biz, candidates.map((r) => r.keyword));
+  const graded = Object.keys(scores).length > 0;
   const scored = candidates.map((r) => {
-    const relevance = scores[r.keyword.trim().toLowerCase()] ?? r.relevance_score ?? 60;
+    // No score = not judged relevant. Never fall back to a passing default:
+    // that is how high-volume off-topic terms used to survive.
+    const relevance = graded ? (scores[r.keyword.trim().toLowerCase()] ?? r.relevance_score ?? 0) : 100;
     return { row: r, relevance, rank: compositeScore(r, relevance) };
   });
   const kept = scored
-    .filter((s) => s.relevance >= (Object.keys(scores).length ? MIN_RELEVANCE : 0))
-    .sort((a, b) => b.rank - a.rank)
+    .filter((s) => !graded || s.relevance >= MIN_RELEVANCE)
+    .sort((a, b) => b.rank - a.rank || (b.row.search_volume ?? 0) - (a.row.search_volume ?? 0))
     .slice(0, QUOTA.totalKeywords);
   if (!kept.length) return 0;
 
