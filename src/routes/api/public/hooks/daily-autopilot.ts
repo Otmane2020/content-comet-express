@@ -27,7 +27,27 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
         const { data: projects } = await supabaseAdmin.from("projects").select("*");
         const summary: { project: string; wrote: boolean; published: number }[] = [];
 
+        // The job runs hourly; each project only runs at the hour it picked
+        // (in its own time zone). ?force=1 bypasses the schedule.
+        const force = new URL(request.url).searchParams.get("force") === "1";
+        const localHour = (timezone: string | null) => {
+          try {
+            return Number(
+              new Intl.DateTimeFormat("en-GB", {
+                hour: "2-digit",
+                hour12: false,
+                timeZone: timezone || "UTC",
+              }).format(new Date()),
+            );
+          } catch {
+            return new Date().getUTCHours();
+          }
+        };
+
         for (const project of projects ?? []) {
+          const settings = project as unknown as { publish_hour?: number | null; timezone?: string | null };
+          if (!force && localHour(settings.timezone ?? "UTC") !== (settings.publish_hour ?? 9)) continue;
+
           // 0. keep keyword/competitor research fresh (no-op if already filled)
           try {
             const { runResearch } = await import("@/lib/research.server");
