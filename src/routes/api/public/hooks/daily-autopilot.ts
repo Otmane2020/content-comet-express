@@ -20,7 +20,8 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
         }
 
         const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-        const { planTopics, writeArticle } = await import("@/lib/plan.server");
+        const { writeArticle } = await import("@/lib/plan.server");
+        const { ensureWindow } = await import("@/lib/rotation.server");
         const { publishTo } = await import("@/lib/publish.server");
 
         const today = planWindow(new Date(), 1)[0]!.date;
@@ -66,29 +67,11 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
             keywords: project.keywords ?? [],
           };
 
-          // 1. keep the rolling window 30 days deep
-          const window = planWindow(new Date(), 30);
-          const { data: existing } = await supabaseAdmin
-            .from("content_items")
-            .select("scheduled_date")
-            .eq("project_id", project.id);
-          const taken = new Set((existing ?? []).map((r) => r.scheduled_date));
-          const missing = window.filter((s) => !taken.has(s.date));
-          if (missing.length) {
-            const topics = await planTopics(
-              brief,
-              missing.map((m) => ({ date: m.date, type: m.type as ContentType })),
-            );
-            await supabaseAdmin.from("content_items").insert(
-              topics.map((t) => ({
-                user_id: project.user_id,
-                project_id: project.id,
-                scheduled_date: t.date,
-                content_type: t.type,
-                topic: t.topic,
-                status: "planned",
-              })),
-            );
+          // 1. keep the rolling window 30 days deep, planned on live keywords
+          try {
+            await ensureWindow(supabaseAdmin as never, project.user_id, project as never, 30);
+          } catch {
+            /* planning failure must not block today's article */
           }
 
           // 2. write today's piece if it is still empty
@@ -117,7 +100,8 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
                   .in("platform", CATALOG_PLATFORMS as unknown as string[]);
                 products = await fetchCatalog((stores ?? []) as never);
               }
-              const article = await writeArticle(brief, {
+              const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
+              const article = await writeArticle(target ? { ...brief, keywords: [target] } : brief, {
                 content_type: item.content_type as ContentType,
                 topic: item.topic,
               }, { products });

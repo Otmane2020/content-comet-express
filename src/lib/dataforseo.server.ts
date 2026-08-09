@@ -91,6 +91,39 @@ export async function keywordIdeas(
   }));
 }
 
+/**
+ * Phrase-match suggestions for ONE seed: every keyword returned contains the
+ * seed, so the list stays on-topic instead of drifting to whatever has the
+ * biggest global volume (which is what `keyword_ideas` does).
+ */
+export async function keywordSuggestions(
+  seed: string,
+  opts: LocationOpts = {},
+  limit = 12,
+): Promise<KeywordRow[]> {
+  const keyword = seed.trim().toLowerCase();
+  if (!keyword) return [];
+  const result = await post<
+    { items?: { keyword: string; keyword_info?: { search_volume?: number; cpc?: number; competition?: number }; keyword_properties?: { keyword_difficulty?: number }; search_intent_info?: { main_intent?: string } }[] }[]
+  >("/dataforseo_labs/google/keyword_suggestions/live", {
+    keyword,
+    ...loc(opts),
+    limit,
+    include_seed_keyword: true,
+    order_by: ["keyword_info.search_volume,desc"],
+  });
+  return (result[0]?.items ?? [])
+    .map((i) => ({
+      keyword: i.keyword,
+      search_volume: i.keyword_info?.search_volume ?? null,
+      cpc: i.keyword_info?.cpc ?? null,
+      competition: i.keyword_info?.competition ?? null,
+      difficulty: i.keyword_properties?.keyword_difficulty ?? null,
+      intent: i.search_intent_info?.main_intent ?? null,
+    }))
+    .filter((k) => k.keyword);
+}
+
 /** Keywords a competitor domain already ranks for. */
 export async function keywordsForSite(
   domain: string,

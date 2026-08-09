@@ -10,7 +10,7 @@ export const buildPlan = createServerFn({ method: "POST" })
     z.object({ projectId: z.string().uuid(), days: z.number().min(1).max(30).default(30) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { planTopics } = await import("./plan.server");
+    const { ensureWindow } = await import("./rotation.server");
     const { supabase, userId } = context;
 
     const { data: project, error } = await supabase
@@ -20,62 +20,7 @@ export const buildPlan = createServerFn({ method: "POST" })
       .single();
     if (error || !project) throw new Error("Project not found");
 
-    const window = planWindow(new Date(), data.days);
-    const { data: existing } = await supabase
-      .from("content_items")
-      .select("scheduled_date")
-      .eq("project_id", data.projectId);
-    const taken = new Set((existing ?? []).map((r) => r.scheduled_date));
-    const missing = window.filter((s) => !taken.has(s.date));
-    if (missing.length === 0) return { created: 0 };
-
-    // Plan on researched keywords, most relevant first, and never re-use the
-    // same terms twice — otherwise 30 days circle around 3 topics.
-    const { data: researched } = await supabase
-      .from("keyword_research")
-      .select("id, keyword, relevance_score, search_volume")
-      .eq("project_id", data.projectId)
-      .eq("used", false)
-      .gte("relevance_score", 60)
-      .order("relevance_score", { ascending: false, nullsFirst: false })
-      .order("search_volume", { ascending: false, nullsFirst: false })
-      .limit(missing.length * 2);
-    const picked = (researched ?? []) as { id: string; keyword: string }[];
-    const planKeywords = picked.length
-      ? picked.map((k) => k.keyword)
-      : (project.keywords ?? []);
-
-    const topics = await planTopics(
-      {
-        name: project.name,
-        website_url: project.website_url,
-        industry: project.industry,
-        audience: project.audience,
-        tone: project.tone,
-        locale: project.locale,
-        keywords: planKeywords,
-      },
-      missing.map((m) => ({ date: m.date, type: m.type as ContentType })),
-    );
-
-    const { error: insertError } = await supabase.from("content_items").insert(
-      topics.map((t) => ({
-        user_id: userId,
-        project_id: data.projectId,
-        scheduled_date: t.date,
-        content_type: t.type,
-        topic: t.topic,
-        status: "planned",
-      })),
-    );
-    if (insertError) throw new Error(insertError.message);
-    if (picked.length) {
-      await supabase
-        .from("keyword_research")
-        .update({ used: true })
-        .in("id", picked.slice(0, missing.length).map((k) => k.id));
-    }
-    return { created: topics.length };
+    return ensureWindow(supabase as never, userId, project as never, data.days);
   });
 
 export const generateArticle = createServerFn({ method: "POST" })
@@ -117,8 +62,9 @@ export const generateArticle = createServerFn({ method: "POST" })
           .in("platform", CATALOG_PLATFORMS as unknown as string[]);
         products = await fetchCatalog((stores ?? []) as never);
       }
+      const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
       const article = await writeArticle(
-        { ...project, keywords: project.keywords ?? [] },
+        { ...project, keywords: target ? [target] : (project.keywords ?? []) },
         { content_type: item.content_type as ContentType, topic: item.topic },
         { products },
       );

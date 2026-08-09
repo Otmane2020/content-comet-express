@@ -1,0 +1,1 @@
+DELETE FROM public.keyword_research WHERE used = false;
