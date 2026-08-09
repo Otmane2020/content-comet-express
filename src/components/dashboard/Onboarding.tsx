@@ -8,13 +8,18 @@ import {
   Building2,
   CalendarDays,
   Check,
+  Loader2,
+  Plus,
   Radar,
   Rocket,
   Send,
   Sparkles,
+  Wand2,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan } from "@/lib/autopilot.functions";
+import { detectBusiness, detectMarket } from "@/lib/detect.functions";
+import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +73,17 @@ const FORMATS = [
 
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
   const build = useServerFn(buildPlan);
+  const detectBiz = useServerFn(detectBusiness);
+  const detectMkt = useServerFn(detectMarket);
   const [busy, setBusy] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanningMarket, setScanningMarket] = useState(false);
+  const [detected, setDetected] = useState<string | null>(null);
+  const [market, setMarket] = useState<{
+    source: "dataforseo" | "ai";
+    competitors: string[];
+    keywords: { keyword: string; volume: number | null; difficulty: number | null }[];
+  } | null>(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     name: "",
@@ -76,7 +91,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     industry: "",
     audience: "",
     tone: "expert",
-    locale: "fr",
+    locale: "en",
     keywords: "",
     competitors: "",
   });
@@ -85,6 +100,84 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
   const canNext = step !== 0 || form.name.trim().length > 1;
+
+  async function autodetectBusiness() {
+    if (!form.website_url.trim()) {
+      toast.error("Add your website URL first.");
+      return;
+    }
+    setScanning(true);
+    try {
+      const d = await detectBiz({ data: { website: form.website_url } });
+      setForm((f) => ({
+        ...f,
+        name: f.name || (d.name ?? ""),
+        industry: d.industry ?? f.industry,
+        audience: d.audience ?? f.audience,
+        tone: d.tone,
+        locale: d.locale,
+        keywords: f.keywords || d.keywords.join(", "),
+      }));
+      setDetected(d.summary);
+      toast.success("Website analysed — fields filled in.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not read that website");
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function autodetectMarket() {
+    if (!form.website_url.trim()) {
+      toast.error("Add your website URL in step 1 first.");
+      return;
+    }
+    setScanningMarket(true);
+    try {
+      const r = await detectMkt({
+        data: {
+          website: form.website_url,
+          name: form.name || undefined,
+          industry: form.industry || undefined,
+          locale: form.locale,
+          seeds: form.keywords
+            .split(",")
+            .map((k) => k.trim())
+            .filter(Boolean)
+            .slice(0, 10),
+        },
+      });
+      setMarket(r);
+      setForm((f) => ({
+        ...f,
+        competitors: f.competitors.trim() ? f.competitors : r.competitors.join("\n"),
+        keywords: f.keywords.trim() ? f.keywords : r.keywords.slice(0, 10).map((k) => k.keyword).join(", "),
+      }));
+      toast.success(
+        r.source === "dataforseo"
+          ? `Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`
+          : `AI-estimated market: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Market scan failed");
+    } finally {
+      setScanningMarket(false);
+    }
+  }
+
+  const addKeyword = (kw: string) =>
+    setForm((f) => {
+      const list = f.keywords.split(",").map((k) => k.trim()).filter(Boolean);
+      if (list.some((k) => k.toLowerCase() === kw.toLowerCase())) return f;
+      return { ...f, keywords: [...list, kw].join(", ") };
+    });
+
+  const addCompetitor = (domain: string) =>
+    setForm((f) => {
+      const list = f.competitors.split(/[\n,]/).map((c) => c.trim()).filter(Boolean);
+      if (list.some((c) => c.toLowerCase() === domain.toLowerCase())) return f;
+      return { ...f, competitors: [...list, domain].join("\n") };
+    });
 
   async function submit() {
     setBusy(true);
@@ -242,25 +335,69 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                     </div>
                     <div className="sm:col-span-2">
                       <Label htmlFor="url" className="text-[12.5px]">Website</Label>
-                      <Input id="url" value={form.website_url} onChange={set("website_url")} className="mt-1.5" placeholder="https://monsite.com" />
+                      <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                        <Input id="url" value={form.website_url} onChange={set("website_url")} placeholder="https://yoursite.com" />
+                        <Button
+                          type="button"
+                          onClick={autodetectBusiness}
+                          disabled={scanning}
+                          className="shrink-0 bg-gold text-gold-foreground hover:bg-gold/90"
+                        >
+                          {scanning ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Wand2 className="mr-1.5 size-4" />}
+                          {scanning ? "Reading site…" : "Auto-detect with AI"}
+                        </Button>
+                      </div>
+                      <p className="mt-1.5 text-[11.5px] text-muted-foreground">
+                        We read your homepage and fill industry, audience, tone and language for you.
+                      </p>
+                      {detected && (
+                        <motion.p
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-2 rounded-xl border border-gold/30 bg-gold-soft/50 px-3.5 py-2.5 text-[12px] leading-relaxed text-foreground/80"
+                        >
+                          <strong className="font-semibold">Detected:</strong> {detected}
+                        </motion.p>
+                      )}
                     </div>
                     <div>
                       <Label htmlFor="industry" className="text-[12.5px]">Industry</Label>
-                      <Input id="industry" value={form.industry} onChange={set("industry")} className="mt-1.5" placeholder="Plumbing, HR SaaS…" />
+                      <select
+                        id="industry"
+                        value={form.industry}
+                        onChange={set("industry")}
+                        className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
+                      >
+                        <option value="">Select an industry…</option>
+                        {INDUSTRY_GROUPS.map((g) => (
+                          <optgroup key={g.group} label={g.group}>
+                            {g.items.map((i) => (
+                              <option key={i} value={i}>{i}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
                     </div>
                     <div>
                       <Label htmlFor="locale" className="text-[12.5px]">Language</Label>
-                      <select
-                        id="locale"
-                        value={form.locale}
-                        onChange={set("locale")}
-                        className="mt-1.5 h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
-                      >
-                        <option value="fr">French</option>
-                        <option value="en">English</option>
-                        <option value="es">Spanish</option>
-                        <option value="de">German</option>
-                      </select>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {LANGUAGES.map((l) => (
+                          <button
+                            key={l.code}
+                            type="button"
+                            onClick={() => setForm((f) => ({ ...f, locale: l.code }))}
+                            title={l.label}
+                            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition ${
+                              form.locale === l.code
+                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
+                                : "border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/50"
+                            }`}
+                          >
+                            <span className="text-[15px] leading-none">{l.flag}</span>
+                            {l.label}
+                          </button>
+                        ))}
+                      </div>
                     </div>
                     <div className="sm:col-span-2">
                       <Label className="text-[12.5px]">Editorial tone</Label>
@@ -310,6 +447,80 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         </motion.div>
                       ))}
                     </div>
+
+                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3.5">
+                      <Button
+                        type="button"
+                        onClick={autodetectMarket}
+                        disabled={scanningMarket}
+                        className="bg-deep text-background hover:bg-deep/90"
+                      >
+                        {scanningMarket ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Radar className="mr-1.5 size-4" />}
+                        {scanningMarket ? "Scanning market…" : "Auto-detect competitors & keywords"}
+                      </Button>
+                      <p className="text-[11.5px] leading-snug text-muted-foreground">
+                        Live SEO metrics from DataForSEO, with AI estimates as backup.
+                      </p>
+                      {market && (
+                        <span
+                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                            market.source === "dataforseo"
+                              ? "bg-primary/10 text-primary"
+                              : "bg-gold-soft text-foreground/70"
+                          }`}
+                        >
+                          {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
+                        </span>
+                      )}
+                    </div>
+
+                    {market && (
+                      <div className="grid gap-4 sm:grid-cols-2">
+                        <div className="rounded-xl border border-border p-3.5">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            Competitors found
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {market.competitors.map((d) => (
+                              <button
+                                key={d}
+                                type="button"
+                                onClick={() => addCompetitor(d)}
+                                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                              >
+                                <Plus className="size-3 text-primary" /> {d}
+                              </button>
+                            ))}
+                            {!market.competitors.length && (
+                              <span className="text-[11.5px] text-muted-foreground">None found.</span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="rounded-xl border border-border p-3.5">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                            Keyword opportunities
+                          </p>
+                          <div className="mt-2 flex flex-wrap gap-1.5">
+                            {market.keywords.slice(0, 12).map((k) => (
+                              <button
+                                key={k.keyword}
+                                type="button"
+                                onClick={() => addKeyword(k.keyword)}
+                                className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                              >
+                                <Plus className="size-3 text-primary" /> {k.keyword}
+                                {k.volume != null && (
+                                  <span className="text-[10.5px] text-muted-foreground">{k.volume}/mo</span>
+                                )}
+                              </button>
+                            ))}
+                            {!market.keywords.length && (
+                              <span className="text-[11.5px] text-muted-foreground">None found.</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
                     <div>
                       <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
