@@ -29,6 +29,13 @@ import {
 } from "@/lib/google.functions";
 import { Button } from "@/components/ui/button";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -37,6 +44,15 @@ import {
 } from "@/components/ui/select";
 
 type Service = "gmb" | "gsc" | "ga4";
+
+/** Show a human domain instead of "sc-domain:example.com" or "https://example.com/". */
+function prettyResource(label: string | null | undefined) {
+  if (!label) return "";
+  return label
+    .replace(/^sc-domain:/i, "")
+    .replace(/^https?:\/\//i, "")
+    .replace(/\/+$/, "");
+}
 
 type Connection = {
   id: string;
@@ -112,6 +128,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [options, setOptions] = useState<Record<string, { id: string; label: string; sub: string }[]>>({});
   const [draft, setDraft] = useState<Record<string, string>>({});
+  const [pickFor, setPickFor] = useState<string | null>(null);
 
   const { data: connections = [] } = useQuery({
     queryKey: ["google", projectId],
@@ -187,7 +204,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
 
   async function choose(conn: Connection, opt: { id: string; label: string }) {
     await pick({ data: { connectionId: conn.id, resourceId: opt.id, resourceName: opt.label } });
-    toast.success(`Linked to ${opt.label}.`);
+    toast.success(`Linked to ${prettyResource(opt.label)}.`);
     void qc.invalidateQueries({ queryKey: ["google", projectId] });
   }
 
@@ -279,7 +296,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                   <p className="mt-1 text-[12.5px] text-muted-foreground">{meta.blurb}</p>
                   {conn?.resource_name && (
                     <p className="mt-2 flex items-center gap-1.5 text-[12.5px] font-medium">
-                      <meta.icon className="size-3.5 text-primary" /> {conn.resource_name}
+                      <meta.icon className="size-3.5 text-primary" /> {prettyResource(conn.resource_name)}
                     </p>
                   )}
                   {conn?.last_error && <p className="mt-1 text-[11px] text-destructive">{conn.last_error}</p>}
@@ -300,7 +317,15 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                 )}
                 {conn && (
                   <>
-                    <Button size="sm" variant="outline" onClick={() => loadResources(conn)} disabled={busy === conn.id}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setPickFor(conn.id);
+                        void loadResources(conn);
+                      }}
+                      disabled={busy === conn.id}
+                    >
                       <RefreshCw className={`size-4 ${busy === conn.id ? "animate-spin" : ""}`} />
                       {conn.resource_id ? "Change" : "Pick"} {service === "gmb" ? "location" : "property"}
                     </Button>
@@ -359,10 +384,26 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                 )}
               </div>
 
-              {conn && opts.length > 0 && (
-                <div className="mt-4 rounded-xl border border-border bg-muted/30 p-3">
-                  <p className="text-[12px] font-medium text-muted-foreground">{meta.pick}</p>
-                  <div className="mt-2 flex flex-col gap-2">
+              {conn && (
+                <Dialog
+                  open={pickFor === conn.id}
+                  onOpenChange={(o) => setPickFor(o ? conn.id : null)}
+                >
+                  <DialogContent className="sm:max-w-md">
+                    <DialogHeader>
+                      <DialogTitle className="flex items-center gap-2 font-display">
+                        <meta.icon className="size-4 text-primary" /> {meta.title}
+                      </DialogTitle>
+                      <DialogDescription>{meta.pick}</DialogDescription>
+                    </DialogHeader>
+                    {busy === conn.id && opts.length === 0 ? (
+                      <p className="py-6 text-center text-[13px] text-muted-foreground">Loading from Google…</p>
+                    ) : opts.length === 0 ? (
+                      <p className="py-6 text-center text-[13px] text-muted-foreground">
+                        Nothing found on this Google account.
+                      </p>
+                    ) : (
+                      <div className="flex flex-col gap-2">
                     <Select
                       value={draft[conn.id] ?? conn.resource_id ?? ""}
                       onValueChange={(v) => setDraft((d) => ({ ...d, [conn.id]: v }))}
@@ -375,8 +416,10 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                           <SelectItem key={opt.id} value={opt.id} className="text-[13px]">
                             <span className="flex min-w-0 max-w-[320px] items-center gap-2">
                               <meta.icon className="size-3.5 shrink-0 text-primary" />
-                              <span className="truncate">{opt.label}</span>
-                              <span className="truncate font-mono text-[10.5px] text-muted-foreground">{opt.sub}</span>
+                              <span className="truncate">{prettyResource(opt.label)}</span>
+                              {service !== "gsc" && opt.sub && (
+                                <span className="truncate text-[11px] text-muted-foreground">{opt.sub}</span>
+                              )}
                             </span>
                           </SelectItem>
                         ))}
@@ -394,6 +437,7 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                         setBusy(`pick-${conn.id}`);
                         try {
                           await choose(conn, opt);
+                          setPickFor(null);
                         } catch (e) {
                           toast.error(e instanceof Error ? e.message : "Could not save the selection");
                         } finally {
@@ -404,11 +448,14 @@ export function GoogleHub({ projectId }: { projectId: string }) {
                       <Check className="size-4" />
                       {draft[conn.id] && draft[conn.id] === conn.resource_id ? "In use" : "Use this"}
                     </Button>
-                  </div>
-                  <p className="mt-2 text-[11px] text-muted-foreground">
-                    Only the checked {service === "gmb" ? "location" : "property"} is used for research and publishing.
-                  </p>
-                </div>
+                        <p className="text-[11px] text-muted-foreground">
+                          Only the selected {service === "gmb" ? "location" : "property"} is used for research and
+                          publishing.
+                        </p>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
               )}
             </div>
           );
