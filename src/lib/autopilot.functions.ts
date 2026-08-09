@@ -125,8 +125,9 @@ export const illustrateArticle = createServerFn({ method: "POST" })
     z.object({ itemId: z.string().uuid(), origin: z.string().url() }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { generateImageBytes, storeImage, coverPrompt, sectionPrompt, injectImages, headings } =
-      await import("./images.server");
+    const { generateImageBytes, storeImage, coverPrompt, stripInlineImages } = await import(
+      "./images.server"
+    );
     const { supabase, userId } = context;
 
     const { data: item, error } = await supabase
@@ -144,25 +145,14 @@ export const illustrateArticle = createServerFn({ method: "POST" })
     const cover = await generateImageBytes(coverPrompt(topic, industry));
     const coverUrl = await storeImage(userId, `${item.id}-cover`, cover, data.origin);
 
-    const sections = headings(item.body_md).slice(0, 2);
-    const inline: { heading: string; url: string }[] = [];
-    for (const [i, heading] of sections.entries()) {
-      try {
-        const bytes = await generateImageBytes(sectionPrompt(heading, topic));
-        const url = await storeImage(userId, `${item.id}-s${i}`, bytes, data.origin);
-        inline.push({ heading, url });
-      } catch {
-        // skip a failed section image, keep the cover
-      }
-    }
-
-    const body = injectImages(item.body_md, inline);
+    // One image per article: the cover. Remove any inline images from older runs.
+    const body = stripInlineImages(item.body_md);
     const { error: upErr } = await supabase
       .from("content_items")
       .update({ cover_image_url: coverUrl, body_md: body })
       .eq("id", item.id);
     if (upErr) throw new Error(upErr.message);
-    return { coverUrl, inline: inline.length };
+    return { coverUrl, inline: 0 };
   });
 
 /**
