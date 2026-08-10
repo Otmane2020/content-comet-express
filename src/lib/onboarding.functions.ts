@@ -164,9 +164,15 @@ export const getShopifyPrefill = createServerFn({ method: "GET" })
     const cfg = (data?.config ?? null) as Record<string, any> | null;
     if (!cfg || !cfg["shop"]) return { connected: false as const };
 
-    const products = Array.isArray(cfg["products"]) ? cfg["products"] : [];
+    // The Shopify sync stores the sample under `products_sample` (top 10) plus
+    // the real totals under `products_count`/`product_types` — reading a
+    // nonexistent `products` key silently produced 0 products every time.
+    const productsSample = Array.isArray(cfg["products_sample"]) ? cfg["products_sample"] : [];
     const collections = Array.isArray(cfg["collections"]) ? cfg["collections"] : [];
-    const types = [...new Set(products.map((p: any) => p?.productType).filter(Boolean))].slice(0, 5);
+    const productTypes = Array.isArray(cfg["product_types"]) ? cfg["product_types"] : [];
+    const types = productTypes.length
+      ? productTypes.slice(0, 5)
+      : [...new Set(productsSample.map((p: any) => p?.productType).filter(Boolean))].slice(0, 5);
 
     return {
       connected: true as const,
@@ -175,9 +181,9 @@ export const getShopifyPrefill = createServerFn({ method: "GET" })
       website_url: (cfg["primary_domain"] ?? cfg["shop"] ?? null) as string | null,
       business_description: (cfg["description"] ?? null) as string | null,
       industry: (types[0] ?? null) as string | null,
-      country: (cfg["country_name"] ?? cfg["country_code"] ?? null) as string | null,
+      country: (cfg["country"] ?? cfg["country_code"] ?? null) as string | null,
       language: ((cfg["locale"] as string | undefined)?.slice(0, 2) ?? null) as string | null,
-      productCount: products.length,
+      productCount: (typeof cfg["products_count"] === "number" ? cfg["products_count"] : productsSample.length) as number,
       collectionTitles: collections.map((c: any) => c?.title).filter(Boolean).slice(0, 10) as string[],
     };
   });
