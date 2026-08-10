@@ -115,20 +115,36 @@ function Dashboard() {
     if (!embedded || loading || user || shopifyAuthChecked) return;
     let cancelled = false;
     void (async () => {
-      // Only ever flip this on a confirmed failure: on success, `user` becomes
-      // truthy once useAuth's onAuthStateChange listener catches up, which
-      // already satisfies every gate that reads shopifyAuthChecked — setting
-      // it eagerly here raced ahead of that update and sent a freshly
-      // authenticated merchant to the signup screen anyway.
-      const giveUp = () => {
-        if (!cancelled) setShopifyAuthChecked(true);
+      // Only ever flip this on a confirmed, unrecoverable failure: on
+      // success, `user` becomes truthy once useAuth's onAuthStateChange
+      // listener catches up, which already satisfies every gate that reads
+      // shopifyAuthChecked — setting it eagerly here raced ahead of that
+      // update and sent a freshly authenticated merchant to the signup
+      // screen anyway.
+      const fail = () => {
+        if (cancelled) return;
+        // A fresh install has no Supabase session yet — nothing to sign
+        // into silently, because OAuth+billing never ran. The generic
+        // /auth signup form is a dead end here (the merchant already gets
+        // provisioned through Shopify, they shouldn't type a password).
+        // Start the real OAuth flow instead, breaking out of the iframe —
+        // Shopify requires top-level navigation for both OAuth and billing
+        // approval. This is also a safe retry for an already-connected
+        // shop: Shopify skips re-prompting for granted scopes/active
+        // billing and the callback just signs the same account back in.
+        const shop = new URLSearchParams(window.location.search).get("shop");
+        if (shop && window.top) {
+          window.top.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+          return;
+        }
+        setShopifyAuthChecked(true);
       };
       try {
         const shopify = await waitForShopifyAppBridge();
         if (cancelled) return;
         if (!shopify) {
           console.error("[shopify embed] App Bridge did not load in time");
-          return giveUp();
+          return fail();
         }
         const token = await shopify.idToken();
         const { hashedToken } = await exchangeSession({ data: { token } });
@@ -141,7 +157,7 @@ function Dashboard() {
         if (error) throw error;
       } catch (e) {
         console.error("[shopify embed] silent sign-in failed", e);
-        giveUp();
+        fail();
       }
     })();
     return () => {
