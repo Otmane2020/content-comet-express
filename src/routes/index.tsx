@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import {
@@ -24,7 +24,11 @@ import { Footer } from "@/components/Footer";
 import { CustomSiteLogos, PlatformLogo } from "@/components/PlatformLogo";
 import { Button } from "@/components/ui/button";
 import { createCheckout } from "@/lib/billing.functions";
+import { setCheckoutIntent } from "@/lib/checkoutIntent";
 import { PLATFORM_META, ROTATION, TYPE_META } from "@/lib/geo";
+import { useAuth } from "@/hooks/useAuth";
+
+const SHOPIFY_APP_STORE_URL = "https://apps.shopify.com/newai-seo-and-marketing-scale";
 
 const FAQ = [
   {
@@ -135,17 +139,29 @@ const STEPS = [
 ];
 
 function Landing() {
+  const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
   const [annual, setAnnual] = useState(true);
   const [loading, setLoading] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const startCheckout = useServerFn(createCheckout);
 
   const onSubscribe = async () => {
+    const cycle = annual ? "annual" : "monthly";
+
+    // Logged-out visitors have no account yet — createCheckout requires one.
+    // Send them to sign up first and resume straight into Stripe from there.
+    if (!authLoading && !user) {
+      setCheckoutIntent(cycle);
+      navigate({ to: "/auth" });
+      return;
+    }
+
     setLoading(true);
     setCheckoutError(null);
     try {
       const { url, alreadyActive } = await startCheckout({
-        data: { cycle: annual ? "annual" : "monthly", origin: window.location.origin },
+        data: { cycle, origin: window.location.origin },
       });
       window.location.href = alreadyActive || !url ? "/app" : url;
     } catch {
@@ -510,7 +526,7 @@ function Landing() {
               size="lg"
             >
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-              {annual ? "Start yearly — save 20%" : "Start monthly"}
+              Start now
             </Button>
             {checkoutError && (
               <p className="mt-3 text-center text-[13px] text-destructive">{checkoutError}</p>
@@ -519,6 +535,25 @@ function Landing() {
               Secure payment by Stripe. Cancel in one click.
             </p>
           </div>
+
+          <a
+            href={SHOPIFY_APP_STORE_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="surface mt-4 flex items-center gap-3 p-4 transition hover:border-primary/40 hover:bg-primary/5"
+          >
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#95BF47]/15">
+              <PlatformLogo platform="shopify" className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-[13.5px] font-semibold">Running a Shopify store?</span>
+              <span className="block text-[12px] text-muted-foreground">
+                Install Ranki.ai from the Shopify App Store — account, project and billing set up
+                automatically from your store.
+              </span>
+            </span>
+            <ArrowRight className="size-4 shrink-0 text-muted-foreground" />
+          </a>
         </div>
       </section>
 

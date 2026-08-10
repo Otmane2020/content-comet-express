@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
+import { createCheckout } from "@/lib/billing.functions";
+import { takeCheckoutIntent } from "@/lib/checkoutIntent";
 
 /**
  * Public landing route for OAuth / email-confirmation redirects.
@@ -22,6 +25,7 @@ export const Route = createFileRoute("/auth_/callback")({
 
 function AuthCallback() {
   const navigate = useNavigate();
+  const startCheckout = useServerFn(createCheckout);
   const [message, setMessage] = useState("Finishing sign-in…");
 
   useEffect(() => {
@@ -33,6 +37,17 @@ function AuthCallback() {
         new URLSearchParams(window.location.search).get("shopify") === "connected";
       if (fromShopify) {
         window.location.replace("/app?shopify=connected");
+        return;
+      }
+      // A "Start now" click on the marketing page (e.g. via Google sign-in)
+      // resumes straight into Stripe instead of the empty dashboard.
+      const cycle = takeCheckoutIntent();
+      if (cycle) {
+        void startCheckout({ data: { cycle, origin: window.location.origin } })
+          .then(({ url, alreadyActive }) => {
+            window.location.href = alreadyActive || !url ? "/app" : url;
+          })
+          .catch(() => navigate({ to: "/app", replace: true }));
         return;
       }
       navigate({ to: "/app", replace: true });
@@ -56,7 +71,7 @@ function AuthCallback() {
       sub.subscription.unsubscribe();
       clearTimeout(timeout);
     };
-  }, [navigate]);
+  }, [navigate, startCheckout]);
 
   return (
     <div className="paper-grid flex min-h-screen items-center justify-center px-4">

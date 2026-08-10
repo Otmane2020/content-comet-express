@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
+import { createCheckout } from "@/lib/billing.functions";
+import { takeCheckoutIntent } from "@/lib/checkoutIntent";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,6 +28,7 @@ export const Route = createFileRoute("/auth")({
 function AuthPage() {
   const navigate = useNavigate();
   const { session, loading } = useAuth();
+  const startCheckout = useServerFn(createCheckout);
   const [mode, setMode] = useState<"signin" | "signup">("signup");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,8 +37,20 @@ function AuthPage() {
   const [shopDomain, setShopDomain] = useState("");
 
   useEffect(() => {
-    if (!loading && session) navigate({ to: "/app", replace: true });
-  }, [loading, session, navigate]);
+    if (loading || !session) return;
+    // A "Start now" click on the marketing page while logged out lands here
+    // to sign up — resume straight into Stripe instead of the empty dashboard.
+    const cycle = takeCheckoutIntent();
+    if (!cycle) {
+      navigate({ to: "/app", replace: true });
+      return;
+    }
+    void startCheckout({ data: { cycle, origin: window.location.origin } })
+      .then(({ url, alreadyActive }) => {
+        window.location.href = alreadyActive || !url ? "/app" : url;
+      })
+      .catch(() => navigate({ to: "/app", replace: true }));
+  }, [loading, session, navigate, startCheckout]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
