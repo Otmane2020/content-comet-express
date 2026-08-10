@@ -3,6 +3,7 @@ import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 import { planWindow, slugify, type ContentType, type PlatformId } from "./geo";
 import { renderMarkdown } from "./markdown";
+import type { LocalInfoFacts } from "./shopifyProvision.server";
 
 export const buildPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -64,12 +65,18 @@ export const generateArticle = createServerFn({ method: "POST" })
         products = await fetchCatalog((stores ?? []) as never);
       }
       const links = await internalLinkTargets(supabase, item.project_id);
+      let localInfo: LocalInfoFacts | undefined;
+      if (item.content_type === "local_aeo") {
+        const { fetchShopifyLocalInfo } = await import("./shopifyProvision.server");
+        localInfo = await fetchShopifyLocalInfo(supabase, item.project_id);
+      }
       const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
       const article = await writeArticle(
         { ...project, keywords: target ? [target] : (project.keywords ?? []) },
         { content_type: item.content_type as ContentType, topic: item.topic },
-        { products, links },
+        { products, links, localInfo },
       );
+      // faq isn't in the generated Supabase types yet (migration only) — cast, same as target_keyword elsewhere.
       const { error: updateError } = await supabase
         .from("content_items")
         .update({
@@ -79,7 +86,8 @@ export const generateArticle = createServerFn({ method: "POST" })
           slug: slugify(article.title),
           model: DEFAULT_MODEL,
           status: "draft",
-        })
+          faq: article.faq,
+        } as never)
         .eq("id", data.itemId);
       if (updateError) throw new Error(updateError.message);
       return { title: article.title };
@@ -187,7 +195,12 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
 
     async function write(itemId: string, type: ContentType, topic: string | null) {
       const links = await internalLinkTargets(supabase, data.projectId);
-      const article = await writeArticle(ctx, { content_type: type, topic }, { links });
+      let localInfo: LocalInfoFacts | undefined;
+      if (type === "local_aeo") {
+        const { fetchShopifyLocalInfo } = await import("./shopifyProvision.server");
+        localInfo = await fetchShopifyLocalInfo(supabase, data.projectId);
+      }
+      const article = await writeArticle(ctx, { content_type: type, topic }, { links, localInfo });
       await supabase
         .from("content_items")
         .update({
@@ -197,7 +210,8 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
           slug: slugify(article.title),
           model: DEFAULT_MODEL,
           status: "draft",
-        })
+          faq: article.faq,
+        } as never)
         .eq("id", itemId);
       return article;
     }

@@ -76,21 +76,33 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
   }
 }
 
+export type LocalInfo = {
+  phone?: string | null;
+  address?: string | null;
+  city?: string | null;
+  country?: string | null;
+};
+
+const FAQ_TYPES = new Set<ContentType>(["aeo", "local_aeo"]);
+
 export async function writeArticle(
   project: ProjectBrief,
   item: { content_type: ContentType; topic: string | null },
   extras?: {
     products?: { title: string; price: string | null; url: string | null; description: string | null }[];
     links?: { title: string; url: string }[];
+    localInfo?: LocalInfo | undefined;
   },
 ) {
   const products = extras?.products ?? [];
   const links = extras?.links ?? [];
+  const wantsFaq = FAQ_TYPES.has(item.content_type);
   const guidance: Record<ContentType, string> = {
     geo: "Write so that generative engines (ChatGPT, Perplexity, Gemini, AI Overviews) can quote you: crisp factual claims, statistics, named entities, and a quotable summary paragraph near the top.",
-    seo: "Write a classic long-form SEO article: search intent match, H2/H3 structure, internal-link suggestions, and a keyword-rich but natural style.",
-    aeo: "Answer-engine format: a direct 40-60 word answer first, then supporting sections, then a FAQ block of 4 questions with concise answers.",
-    local_aeo: "Local answer-engine format: near-me and city intent, opening hours/practical details placeholders, local proof points, and a short local FAQ.",
+    seo: "Write a classic long-form SEO article: match search intent, open the first 100 words around the primary keyword, use an H2/H3 structure, and keep a keyword-rich but natural style.",
+    aeo: "Answer-engine format: a direct 40-60 word answer first, then supporting sections. Do NOT write an FAQ section in the body — the FAQ is returned separately as structured data.",
+    local_aeo:
+      "Local answer-engine format: near-me and city intent, local proof points. Do NOT write an FAQ section in the body — the FAQ is returned separately as structured data.",
     shopping:
       "Shopping assistant format: comparison table in markdown, buying criteria, price ranges, pros/cons, and a clear recommendation.",
   };
@@ -107,7 +119,29 @@ export async function writeArticle(
         .join("\n")}\n\nPick 2-4 that are genuinely relevant to this topic and weave them into the body as natural markdown links [anchor text](url) — never a dumped list, never a link that isn't in this exact list.`
     : "";
 
+  // Real business facts only — inventing hours/address/phone would put false
+  // information on the merchant's own site and actively hurts local trust.
+  const localFacts = extras?.localInfo
+    ? [
+        extras.localInfo.address ? `Address: ${extras.localInfo.address}` : null,
+        extras.localInfo.city ? `City: ${extras.localInfo.city}` : null,
+        extras.localInfo.country ? `Country: ${extras.localInfo.country}` : null,
+        extras.localInfo.phone ? `Phone: ${extras.localInfo.phone}` : null,
+      ].filter(Boolean)
+    : [];
+  const localBlock =
+    item.content_type === "local_aeo"
+      ? localFacts.length
+        ? `\n\nReal business details (use ONLY these, never invent hours, an address or a phone number that isn't listed here):\n${localFacts.join("\n")}`
+        : `\n\nNo verified address, phone or opening hours are available for this business. Do NOT invent any — write about city/service-area intent and local proof points without specific hours, address or phone.`
+      : "";
+
   const year = new Date().getUTCFullYear();
+  const faqSchema = wantsFaq ? `,"faq":[{"question":"...","answer":"..."}]` : "";
+  const faqRule = wantsFaq
+    ? `\nReturn exactly 4 FAQ pairs in "faq": real, specific questions a buyer would ask, with concise (2-3 sentence) answers. Do not repeat the FAQ content inside body_md.`
+    : "";
+
   const raw = await callOpenRouter({
     json: true,
     maxTokens: 3200,
@@ -118,20 +152,40 @@ export async function writeArticle(
 Content type: ${TYPE_META[item.content_type].label}
 Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
-${guidance[item.content_type]}${catalogBlock}${linksBlock}
+${guidance[item.content_type]}${catalogBlock}${linksBlock}${localBlock}
 
-Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
-Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.
+Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
+Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
 
-Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"}`,
+Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${faqSchema}}`,
   });
 
-  const parsed = parseJsonLoose<{ title?: string; excerpt?: string; body_md?: string }>(raw);
+  const parsed = parseJsonLoose<{
+    title?: string;
+    excerpt?: string;
+    body_md?: string;
+    faq?: { question?: string; answer?: string }[];
+  }>(raw);
   if (!parsed.body_md) throw new Error("The model returned no article body");
+  const faq = wantsFaq
+    ? (parsed.faq ?? [])
+        .filter((f): f is { question: string; answer: string } => Boolean(f.question && f.answer))
+        .map((f) => ({ question: freshenYears(f.question), answer: freshenYears(f.answer) }))
+        .slice(0, 6)
+    : [];
+
+  let body_md = freshenYears(parsed.body_md);
+  if (faq.length) {
+    body_md += `\n\n## Frequently asked questions\n\n${faq
+      .map((f) => `### ${f.question}\n\n${f.answer}`)
+      .join("\n\n")}`;
+  }
+
   return {
-    title: freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")),
+    title: freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")).slice(0, 70),
     excerpt: freshenYears(parsed.excerpt?.trim() ?? ""),
-    body_md: freshenYears(parsed.body_md),
+    body_md,
+    faq: faq.length ? faq : null,
   };
 }
 

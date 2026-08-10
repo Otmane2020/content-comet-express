@@ -56,15 +56,64 @@ export function renderMarkdown(md: string): string {
   return out.join("\n");
 }
 
+/** JSON-LD is embedded inline in the article body, so guard against a stray "</script>" in generated text. */
+function ldJson(obj: unknown): string {
+  return JSON.stringify(obj).replace(/</g, "\\u003c");
+}
+
+/**
+ * Article/BlogPosting structured data, plus FAQPage when the piece carries
+ * a structured FAQ — this is what lets Google (rich results) and AI answer
+ * engines (GEO) reliably extract the content instead of only reading prose.
+ */
+function articleSchema(opts: {
+  title: string;
+  excerpt?: string | null | undefined;
+  coverUrl?: string | null | undefined;
+  authorName?: string | null | undefined;
+  publishedAt?: string | null | undefined;
+  faq?: { question: string; answer: string }[] | null | undefined;
+}): string {
+  const article = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: opts.title,
+    description: opts.excerpt || undefined,
+    image: opts.coverUrl || undefined,
+    datePublished: opts.publishedAt || undefined,
+    dateModified: opts.publishedAt || undefined,
+    author: opts.authorName ? { "@type": "Organization", name: opts.authorName } : undefined,
+  };
+  const blocks = [`<script type="application/ld+json">${ldJson(article)}</script>`];
+
+  if (opts.faq?.length) {
+    const faqPage = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      mainEntity: opts.faq.map((f) => ({
+        "@type": "Question",
+        name: f.question,
+        acceptedAnswer: { "@type": "Answer", text: f.answer },
+      })),
+    };
+    blocks.push(`<script type="application/ld+json">${ldJson(faqPage)}</script>`);
+  }
+
+  return blocks.join("\n");
+}
+
 /**
  * Wrap rendered article HTML in a self-contained magazine layout.
  * All styling is inline so it survives any CMS that strips <style> blocks.
  */
 export function renderMagazineHtml(opts: {
   title: string;
-  excerpt?: string | null;
-  coverUrl?: string | null;
+  excerpt?: string | null | undefined;
+  coverUrl?: string | null | undefined;
   markdown: string;
+  faq?: { question: string; answer: string }[] | null | undefined;
+  authorName?: string | null | undefined;
+  publishedAt?: string | null | undefined;
 }): string {
   const esc = (s: string) =>
     s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -104,10 +153,20 @@ export function renderMagazineHtml(opts: {
       )}</p>`
     : "";
 
+  const schema = articleSchema({
+    title: opts.title,
+    excerpt: opts.excerpt,
+    coverUrl: opts.coverUrl,
+    authorName: opts.authorName,
+    publishedAt: opts.publishedAt,
+    faq: opts.faq,
+  });
+
   return `<article style="max-width:760px;margin:0 auto;font-family:Georgia,'Times New Roman',serif;">
 <h1 style="font-size:2.2em;line-height:1.15;letter-spacing:-.02em;margin:0 0 .6em;">${esc(
     opts.title,
   )}</h1>
 ${lede}${cover}${body}
+${schema}
 </article>`;
 }

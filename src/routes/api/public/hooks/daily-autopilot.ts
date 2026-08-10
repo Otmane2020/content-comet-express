@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { planWindow, slugify, type ContentType, type PlatformId } from "@/lib/geo";
 import { renderMarkdown } from "@/lib/markdown";
+import type { LocalInfoFacts } from "@/lib/shopifyProvision.server";
 
 /**
  * Daily autopilot: keeps every project's 30-day window full, writes today's
@@ -102,11 +103,16 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
                 products = await fetchCatalog((stores ?? []) as never);
               }
               const links = await internalLinkTargets(supabaseAdmin, project.id);
+              let localInfo: LocalInfoFacts | undefined;
+              if (item.content_type === "local_aeo") {
+                const { fetchShopifyLocalInfo } = await import("@/lib/shopifyProvision.server");
+                localInfo = await fetchShopifyLocalInfo(supabaseAdmin, project.id);
+              }
               const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
               const article = await writeArticle(
                 target ? { ...brief, keywords: [target] } : brief,
                 { content_type: item.content_type as ContentType, topic: item.topic },
-                { products, links },
+                { products, links, localInfo },
               );
               body = article.body_md;
               title = article.title;
@@ -120,7 +126,8 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
                   body_md: body,
                   slug: slugify(article.title),
                   status: "draft",
-                })
+                  faq: article.faq,
+                } as never)
                 .eq("id", item.id);
             } catch {
               await supabaseAdmin.from("content_items").update({ status: "failed" }).eq("id", item.id);

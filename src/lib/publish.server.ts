@@ -212,6 +212,13 @@ export async function runPublish(
   if (error || !item) throw new Error("Content item not found");
   if (!item.body_md) throw new Error("Generate the article before publishing");
 
+  const { data: project } = await supabase
+    .from("projects")
+    .select("name")
+    .eq("id", item.project_id)
+    .maybeSingle();
+  const faq = (item as unknown as { faq?: { question: string; answer: string }[] | null }).faq ?? null;
+
   let query = supabase
     .from("integrations")
     .select("*")
@@ -230,6 +237,9 @@ export async function runPublish(
       excerpt: item.excerpt,
       coverUrl: absoluteImageUrl(item.cover_image_url),
       markdown: item.body_md,
+      faq,
+      authorName: (project as { name?: string | null } | null)?.name ?? null,
+      publishedAt: new Date().toISOString(),
     }),
     markdown: item.body_md,
     contentType: item.content_type,

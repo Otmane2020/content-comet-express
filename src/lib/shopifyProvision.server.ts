@@ -1,3 +1,5 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Database } from "@/integrations/supabase/types";
 import type { ShopInfo, ShopifyStoreContent } from "./shopify.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
@@ -62,6 +64,41 @@ export function buildShopifyConfig(
     policies: (content?.policies ?? []).map((p) => ({ title: p.title, handle: p.handle })),
     synced_at: new Date().toISOString(),
   };
+}
+
+export type LocalInfoFacts = {
+  phone: string | null;
+  address: string | null;
+  city: string | null;
+  country: string | null;
+};
+
+/** Real address/phone for local_aeo content — never invented, only what Shopify already told us. */
+export function shopifyLocalInfo(
+  config: Record<string, unknown> | null | undefined,
+): LocalInfoFacts | undefined {
+  if (!config) return undefined;
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+  const info = {
+    phone: str(config["phone"]),
+    address: str(config["address1"]),
+    city: str(config["city"]),
+    country: str(config["country"]),
+  };
+  return info.phone || info.address || info.city || info.country ? info : undefined;
+}
+
+/** Looks up the project's connected Shopify store and reads its real local details. */
+export async function fetchShopifyLocalInfo(supabase: SupabaseClient<Database>, projectId: string) {
+  const { data } = await supabase
+    .from("integrations")
+    .select("config")
+    .eq("project_id", projectId)
+    .eq("platform", "shopify")
+    .eq("status", "connected")
+    .limit(1)
+    .maybeSingle();
+  return shopifyLocalInfo((data?.config ?? null) as Record<string, unknown> | null);
 }
 
 /**
