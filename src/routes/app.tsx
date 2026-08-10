@@ -133,8 +133,12 @@ function Dashboard() {
         // shop: Shopify skips re-prompting for granted scopes/active
         // billing and the callback just signs the same account back in.
         const shop = new URLSearchParams(window.location.search).get("shop");
-        if (shop && window.top) {
-          window.top.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+        if (shop) {
+          // App Home is cross-origin from the Shopify admin. Writing through
+          // window.top.location can therefore be rejected by the browser and
+          // leaves a new merchant on the embedded sign-in screen. App Bridge
+          // supports top-level navigation through the native window API.
+          window.open(`/api/public/shopify/install?shop=${encodeURIComponent(shop)}`, "_top");
           return;
         }
         setShopifyAuthChecked(true);
