@@ -51,7 +51,7 @@ export const detectBusiness = createServerFn({ method: "POST" })
     // single source of truth for all subsequent keyword research.
     const business_profile = await buildCanonicalProfile(site, {
       name: p.name?.toString() ?? site.title,
-      industry: p.industry ?? null,
+      industry: p.industry,
       website_url: data.website,
     }).catch(() => null);
 
@@ -104,8 +104,8 @@ export const detectMarket = createServerFn({ method: "POST" })
       site = { url: website, title: data.name ?? null, description: null, lang: null, headings: [], text: "" };
     }
     const canonical = await buildCanonicalProfile(site, {
-      name: data.name ?? null,
-      industry: data.industry ?? null,
+      name: data.name,
+      industry: data.industry,
       website_url: website,
     }).catch(() => null);
 

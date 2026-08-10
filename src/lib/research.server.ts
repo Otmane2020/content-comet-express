@@ -63,11 +63,7 @@ async function loadOrBackfillProfile(
     .single();
   const storedProfile = stored?.business_profile as import("./relevance.server").CanonicalBusinessProfile | null;
   if (storedProfile?.reliable) {
-    return {
-      ...storedProfile,
-      website_url: storedProfile.website_url ?? project.website_url ?? null,
-      name: storedProfile.name ?? project.name ?? null,
-    };
+    return { ...storedProfile, website_url: storedProfile.website_url ?? project.website_url, name: storedProfile.name ?? project.name };
   }
 
   // 2. Backfill: scrape the site and build the profile.
@@ -77,8 +73,8 @@ async function loadOrBackfillProfile(
   try {
     const site = await scrapeSite(project.website_url);
     const canonical = await buildCanonicalProfile(site, {
-      name: project.name ?? null,
-      industry: project.industry ?? null,
+      name: project.name,
+      industry: project.industry,
       website_url: project.website_url,
     });
     if (canonical.reliable) {
