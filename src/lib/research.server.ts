@@ -54,7 +54,7 @@ type Sb = { from: (t: string) => any };
  * whole calendar. Live DataForSEO data only — no estimated fallback.
  */
 export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
-  const { keywordSuggestions, keywordsForSite, competitorDomains, competitorKeywords } = await import(
+  const { keywordSuggestions, keywordsForSite, competitorKeywords } = await import(
     "./dataforseo.server"
   );
   const { QUOTA, dedupeKeywords, dedupeDomains, isFresh } = await import("./quotas");
@@ -94,7 +94,7 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     industry: project.industry,
     audience: project.audience,
   };
-  const { productSeeds, scoreRelevance, scoreCompetitorDomains, MIN_RELEVANCE, MIN_COMPETITOR_RELEVANCE } =
+  const { productSeeds, scoreRelevance, MIN_RELEVANCE } =
     await import("./relevance.server");
 
   // 2. Expand with seeds. Site terms and stored seeds are kept only when they
@@ -152,26 +152,28 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   if (cacheUsable) {
     domains = dedupeDomains(cachedRows.map((r) => r.domain), self, QUOTA.competitors);
   } else if (project.website_url) {
-    // Over-fetch: platforms/aggregators are stripped out, so ask for more than we keep.
-    const raw = await competitorDomains(project.website_url, opts, QUOTA.competitors * 5);
-    const shortlist = dedupeDomains(raw.map((r) => r.domain), self, QUOTA.competitors * 4);
-    // Ranking for the same words is not enough: the domain must sell to the
-    // same buyers before we mine its keywords.
-    const compScores = await scoreCompetitorDomains(biz, shortlist);
-    const validated = shortlist.filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE);
-    domains = (validated.length ? validated : []).slice(0, QUOTA.competitors);
-    const found = domains
-      .map((d) => raw.find((r) => r.domain.replace(/^www\./, "").toLowerCase() === d))
-      .filter(Boolean) as typeof raw;
+    // Real Google SERP results only — no AI-invented rivals.
+    const found = await discoverCompetitorsFromSerp(
+      biz,
+      project.locale ?? null,
+      project.target_country ?? null,
+      null,
+      QUOTA.competitors,
+    );
+    domains = found.map((r) => r.domain);
     if (found.length) {
       // Drop rivals stored by an earlier, unfiltered scan.
       await supabase.from("competitors").delete().eq("project_id", projectId);
       await supabase.from("competitors").upsert(
-        found.slice(0, QUOTA.competitors).map((r) => ({
+        found.map((r) => ({
           user_id: userId,
           project_id: projectId,
           domain: r.domain,
-          metrics: { ...r, relevance: compScores[r.domain.replace(/^www\./, "").toLowerCase()] ?? null },
+          title: r.title,
+          snippet: r.snippet,
+          appearances: r.appearances,
+          best_position: r.bestPosition,
+          metrics: { appearances: r.appearances, bestPosition: r.bestPosition, relevance: r.relevance },
           last_checked_at: new Date().toISOString(),
         })),
         { onConflict: "project_id,domain" },

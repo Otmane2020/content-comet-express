@@ -20,13 +20,12 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => projectInput.parse(input))
   .handler(async ({ data, context }) => {
-    const { competitorDomains } = await import("./dataforseo.server");
-    const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
-    const { QUOTA, isFresh, dedupeDomains } = await import("./quotas");
+    const { discoverCompetitorsFromSerp, requireLiveDataForSeo } = await import("./research.server");
+    const { QUOTA, isFresh } = await import("./quotas");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("id, name, industry, website_url, locale")
+      .select("id, name, industry, audience, website_url, locale, target_country")
       .eq("id", data.projectId)
       .single();
     if (!project?.website_url) throw new Error("Add your website URL in Settings first.");
@@ -45,31 +44,33 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
 
     await requireLiveDataForSeo();
 
-    const raw: { domain: string; [k: string]: unknown }[] = await competitorDomains(
-      project.website_url,
-      localeOpts(project.locale),
-      QUOTA.competitors * 5,
+    // Real Google SERP results only — no AI-invented rivals.
+    const rows = await discoverCompetitorsFromSerp(
+      { name: project.name, website_url: project.website_url, industry: project.industry, audience: project.audience },
+      project.locale ?? null,
+      project.target_country ?? null,
+      null,
+      QUOTA.competitors,
     );
-    const self = (project.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "");
-    const kept = dedupeDomains(raw.map((r) => r.domain), self, QUOTA.competitors);
-    const rows = kept
-      .map((d) => raw.find((r) => r.domain.replace(/^www\./, "").toLowerCase() === d))
-      .filter(Boolean) as { domain: string; [k: string]: unknown }[];
     if (rows.length) {
       // Replace results from earlier scans that included platforms/aggregators.
       await supabase.from("competitors").delete().eq("project_id", data.projectId);
       await supabase.from("competitors").upsert(
-        rows.slice(0, QUOTA.competitors).map((r) => ({
+        rows.map((r) => ({
           user_id: userId,
           project_id: data.projectId,
           domain: r.domain,
-          metrics: r as unknown as Record<string, never>,
+          title: r.title,
+          snippet: r.snippet,
+          appearances: r.appearances,
+          best_position: r.bestPosition,
+          metrics: { appearances: r.appearances, bestPosition: r.bestPosition, relevance: r.relevance },
           last_checked_at: new Date().toISOString(),
         })),
         { onConflict: "project_id,domain" },
       );
     }
-    return { found: Math.min(rows.length, QUOTA.competitors), cached: false };
+    return { found: rows.length, cached: false };
   });
 
 /** Pull keyword ideas from the project's seed keywords. */
