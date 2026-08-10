@@ -9,7 +9,6 @@ import {
   CalendarDays,
   Check,
   Loader2,
-  Plus,
   Radar,
   Rocket,
   Send,
@@ -73,6 +72,12 @@ const STEPS = [
   },
 ];
 
+const MARKET_STAGES = [
+  { icon: Radar, label: "We're searching your competitors…" },
+  { icon: Tag, label: "We're searching your keywords…" },
+  { icon: Sparkles, label: "We're scoring the real opportunities…" },
+];
+
 const FORMATS = [
   { code: "GEO", desc: "Cited by ChatGPT & Perplexity" },
   { code: "SEO", desc: "Classic Google ranking" },
@@ -100,6 +105,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [scanning, setScanning] = useState(false);
   const [scanningMarket, setScanningMarket] = useState(false);
+  const [marketStage, setMarketStage] = useState(0);
   const [detected, setDetected] = useState<string | null>(null);
   const [market, setMarket] = useState<{
     source: "dataforseo" | "ai";
@@ -223,6 +229,25 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     };
   }, []);
 
+  // Advance the animated stage indicator while the live market scan runs.
+  useEffect(() => {
+    if (!scanningMarket) return;
+    setMarketStage(0);
+    const id = setInterval(() => {
+      setMarketStage((s) => Math.min(s + 1, MARKET_STAGES.length - 1));
+    }, 1400);
+    return () => clearInterval(id);
+  }, [scanningMarket]);
+
+  // Run the competitor/keyword scan the moment the merchant reaches step 2 —
+  // no button to press, it just happens while they read.
+  useEffect(() => {
+    if (step === 1 && !market && !scanningMarket && form.website_url.trim()) {
+      void autodetectMarket();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step]);
+
   async function startCheckout() {
     setBusy(true);
     try {
@@ -323,20 +348,6 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       setScanningMarket(false);
     }
   }
-
-  const addKeyword = (kw: string) =>
-    setForm((f) => {
-      const list = f.keywords.split(",").map((k) => k.trim()).filter(Boolean);
-      if (list.some((k) => k.toLowerCase() === kw.toLowerCase())) return f;
-      return { ...f, keywords: [...list, kw].join(", ") };
-    });
-
-  const addCompetitor = (domain: string) =>
-    setForm((f) => {
-      const list = f.competitors.split(/[\n,]/).map((c) => c.trim()).filter(Boolean);
-      if (list.some((c) => c.toLowerCase() === domain.toLowerCase())) return f;
-      return { ...f, competitors: [...list, domain].join("\n") };
-    });
 
   async function submit() {
     setBusy(true);
@@ -620,50 +631,53 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 {step === 1 && (
                   <div className="mt-6 space-y-5">
                     <div className="grid gap-3 sm:grid-cols-3">
-                      {[
-                        { t: "We list your rivals", d: "The sites already capturing your customers." },
-                        { t: "We extract their keywords", d: "Real volume, difficulty and cost per click." },
-                        { t: "We keep the winners", d: "The ones you can realistically win." },
-                      ].map((c, i) => (
-                        <motion.div
-                          key={c.t}
-                          initial={{ opacity: 0, y: 12 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.06 * i }}
-                          className="rounded-xl border border-border bg-secondary/40 p-3.5"
-                        >
-                          <span className="text-[11px] font-bold text-gold">0{i + 1}</span>
-                          <p className="mt-1 text-[12.5px] font-semibold">{c.t}</p>
-                          <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{c.d}</p>
-                        </motion.div>
-                      ))}
+                      {MARKET_STAGES.map((s, i) => {
+                        const done = Boolean(market) || (scanningMarket && i < marketStage);
+                        const current = scanningMarket && i === marketStage && !market;
+                        return (
+                          <motion.div
+                            key={s.label}
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: 0.06 * i }}
+                            className={`rounded-xl border p-3.5 transition ${
+                              current
+                                ? "border-primary/40 bg-primary/5"
+                                : done
+                                  ? "border-primary/20 bg-primary/5"
+                                  : "border-border bg-secondary/40"
+                            }`}
+                          >
+                            <span
+                              className={`flex size-7 items-center justify-center rounded-lg ${
+                                done ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
+                              }`}
+                            >
+                              {done ? (
+                                <Check className="size-3.5" />
+                              ) : (
+                                <s.icon className={`size-3.5 ${current ? "animate-pulse" : ""}`} />
+                              )}
+                            </span>
+                            <p className="mt-2 text-[12.5px] font-semibold leading-snug">{s.label}</p>
+                          </motion.div>
+                        );
+                      })}
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3.5">
-                      <Button
-                        type="button"
-                        onClick={autodetectMarket}
-                        disabled={scanningMarket}
-                        className="bg-deep text-background hover:bg-deep/90"
-                      >
-                        {scanningMarket ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Radar className="mr-1.5 size-4" />}
-                        {scanningMarket ? "Scanning market…" : "Auto-detect competitors & keywords"}
-                      </Button>
-                      <p className="text-[11.5px] leading-snug text-muted-foreground">
-                        Live keyword and competitor data from DataForSEO.
+                    {scanningMarket && (
+                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
+                        <Loader2 className="size-3.5 animate-spin text-primary" />
+                        Live scan running with DataForSEO…
+                      </div>
+                    )}
+
+                    {!scanningMarket && !market && !form.website_url.trim() && (
+                      <p className="rounded-xl border border-gold/30 bg-gold-soft/50 px-4 py-3 text-[12.5px] leading-relaxed text-foreground/80">
+                        Add your website in step 1 so we can scan it automatically — or type your competitors
+                        and keywords by hand below.
                       </p>
-                      {market && (
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                            market.source === "dataforseo"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-gold-soft text-foreground/70"
-                          }`}
-                        >
-                          {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
-                        </span>
-                      )}
-                    </div>
+                    )}
 
                     {market && (
                       <div className="grid gap-4 sm:grid-cols-2">
@@ -673,14 +687,9 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {market.competitors.map((d) => (
-                              <button
-                                key={d}
-                                type="button"
-                                onClick={() => addCompetitor(d)}
-                                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
-                              >
-                                <Plus className="size-3 text-primary" /> {d}
-                              </button>
+                              <span key={d} className="rounded-lg border border-border px-2 py-1 text-[11.5px]">
+                                {d}
+                              </span>
                             ))}
                             {!market.competitors.length && (
                               <span className="text-[11.5px] text-muted-foreground">None found.</span>
@@ -688,22 +697,29 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                           </div>
                         </div>
                         <div className="rounded-xl border border-border p-3.5">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                          <p className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                             Keyword opportunities
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal ${
+                                market.source === "dataforseo"
+                                  ? "bg-primary/10 text-primary"
+                                  : "bg-gold-soft text-foreground/70"
+                              }`}
+                            >
+                              {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
+                            </span>
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {market.keywords.slice(0, 12).map((k) => (
-                              <button
+                              <span
                                 key={k.keyword}
-                                type="button"
-                                onClick={() => addKeyword(k.keyword)}
-                                className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                                className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px]"
                               >
-                                <Plus className="size-3 text-primary" /> {k.keyword}
+                                {k.keyword}
                                 {k.volume != null && (
                                   <span className="text-[10.5px] text-muted-foreground">{k.volume}/mo</span>
                                 )}
-                              </button>
+                              </span>
                             ))}
                             {!market.keywords.length && (
                               <span className="text-[11.5px] text-muted-foreground">None found.</span>
@@ -713,25 +729,29 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       </div>
                     )}
 
-                    <div>
-                      <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
-                      <Textarea
-                        id="competitors"
-                        value={form.competitors}
-                        onChange={set("competitors")}
-                        className="mt-1.5"
-                        rows={3}
-                        placeholder={"competitor1.com\ncompetitor2.com"}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
-                      <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
-                    </div>
-                    <p className="rounded-xl border border-gold/30 bg-gold-soft/50 px-4 py-3 text-[12.5px] leading-relaxed text-foreground/80">
-                      You can leave this empty: the app analyses your site and finds competitors and keywords
-                      on its own as soon as you open the dashboard.
-                    </p>
+                    <details className="group rounded-xl border border-border">
+                      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[12.5px] font-semibold text-foreground marker:hidden">
+                        Edit the list by hand
+                        <ArrowRight className="size-3.5 transition group-open:rotate-90" />
+                      </summary>
+                      <div className="space-y-4 border-t border-border p-4">
+                        <div>
+                          <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
+                          <Textarea
+                            id="competitors"
+                            value={form.competitors}
+                            onChange={set("competitors")}
+                            className="mt-1.5"
+                            rows={3}
+                            placeholder={"competitor1.com\ncompetitor2.com"}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
+                          <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
+                        </div>
+                      </div>
+                    </details>
                   </div>
                 )}
 
