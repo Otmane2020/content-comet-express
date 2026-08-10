@@ -11,6 +11,7 @@ import { notifySignup } from "@/lib/support.functions";
 import { startGoogleConnect } from "@/lib/google.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
+import { ShopifyWelcome } from "@/components/dashboard/ShopifyWelcome";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
@@ -68,6 +69,10 @@ function Dashboard() {
   const build = useServerFn(buildPlan);
   const announceSignup = useServerFn(notifySignup);
   const [refilling, setRefilling] = useState(false);
+  const [showShopifyWelcome, setShowShopifyWelcome] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("shopify") === "connected";
+  });
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/auth", replace: true });
@@ -135,6 +140,20 @@ function Dashboard() {
       <Onboarding
         userId={user.id}
         onDone={() => void qc.invalidateQueries({ queryKey: ["project", user.id] })}
+      />
+    );
+  }
+
+  // A merchant installed from the Shopify App Store: their project was
+  // provisioned server-side, so this welcome screen is the only place they
+  // ever see what we imported before landing in the dashboard.
+  if (showShopifyWelcome) {
+    return (
+      <ShopifyWelcome
+        onContinue={() => {
+          setShowShopifyWelcome(false);
+          window.history.replaceState(null, "", "/app");
+        }}
       />
     );
   }

@@ -29,6 +29,12 @@ function AuthCallback() {
     const finish = () => {
       if (done) return;
       done = true;
+      const fromShopify =
+        new URLSearchParams(window.location.search).get("shopify") === "connected";
+      if (fromShopify) {
+        window.location.replace("/app?shopify=connected");
+        return;
+      }
       navigate({ to: "/app", replace: true });
     };
 
