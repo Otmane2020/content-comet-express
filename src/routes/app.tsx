@@ -19,6 +19,7 @@ import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
 import { GoogleHub } from "@/components/dashboard/GoogleHub";
 import { Support } from "@/components/dashboard/Support";
+import { SiteKnowledge } from "@/components/dashboard/SiteKnowledge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -384,7 +385,7 @@ function Dashboard() {
           {tab === "local" && <GoogleHub projectId={project.id} />}
           {tab === "platforms" && <Platforms projectId={project.id} userId={user.id} />}
           {tab === "help" && <Support />}
-          {tab === "settings" && <ProjectSettings project={project} />}
+          {tab === "settings" && <SettingsTab project={project} />}
         </div>
       </main>
     </div>
@@ -448,6 +449,15 @@ function ProjectSettings({ project }: { project: Project }) {
       <Button onClick={save} disabled={busy} className="bg-deep text-background hover:bg-deep/90">
         {busy ? "Saving…" : "Save changes"}
       </Button>
+    </div>
+  );
+}
+
+function SettingsTab({ project }: { project: Project }) {
+  return (
+    <div className="space-y-5">
+      <ProjectSettings project={project} />
+      <SiteKnowledge projectId={project.id} />
     </div>
   );
 }

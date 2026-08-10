@@ -28,6 +28,7 @@ import {
   saveMarketResearch,
   saveOnboarding,
 } from "@/lib/onboarding.functions";
+import { syncSiteKnowledge } from "@/lib/sitecrawl.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -97,6 +98,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const loadDraft = useServerFn(getOnboarding);
   const persistDraft = useServerFn(saveOnboarding);
   const persistMarket = useServerFn(saveMarketResearch);
+  const syncKnowledge = useServerFn(syncSiteKnowledge);
   const markComplete = useServerFn(completeOnboarding);
   const loadShopify = useServerFn(getShopifyPrefill);
   const [shopContext, setShopContext] = useState<string | null>(null);
@@ -395,6 +397,12 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         await persistMarket({
           data: { projectId: data.id, competitors: rivals, keywords: keywordsForResearch },
         }).catch(() => undefined);
+      }
+
+      // Crawls the site in the background — never blocks setup on it, it can
+      // take a while on a large catalogue and isn't needed for day 1.
+      if (form.website_url.trim()) {
+        void syncKnowledge({ data: { projectId: data.id } }).catch(() => undefined);
       }
 
       toast.info("Building your 30-day calendar…");

@@ -51,13 +51,17 @@ export function dedupeLinkTargets(targets: LinkTarget[], limit = 12): LinkTarget
  * The connected Shopify store's own collections/pages plus this project's
  * already-published articles, ready to hand to writeArticle's `links` extra.
  */
+/** site_pages is migration-only (not in the generated Supabase types yet) — same loose-client cast used elsewhere. */
+type AnyClient = { from: (table: string) => any };
+
 export async function internalLinkTargets(
   supabase: SupabaseClient<Database>,
   projectId: string,
 ): Promise<LinkTarget[]> {
+  const sb = supabase as unknown as AnyClient;
   // The item currently being generated is never in this set: it can't be
   // "published" yet while it's still being written.
-  const [{ data: stores }, { data: published }] = await Promise.all([
+  const [{ data: stores }, { data: published }, { data: crawled }] = await Promise.all([
     supabase
       .from("integrations")
       .select("config")
@@ -70,9 +74,15 @@ export async function internalLinkTargets(
       .eq("status", "published")
       .not("published_url", "is", null)
       .limit(20),
+    sb.from("site_pages").select("title, url").eq("project_id", projectId).limit(40) as Promise<{
+      data: { title: string | null; url: string }[] | null;
+    }>,
   ]);
   return dedupeLinkTargets([
     ...(stores ?? []).flatMap((r) => shopifyLinkTargets(r.config as never)),
     ...publishedArticleLinkTargets((published ?? []) as never),
+    ...(crawled ?? [])
+      .filter((p): p is { title: string; url: string } => Boolean(p.title))
+      .map((p) => ({ title: p.title, url: p.url })),
   ]);
 }

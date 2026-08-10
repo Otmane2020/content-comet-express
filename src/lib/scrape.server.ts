@@ -8,6 +8,15 @@ export type SiteSnapshot = {
   text: string;
 };
 
+export type PageSignals = {
+  title: string | null;
+  description: string | null;
+  lang: string | null;
+  headings: string[];
+  text: string;
+  images: string[];
+};
+
 function pick(html: string, re: RegExp) {
   const m = html.match(re);
   return m?.[1]?.trim().slice(0, 300) ?? null;
@@ -29,20 +38,14 @@ export function normalizeUrl(input: string) {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }
 
-export async function scrapeSite(input: string): Promise<SiteSnapshot> {
-  const url = normalizeUrl(input);
-  const res = await fetch(url, {
-    headers: {
-      "user-agent": "Mozilla/5.0 (compatible; Ranki.ai/1.0; +https://www.ranki.ai)",
-      accept: "text/html,application/xhtml+xml",
-    },
-    redirect: "follow",
-  });
-  if (!res.ok) throw new Error(`Could not read ${url} (HTTP ${res.status})`);
-  const html = (await res.text()).slice(0, 400_000);
-
+/** Parses one already-fetched HTML document into the signals we reuse everywhere (single scan + crawl). */
+export function extractPageSignals(html: string, pageUrl: string): PageSignals {
   const headings = Array.from(html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi))
-    .map((m) => decode((m[1] ?? "").replace(/<[^>]+>/g, " ")).replace(/\s+/g, " ").trim())
+    .map((m) =>
+      decode((m[1] ?? "").replace(/<[^>]+>/g, " "))
+        .replace(/\s+/g, " ")
+        .trim(),
+    )
     .filter((t) => t.length > 2)
     .slice(0, 25);
 
@@ -57,8 +60,30 @@ export async function scrapeSite(input: string): Promise<SiteSnapshot> {
     .trim()
     .slice(0, 6000);
 
+  const base = (() => {
+    try {
+      return new URL(pageUrl);
+    } catch {
+      return null;
+    }
+  })();
+  const images = Array.from(html.matchAll(/<img[^>]+src=["']([^"'>]+)["']/gi))
+    .map((m) => m[1]!.trim())
+    .filter(Boolean)
+    .map((src) => {
+      if (/^https?:\/\//i.test(src)) return src;
+      if (!base) return null;
+      try {
+        return new URL(src, base).toString();
+      } catch {
+        return null;
+      }
+    })
+    .filter((u): u is string => Boolean(u))
+    .filter((u) => !/\.svg(\?|$)/i.test(u))
+    .slice(0, 8);
+
   return {
-    url,
     title: pick(html, /<title[^>]*>([\s\S]*?)<\/title>/i),
     description:
       pick(html, /<meta[^>]+name=["']description["'][^>]+content=["']([^"']+)["']/i) ??
@@ -66,5 +91,22 @@ export async function scrapeSite(input: string): Promise<SiteSnapshot> {
     lang: pick(html, /<html[^>]+lang=["']([a-zA-Z-]{2,5})["']/i),
     headings,
     text,
+    images: Array.from(new Set(images)),
   };
+}
+
+export async function scrapeSite(input: string): Promise<SiteSnapshot> {
+  const url = normalizeUrl(input);
+  const res = await fetch(url, {
+    headers: {
+      "user-agent": "Mozilla/5.0 (compatible; Ranki.ai/1.0; +https://www.ranki.ai)",
+      accept: "text/html,application/xhtml+xml",
+    },
+    redirect: "follow",
+  });
+  if (!res.ok) throw new Error(`Could not read ${url} (HTTP ${res.status})`);
+  const html = (await res.text()).slice(0, 400_000);
+  const signals = extractPageSignals(html, url);
+
+  return { url, ...signals };
 }
