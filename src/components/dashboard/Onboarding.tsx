@@ -22,6 +22,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
 import { detectBusiness, detectMarket } from "@/lib/detect.functions";
+import {
+  completeOnboarding,
+  getOnboarding,
+  getShopifyPrefill,
+  saveOnboarding,
+} from "@/lib/onboarding.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -82,6 +88,11 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const checkout = useServerFn(createCheckout);
   const fetchSub = useServerFn(getSubscription);
   const syncSub = useServerFn(syncSubscription);
+  const loadDraft = useServerFn(getOnboarding);
+  const persistDraft = useServerFn(saveOnboarding);
+  const markComplete = useServerFn(completeOnboarding);
+  const loadShopify = useServerFn(getShopifyPrefill);
+  const [shopContext, setShopContext] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [subActive, setSubActive] = useState<boolean | null>(null);
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
@@ -107,6 +118,31 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
   const DRAFT_KEY = "apgeo_onboarding_draft";
 
+  const asList = (v: string, sep: RegExp | string = ",") =>
+    v.split(sep as never).map((x: string) => x.trim()).filter(Boolean);
+
+  /** Mirror the wizard into the database so it survives Checkout and reloads. */
+  async function saveDraft(atStep: number) {
+    try {
+      await persistDraft({
+        data: {
+          website_url: form.website_url,
+          business_name: form.name,
+          industry: form.industry,
+          target_market: form.audience,
+          tone: form.tone,
+          language: form.locale,
+          keywords: asList(form.keywords),
+          competitors: asList(form.competitors, /[\n,]/),
+          current_step: atStep,
+          ...(detected ? { business_description: detected } : {}),
+        },
+      });
+    } catch {
+      /* never block the wizard on a draft write */
+    }
+  }
+
   useEffect(() => {
     let returned = false;
     try {
@@ -122,9 +158,67 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     } catch {
       /* ignore */
     }
-    (returned ? syncSub().catch(() => fetchSub()) : fetchSub())
-      .then((s) => setSubActive(s.active))
-      .catch(() => setSubActive(false));
+
+    // Server draft wins over the local copy: it survives device changes.
+    loadDraft()
+      .then(({ draft }) => {
+        if (!draft) return;
+        setForm((f) => ({
+          ...f,
+          name: draft.business_name || f.name,
+          website_url: draft.website_url || f.website_url,
+          industry: draft.industry || f.industry,
+          audience: draft.target_market || f.audience,
+          tone: draft.tone || f.tone,
+          locale: draft.language || f.locale,
+          keywords: (draft.keywords as string[] | null)?.join(", ") || f.keywords,
+          competitors: (draft.competitors as string[] | null)?.join("\n") || f.competitors,
+        }));
+        if (!returned && typeof draft.current_step === "number") setStep(draft.current_step);
+      })
+      .catch(() => undefined);
+
+    // Shopify merchants should never retype what the store already knows.
+    loadShopify()
+      .then((s) => {
+        if (!s.connected) return;
+        setShopContext(s.shop);
+        setForm((f) => ({
+          ...f,
+          name: f.name || s.business_name || "",
+          website_url: f.website_url || (s.website_url ? `https://${s.website_url.replace(/^https?:\/\//, "")}` : ""),
+          industry: f.industry || s.industry || "",
+          locale: s.language || f.locale,
+        }));
+        setDetected(
+          (d) =>
+            d ??
+            `Shopify store ${s.shop} — ${s.productCount} products${
+              s.collectionTitles.length ? `, collections: ${s.collectionTitles.join(", ")}` : ""
+            }`,
+        );
+      })
+      .catch(() => undefined);
+
+    // Payment truth comes from our database; only poll Stripe when the
+    // webhook has not landed yet.
+    let cancelled = false;
+    (async () => {
+      for (let attempt = 0; attempt < (returned ? 6 : 1); attempt++) {
+        if (cancelled) return;
+        const s = await fetchSub().catch(() => null);
+        if (s?.active) return setSubActive(true);
+        if (returned) {
+          const synced = await syncSub().catch(() => null);
+          if (synced?.active) return setSubActive(true);
+          await new Promise((r) => setTimeout(r, 2000));
+        }
+      }
+      if (!cancelled) setSubActive(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function startCheckout() {
