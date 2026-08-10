@@ -13,8 +13,6 @@ export const dataSourceStatus = createServerFn({ method: "GET" })
     return dfsPing();
   });
 
-type ProjectCtx = { name?: string | null; industry?: string | null; locale?: string | null; website_url?: string | null; keywords?: string[] | null };
-
 /** Find competitor domains for the project's own website. */
 export const discoverCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -25,7 +23,7 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("id, name, industry, audience, website_url, locale, target_country")
+      .select("id, name, industry, audience, website_url, locale, target_country, business_profile")
       .eq("id", data.projectId)
       .single();
     if (!project?.website_url) throw new Error("Add your website URL in Settings first.");
@@ -44,9 +42,18 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
 
     await requireLiveDataForSeo();
 
+    // Use the stored business profile if available; fall back to basic fields.
+    const biz =
+      (project.business_profile as Record<string, any> | null) ?? {
+        name: project.name,
+        website_url: project.website_url,
+        industry: project.industry,
+        audience: project.audience,
+      };
+
     // Real Google SERP results only — no AI-invented rivals.
     const rows = await discoverCompetitorsFromSerp(
-      { name: project.name, website_url: project.website_url, industry: project.industry, audience: project.audience },
+      biz,
       project.locale ?? null,
       project.target_country ?? null,
       null,
@@ -73,30 +80,56 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
     return { found: rows.length, cached: false };
   });
 
-/** Pull keyword ideas from the project's seed keywords. */
+/**
+ * Pull keyword suggestions from the project's seed keywords.
+ * Uses phrase-match suggestions (every result contains the seed) instead of
+ * broad keyword ideas, so the list can never drift to off-topic high-volume
+ * terms. Requires a canonical business profile for relevance scoring.
+ */
 export const researchKeywords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
     projectInput.extend({ seeds: z.array(z.string().min(1).max(120)).min(1).max(20) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { keywordIdeas } = await import("./dataforseo.server");
+    const { keywordSuggestions } = await import("./dataforseo.server");
     const { localeOpts, saveKeywords, requireLiveDataForSeo } = await import("./research.server");
     const { QUOTA, dedupeKeywords } = await import("./quotas");
+    const { productSeeds, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("name, industry, audience, locale, target_country, website_url")
+      .select("name, industry, audience, locale, target_country, website_url, business_profile")
       .eq("id", data.projectId)
       .single();
     await requireLiveDataForSeo();
-    const rows: KwRow[] = await keywordIdeas(
-      data.seeds.slice(0, QUOTA.seeds),
-      localeOpts(project?.locale ?? null, project?.target_country ?? null),
-      QUOTA.keywords,
+
+    const opts = localeOpts(project?.locale ?? null, project?.target_country ?? null);
+    const biz =
+      (project?.business_profile as Record<string, any> | null) ?? {
+        name: project?.name,
+        website_url: project?.website_url,
+        industry: project?.industry,
+        audience: project?.audience,
+      };
+
+    // Validate user-provided seeds against the canonical profile.
+    const userSeeds = data.seeds.slice(0, QUOTA.seeds).map((s) => s.trim().toLowerCase()).filter(Boolean);
+    const seedScores = await scoreRelevance(biz, userSeeds);
+    const validSeeds = userSeeds.filter((s) => (seedScores[s] ?? 0) >= MIN_RELEVANCE);
+
+    // Fill remaining seed slots with profile-derived category seeds.
+    const categorySeeds = await productSeeds(biz, QUOTA.seeds);
+    const usedSeeds = Array.from(new Set([...validSeeds, ...categorySeeds])).slice(0, QUOTA.seeds);
+
+    // Phrase-match per seed: every result contains the seed.
+    const perSeed = Math.max(10, Math.ceil((QUOTA.keywords * 2) / Math.max(1, usedSeeds.length)));
+    const batches = await Promise.all(
+      usedSeeds.map((s) => keywordSuggestions(s, opts, perSeed).catch(() => [] as KwRow[])),
     );
-    const unique = dedupeKeywords(rows, QUOTA.keywords);
-    const found = await saveKeywords(supabase, userId, data.projectId, unique.map((r) => ({ ...r, origin: "seed" as const })));
+    const rows: KwRow[] = dedupeKeywords(batches.flat(), QUOTA.keywords * 2);
+
+    const found = await saveKeywords(supabase, userId, data.projectId, rows.map((r) => ({ ...r, origin: "seed" as const })), biz);
     return { found };
   });
 
@@ -111,18 +144,25 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("name, industry, audience, locale, target_country, website_url")
+      .select("name, industry, audience, locale, target_country, website_url, business_profile")
       .eq("id", data.projectId)
       .single();
     const clean = data.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     await requireLiveDataForSeo();
+    const biz =
+      (project?.business_profile as Record<string, any> | null) ?? {
+        name: project?.name,
+        website_url: project?.website_url,
+        industry: project?.industry,
+        audience: project?.audience,
+      };
     const rows: KwRow[] = dedupeKeywords(
       await competitorKeywords(
         data.domain,
         localeOpts(project?.locale ?? null, project?.target_country ?? null),
         QUOTA.keywordsPerCompetitor,
       ),
-      QUOTA.keywordsPerCompetitor,
+      QUOTA.keywordsPerCompetitor * 2,
     );
     await supabase.from("competitors").upsert(
       {
@@ -139,6 +179,7 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
       userId,
       data.projectId,
       rows.map((r) => ({ ...r, origin: "competitor" as const })),
+      biz,
     );
     return { found };
   });

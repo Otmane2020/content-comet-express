@@ -46,12 +46,57 @@ export async function requireLiveDataForSeo() {
 type Sb = { from: (t: string) => any };
 
 /**
+ * Loads a project's canonical business profile. If the project predates the
+ * business_profile column, it backfills it by scraping the site and building
+ * the profile on the fly. Returns null when no reliable profile can be built.
+ */
+async function loadOrBackfillProfile(
+  supabase: Sb,
+  projectId: string,
+  project: { name?: string | null; industry?: string | null; website_url?: string | null; locale?: string | null },
+): Promise<import("./relevance.server").CanonicalBusinessProfile | null> {
+  // 1. Try loading the stored profile.
+  const { data: stored } = await supabase
+    .from("projects")
+    .select("business_profile")
+    .eq("id", projectId)
+    .single();
+  const storedProfile = stored?.business_profile as import("./relevance.server").CanonicalBusinessProfile | null;
+  if (storedProfile?.reliable) {
+    return { ...storedProfile, website_url: storedProfile.website_url ?? project.website_url, name: storedProfile.name ?? project.name };
+  }
+
+  // 2. Backfill: scrape the site and build the profile.
+  if (!project.website_url) return null;
+  const { scrapeSite } = await import("./scrape.server");
+  const { buildCanonicalProfile } = await import("./relevance.server");
+  try {
+    const site = await scrapeSite(project.website_url);
+    const canonical = await buildCanonicalProfile(site, {
+      name: project.name,
+      industry: project.industry,
+      website_url: project.website_url,
+    });
+    if (canonical.reliable) {
+      // Persist so future runs don't re-scrape.
+      await supabase
+        .from("projects")
+        .update({ business_profile: canonical })
+        .eq("id", projectId);
+    }
+    return canonical;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Full hands-free research pass for one project:
- *   site keywords → seeds → keyword ideas → competitors → competitor keywords
+ *   canonical profile → seeds → phrase-match suggestions → competitors → competitor keywords
  *   → relevance scoring → save.
- * DataForSEO decides the topic of the site (keywords_for_site) before any
- * stored/AI seed is used, so a wrong industry guess can no longer steer the
- * whole calendar. Live DataForSEO data only — no estimated fallback.
+ * DataForSEO is NEVER used as an unconstrained idea generator. Every suggestion
+ * is phrase-matched to a seed derived from the canonical business profile, so
+ * "meuble" can never expand to "menuisier ébéniste".
  */
 export async function runResearch(supabase: Sb, userId: string, projectId: string, force = false) {
   const { keywordSuggestions, keywordsForSite, competitorKeywords } = await import(
@@ -60,7 +105,7 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   const { QUOTA, dedupeKeywords, dedupeDomains, isFresh } = await import("./quotas");
   const { data: project } = await supabase
     .from("projects")
-    .select("id, name, industry, audience, locale, target_country, website_url, keywords")
+    .select("id, name, industry, audience, locale, target_country, website_url, keywords, business_profile")
     .eq("id", projectId)
     .single();
   if (!project) throw new Error("Project not found");
@@ -72,6 +117,20 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   if (!force && (count ?? 0) > 0) return { found: 0, skipped: true, live: true };
 
   await requireLiveDataForSeo();
+
+  // 0. Build or load the canonical business profile. Without it, refuse to
+  //    continue — generic seeds produce off-topic results.
+  const canonical = await loadOrBackfillProfile(supabase, projectId, project);
+  if (!canonical?.reliable) {
+    return {
+      found: 0,
+      skipped: false,
+      live: true,
+      error:
+        "Could not build a reliable business profile from the website. The site content does not clearly describe what is sold. Update the website or provide a business description in project settings.",
+    };
+  }
+  const biz = canonical;
 
   const opts = localeOpts(project.locale ?? null, project.target_country ?? null);
   let rows: KwRow[] = [];
@@ -88,18 +147,12 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     }
   }
 
-  const biz = {
-    name: project.name,
-    website_url: project.website_url,
-    industry: project.industry,
-    audience: project.audience,
-  };
   const { productSeeds, scoreRelevance, MIN_RELEVANCE } =
     await import("./relevance.server");
 
-  // 2. Expand with seeds. Site terms and stored seeds are kept only when they
-  //    describe the product; product-category seeds fill the rest, so a
-  //    high-volume off-topic term can never steer the whole calendar.
+  // 2. Generate seeds from the canonical profile — NOT from generic terms.
+  //    Site terms and stored seeds are kept only when they pass relevance;
+  //    product-category seeds from the profile fill the rest.
   const storedSeeds: string[] = (project.keywords ?? []).filter(Boolean);
   const rawSeeds = Array.from(
     new Set([...siteSeeds, ...storedSeeds].map((s) => s.trim().toLowerCase()).filter(Boolean)),
@@ -200,13 +253,17 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
  * Scores relevance (AI, relevance only — metrics stay DataForSEO's), drops
  * off-topic noise, ranks by the composite score and upserts so a refresh
  * really refreshes existing metrics instead of ignoring them.
+ *
+ * FAIL-CLOSED: if no canonical profile is provided and none can be loaded,
+ * zero keywords are saved. No keyword is saved without a positive relevance
+ * score from the AI.
  */
 export async function saveKeywords(
   supabase: Sb,
   userId: string,
   projectId: string,
   rows: KwRow[],
-  profile?: { name?: string | null; website_url?: string | null; industry?: string | null; audience?: string | null },
+  profile?: { name?: string | null; website_url?: string | null; industry?: string | null; audience?: string | null; description?: string | null; sales_model?: string | null; products?: string[] | null; services?: string[] | null; locations?: string[] | null },
 ): Promise<number> {
   if (!rows.length) return 0;
   const { QUOTA, dedupeKeywords } = await import("./quotas");
@@ -289,6 +346,9 @@ export async function discoverCompetitorsFromSerp(
     industry?: string | null;
     audience?: string | null;
     description?: string | null;
+    sales_model?: string | null;
+    products?: string[] | null;
+    locations?: string[] | null;
   },
   locale: string | null,
   targetCountry: string | null,
@@ -304,13 +364,17 @@ export async function discoverCompetitorsFromSerp(
   const category = (biz.industry ?? biz.name ?? "").trim();
   if (!category) throw new Error("Not enough business information to build competitor search queries.");
 
+  // Build queries from the canonical profile when available.
+  const productQueries = (biz.products ?? []).slice(0, 3).map((p) => p);
+  const salesPrefix = biz.sales_model === "wholesale" ? "grossiste " : "";
   const queries = Array.from(
     new Set(
       [
+        ...productQueries.map((p) => `${salesPrefix}${p}`.trim()),
         category,
         city ? `${category} ${city}` : null,
         `${category} ${country}`,
-        `fournisseur ${category}`,
+        salesPrefix ? `${salesPrefix}${category}`.trim() : `fournisseur ${category}`,
         `${category} en ligne`,
         city ? `${category} ${city} ${country}` : `${category} pas cher`,
       ].filter((q): q is string => Boolean(q && q.trim())),
@@ -323,10 +387,10 @@ export async function discoverCompetitorsFromSerp(
     throw new Error("DataForSEO returned no organic SERP results for these queries.");
   }
 
-  const self = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
+  const selfDomain = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
   const byDomain = new Map<string, { title: string | null; snippet: string | null; appearances: number; bestPosition: number }>();
   for (const r of allResults) {
-    if (!isRealCompetitor(r.domain, self)) continue;
+    if (!isRealCompetitor(r.domain, selfDomain)) continue;
     const existing = byDomain.get(r.domain);
     if (existing) {
       existing.appearances += 1;
@@ -341,7 +405,7 @@ export async function discoverCompetitorsFromSerp(
     }
   }
 
-  const shortlist = dedupeDomains(Array.from(byDomain.keys()), self, 40);
+  const shortlist = dedupeDomains(Array.from(byDomain.keys()), selfDomain, 40);
   if (!shortlist.length) {
     throw new Error("No plausible competitor domains found in real Google SERP results.");
   }

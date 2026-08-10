@@ -483,6 +483,7 @@ export type Database = {
       projects: {
         Row: {
           audience: string | null
+          business_profile: Json | null
           created_at: string
           id: string
           industry: string | null
@@ -499,6 +500,7 @@ export type Database = {
         }
         Insert: {
           audience?: string | null
+          business_profile?: Json | null
           created_at?: string
           id?: string
           industry?: string | null
@@ -515,6 +517,7 @@ export type Database = {
         }
         Update: {
           audience?: string | null
+          business_profile?: Json | null
           created_at?: string
           id?: string
           industry?: string | null

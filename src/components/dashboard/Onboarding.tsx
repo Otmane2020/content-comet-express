@@ -113,6 +113,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     source: "dataforseo" | "ai";
     competitors: string[];
     keywords: { keyword: string; volume: number | null; difficulty: number | null }[];
+    business_profile?: Record<string, unknown> | null;
   } | null>(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -368,6 +369,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
             .split(",")
             .map((k) => k.trim())
             .filter(Boolean),
+          business_profile: (market?.business_profile ?? null) as never,
         })
         .select()
         .single();

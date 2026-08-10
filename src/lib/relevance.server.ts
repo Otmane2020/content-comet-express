@@ -1,10 +1,32 @@
 import { callOpenRouter, parseJsonLoose } from "./ai.server";
 
+/**
+ * Canonical business profile — the single source of truth for what a company
+ * actually sells, to whom, and where.  Built from verified site content, never
+ * from generic category labels.  Every SEO research step must consult it.
+ */
 export type BusinessProfile = {
   name?: string | null;
   website_url?: string | null;
   industry?: string | null;
   audience?: string | null;
+  /** Free-form description: "Grossiste et vendeur de meubles en ligne: canapés, tables, chaises…" */
+  description?: string | null;
+  /** "wholesale" | "retail" | "service" | "marketplace" | "manufacturer" | "other" */
+  sales_model?: string | null;
+  /** Product categories confirmed on the site, e.g. ["canapés","tables","chaises"]. */
+  products?: string[] | null;
+  /** Services confirmed on the site (empty for pure sellers). */
+  services?: string[] | null;
+  /** Geographic areas confirmed on the site. */
+  locations?: string[] | null;
+};
+
+export type CanonicalBusinessProfile = BusinessProfile & {
+  /** One-sentence canonical summary used in every AI prompt. */
+  canonical: string;
+  /** True when the profile is precise enough to drive keyword research. */
+  reliable: boolean;
 };
 
 export type ScorableKeyword = {
@@ -24,10 +46,18 @@ const INTENT_WEIGHT: Record<string, number> = {
 };
 
 function profileBlock(profile: BusinessProfile) {
-  return `Business: ${profile.name ?? "unknown"}
-Website: ${profile.website_url ?? "unknown"}
-What it sells / category: ${profile.industry ?? "unknown"}
-Audience: ${profile.audience ?? "unknown"}`;
+  const lines = [
+    `Business: ${profile.name ?? "unknown"}`,
+    `Website: ${profile.website_url ?? "unknown"}`,
+    `What it sells / category: ${profile.industry ?? "unknown"}`,
+    `Audience: ${profile.audience ?? "unknown"}`,
+  ];
+  if (profile.description) lines.push(`Description: ${profile.description}`);
+  if (profile.sales_model) lines.push(`Sales model: ${profile.sales_model}`);
+  if (profile.products?.length) lines.push(`Products: ${profile.products.join(", ")}`);
+  if (profile.services?.length) lines.push(`Services: ${profile.services.join(", ")}`);
+  if (profile.locations?.length) lines.push(`Locations: ${profile.locations.join(", ")}`);
+  return lines.join("\n");
 }
 
 const SCORING_RULES = `Scoring rules — be harsh, most keywords deserve a low score:
@@ -37,7 +67,19 @@ const SCORING_RULES = `Scoring rules — be harsh, most keywords deserve a low s
 0-30 = different market, generic curiosity, free-tool seekers, students, unrelated meaning of a shared word.
 A huge search volume is NOT a reason to score higher. Popular but off-topic terms must score under 20.
 Watch for words that mean something else in another market (e.g. "citation" can mean a bibliography citation)
-and score those 0 when the other meaning is what searchers want.`;
+and score those 0 when the other meaning is what searchers want.
+
+STRICT INTENT RULES — score 0 regardless of volume when any of these apply:
+- The keyword describes a DIFFERENT PROFESSION than the business (e.g. "menuisier" for a furniture seller,
+  "tapissier" for a wholesaler, "décapage" for a retailer). Services and crafts are not product purchases.
+- The keyword implies an INCOMPATIBLE SALES MODEL (e.g. "repair", "rental", "sur mesure", "devis" for a
+  wholesaler; "grossiste" for a local service provider).
+- The keyword is a LOCAL SERVICE query with a city/region NOT in the business's confirmed locations
+  (e.g. "menuisier lyon" for a national online seller).
+- The keyword mentions a COMPETING BRAND by name (e.g. "schmidt meuble sur mesure") unless the business
+  IS that brand.
+- The keyword is about REPAIR, RESTORATION, RENTAL, TRAINING, or HIRING/RECRUITMENT when the business sells
+  products.`;
 
 async function scoreBatch(profile: BusinessProfile, list: string[]): Promise<Record<string, number>> {
   const raw = await callOpenRouter({
@@ -69,6 +111,9 @@ Return JSON: {"scores":[{"keyword":"...","score":0-100}]}`,
  * business. All SEO metrics stay DataForSEO's — the model never invents them.
  * Scored in small batches so long lists are never truncated mid-answer (an
  * unscored keyword used to slip through with a passing default score).
+ *
+ * FAIL-CLOSED: if the model returns no scores at all, every keyword is treated
+ * as irrelevant (score 0). No keyword is ever saved without a positive score.
  */
 export async function scoreRelevance(
   profile: BusinessProfile,
@@ -81,14 +126,91 @@ export async function scoreRelevance(
   const results = await Promise.all(
     batches.map((b) => scoreBatch(profile, b).catch(() => ({}) as Record<string, number>)),
   );
-  return Object.assign({}, ...results) as Record<string, number>;
+  const merged = Object.assign({}, ...results) as Record<string, number>;
+  // Fail-closed: unscored keywords get 0, never a passing default.
+  for (const kw of list) {
+    const key = kw.toLowerCase();
+    if (merged[key] === undefined) merged[key] = 0;
+  }
+  return merged;
+}
+
+/**
+ * Builds a canonical business profile from a scraped site snapshot.
+ * Only includes products, services, and locations that are actually visible
+ * on the site — never infers adjacent activities (e.g. a furniture seller
+ * is NOT a carpenter, upholsterer, or repair service).
+ */
+export async function buildCanonicalProfile(
+  site: { title: string | null; description: string | null; headings: string[]; text: string; lang?: string | null },
+  hints?: { name?: string | null; industry?: string | null; website_url?: string | null },
+): Promise<CanonicalBusinessProfile> {
+  const raw = await callOpenRouter({
+    json: true,
+    maxTokens: 900,
+    system:
+      "You build a precise business profile from a company website. Return ONLY JSON. " +
+      "Never invent services, crafts, or locations that are not visible on the site. " +
+      "A furniture SELLER is not a carpenter, upholsterer, or repair service. " +
+      "Distinguish wholesale from retail from local service.",
+    user: `Website title: ${site.title ?? ""}
+Description: ${site.description ?? ""}
+Headings: ${site.headings?.slice(0, 15).join(" | ") ?? ""}
+Page text (truncated): ${site.text?.slice(0, 3000) ?? ""}
+Hints — name: ${hints?.name ?? ""}, industry: ${hints?.industry ?? ""}, website: ${hints?.website_url ?? ""}
+
+Return JSON:
+{
+  "name": "company name",
+  "description": "one sentence: sales model + products + audience + geography",
+  "sales_model": "wholesale" | "retail" | "service" | "marketplace" | "manufacturer" | "other",
+  "products": ["product category 1", "product category 2"],
+  "services": ["service 1"],
+  "locations": ["France", "Belgium"],
+  "audience": "who buys this",
+  "canonical": "one sentence canonical profile",
+  "reliable": true/false
+}
+
+Rules:
+- "products": only product categories the site actually sells. Empty array if unclear.
+- "services": only services the site actually offers. Empty array for pure sellers.
+- "locations": only geographic areas mentioned on the site. Empty array if national/online with no area stated.
+- "reliable": false if you cannot determine what the company actually sells with confidence.
+- "canonical": e.g. "Grossiste et vendeur de meubles en ligne: canapés, tables, chaises, mobilier de maison en France."
+- NEVER include craft trades (menuisier, ébéniste, tapissier, décorateur) as services unless the site explicitly offers them.`,
+  });
+  const p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
+  const products = Array.isArray(p.products) ? p.products.map((s) => String(s).trim()).filter(Boolean).slice(0, 20) : [];
+  const services = Array.isArray(p.services) ? p.services.map((s) => String(s).trim()).filter(Boolean).slice(0, 10) : [];
+  const locations = Array.isArray(p.locations) ? p.locations.map((s) => String(s).trim()).filter(Boolean).slice(0, 10) : [];
+  const canonical =
+    p.canonical?.toString().slice(0, 400) ??
+    p.description?.toString().slice(0, 400) ??
+    `${p.sales_model ?? ""} ${products.join(", ")}`.trim();
+  const reliable = Boolean(p.reliable) && (products.length > 0 || services.length > 0);
+  return {
+    name: p.name?.toString().slice(0, 120) ?? hints?.name ?? site.title,
+    website_url: hints?.website_url ?? null,
+    industry: hints?.industry ?? null,
+    audience: p.audience?.toString().slice(0, 300) ?? null,
+    description: p.description?.toString().slice(0, 400) ?? null,
+    sales_model: p.sales_model?.toString().slice(0, 40) ?? null,
+    products,
+    services,
+    locations,
+    canonical,
+    reliable,
+  };
 }
 
 /**
  * Seed terms describing what the business actually sells, in the words its
  * buyers use. Seeds only — every metric still comes from DataForSEO.
+ * Preserves the sales model distinction (wholesaler vs retailer vs service).
  */
 export async function productSeeds(profile: BusinessProfile, max = 12): Promise<string[]> {
+  const salesPrefix = profile.sales_model === "wholesale" ? "grossiste " : "";
   try {
     const raw = await callOpenRouter({
       json: true,
@@ -98,9 +220,10 @@ export async function productSeeds(profile: BusinessProfile, max = 12): Promise<
       user: `${profileBlock(profile)}
 
 List ${max} short search terms (2-4 words) that a buyer looking for THIS product would type.
-Use the product category, its common synonyms and acronyms, "<category> software/tools/platform",
-and comparison or buying phrasings. No brand names other than this business's own category words.
-No generic one-word terms, no unrelated markets, no student/free-tool phrasing.
+${salesPrefix ? `The business is a WHOLESALER — use terms like "grossiste <product>", "<product> en gros", "fournisseur <product>".` : "Use the product category, its common synonyms, comparison or buying phrasings."}
+Use ONLY product categories from the confirmed products list above. Do NOT invent new product categories.
+No brand names other than this business's own. No generic one-word terms. No unrelated markets.
+${profile.locations?.length ? `Geographic terms only with: ${profile.locations.join(", ")}.` : "No city or region names."}
 
 Return JSON: {"seeds":["...", "..."]}`,
     });
