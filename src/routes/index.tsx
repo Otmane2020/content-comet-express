@@ -144,10 +144,10 @@ function Landing() {
     setLoading(true);
     setCheckoutError(null);
     try {
-      const { url } = await startCheckout({
+      const { url, alreadyActive } = await startCheckout({
         data: { cycle: annual ? "annual" : "monthly", origin: window.location.origin },
       });
-      window.location.href = url;
+      window.location.href = alreadyActive || !url ? "/app" : url;
     } catch {
       setCheckoutError("Checkout is unavailable right now. Please try again in a moment.");
       setLoading(false);

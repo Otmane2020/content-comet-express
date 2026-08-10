@@ -131,16 +131,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     setBusy(true);
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
-      const { data: auth } = await supabase.auth.getUser();
-      const { url } = await checkout({
+      await saveDraft(2);
+      const { url, alreadyActive } = await checkout({
         data: {
           cycle,
           origin: window.location.origin,
-          userId,
-          email: auth.user?.email ?? undefined,
           next: "/app",
+          shopDomain: shopContext ?? undefined,
         },
       });
+      if (alreadyActive || !url) {
+        setSubActive(true);
+        setBusy(false);
+        toast.success("Your subscription is already active.");
+        return;
+      }
       window.location.href = url;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Checkout failed");
