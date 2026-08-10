@@ -80,6 +80,14 @@ export const BLOCKED_COMPETITOR_DOMAINS = [
   "trustpilot.com", "producthunt.com", "crunchbase.com", "glassdoor.com", "indeed.com",
   "yelp.com", "tripadvisor.com", "booking.com", "forbes.com", "nytimes.com", "bbc.com",
   "openai.com", "gartner.com", "getapp.com", "softwareadvice.com", "slideshare.net",
+  // Directories, marketplaces & social networks (SERP discovery blocklist).
+  "pagesjaunes.fr", "yellowpages.com", "alibaba.com", "aliexpress.com", "cdiscount.com",
+  "fnac.com", "darty.com", "leboncoin.fr", "vinted.fr", "manomano.fr", "manomano.com",
+  "made.com", "wayfair.com", "wayfair.fr", "ikea.com", "houzz.com", "houzz.fr",
+  "pinterest.fr", "instagram.com", "facebook.com", "tiktok.com", "blogspot.com",
+  "societe.com", "verif.com", "infogreffe.fr", "kompass.com", "europages.fr", "europages.com",
+  "annuaire-entreprises.data.gouv.fr", "bing.com", "yahoo.com", "yandex.com",
+  "decathlon.fr", "leroymerlin.fr", "castorama.fr", "bricodepot.fr", "conforama.fr",
 ];
 
 /** True when a domain is a plausible rival: not us, not a giant platform. */
