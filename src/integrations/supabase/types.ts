@@ -158,30 +158,42 @@ export type Database = {
       }
       competitors: {
         Row: {
+          appearances: number | null
+          best_position: number | null
           created_at: string
           domain: string
           id: string
           last_checked_at: string | null
           metrics: Json
           project_id: string
+          snippet: string | null
+          title: string | null
           user_id: string
         }
         Insert: {
+          appearances?: number | null
+          best_position?: number | null
           created_at?: string
           domain: string
           id?: string
           last_checked_at?: string | null
           metrics?: Json
           project_id: string
+          snippet?: string | null
+          title?: string | null
           user_id: string
         }
         Update: {
+          appearances?: number | null
+          best_position?: number | null
           created_at?: string
           domain?: string
           id?: string
           last_checked_at?: string | null
           metrics?: Json
           project_id?: string
+          snippet?: string | null
+          title?: string | null
           user_id?: string
         }
         Relationships: [
