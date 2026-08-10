@@ -2,21 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Building2,
-  CalendarDays,
-  Check,
-  Loader2,
-  Radar,
-  Rocket,
-  Send,
-  Sparkles,
-  ShieldCheck,
-  Tag,
-  Wand2,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Loader as Loader2, Radar, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
