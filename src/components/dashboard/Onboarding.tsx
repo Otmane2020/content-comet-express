@@ -837,7 +837,13 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
               {step < 2 ? (
                 <Button
                   type="button"
-                  onClick={() => setStep((s) => Math.min(2, s + 1))}
+                  onClick={() =>
+                    setStep((s) => {
+                      const next = Math.min(2, s + 1);
+                      void saveDraft(next);
+                      return next;
+                    })
+                  }
                   disabled={!canNext}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
