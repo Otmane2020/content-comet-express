@@ -115,28 +115,48 @@ function Dashboard() {
     if (!embedded || loading || user || shopifyAuthChecked) return;
     let cancelled = false;
     void (async () => {
+      // Only ever flip this on a confirmed failure: on success, `user` becomes
+      // truthy once useAuth's onAuthStateChange listener catches up, which
+      // already satisfies every gate that reads shopifyAuthChecked — setting
+      // it eagerly here raced ahead of that update and sent a freshly
+      // authenticated merchant to the signup screen anyway.
+      const giveUp = () => {
+        if (!cancelled) setShopifyAuthChecked(true);
+      };
       try {
         const shopify = await waitForShopifyAppBridge();
-        if (cancelled || !shopify) return;
+        if (cancelled) return;
+        if (!shopify) {
+          console.error("[shopify embed] App Bridge did not load in time");
+          return giveUp();
+        }
         const token = await shopify.idToken();
-        const { email, hashedToken } = await exchangeSession({ data: { token } });
+        const { hashedToken } = await exchangeSession({ data: { token } });
+        // hashed_token (from admin.generateLink) verifies via token_hash, not
+        // the email+token pair used for user-typed OTP codes.
         const { error } = await supabase.auth.verifyOtp({
-          email,
-          token: hashedToken,
+          token_hash: hashedToken,
           type: "magiclink",
         });
         if (error) throw error;
-      } catch {
-        // No linked account for this store yet, or App Bridge didn't load —
-        // fall through to the normal /auth screen, still inside the iframe.
-      } finally {
-        if (!cancelled) setShopifyAuthChecked(true);
+      } catch (e) {
+        console.error("[shopify embed] silent sign-in failed", e);
+        giveUp();
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [embedded, loading, user, shopifyAuthChecked, exchangeSession]);
+
+  // Safety net: if the silent sign-in above succeeded but useAuth's session
+  // state is somehow still lagging past a generous window, stop blocking the
+  // UI on it instead of spinning forever.
+  useEffect(() => {
+    if (!embedded || user || shopifyAuthChecked) return;
+    const timer = setTimeout(() => setShopifyAuthChecked(true), 12000);
+    return () => clearTimeout(timer);
+  }, [embedded, user, shopifyAuthChecked]);
 
   useEffect(() => {
     if (!loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
