@@ -31,7 +31,11 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
 
 function createSupabaseAdminClient() {
   const SUPABASE_URL = process.env['SUPABASE_URL'];
-  const SUPABASE_SERVICE_ROLE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_ANON_KEY'];
+  // Never fall back to the anon/publishable key here: it doesn't bypass RLS
+  // and has no admin.* privileges, so admin.createUser/generateLink/etc.
+  // would fail with confusing authorization errors instead of the clear
+  // "missing env var" message below.
+  const SUPABASE_SERVICE_ROLE_KEY = process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
