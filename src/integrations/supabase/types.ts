@@ -158,30 +158,42 @@ export type Database = {
       }
       competitors: {
         Row: {
+          appearances: number | null
+          best_position: number | null
           created_at: string
           domain: string
           id: string
           last_checked_at: string | null
           metrics: Json
           project_id: string
+          snippet: string | null
+          title: string | null
           user_id: string
         }
         Insert: {
+          appearances?: number | null
+          best_position?: number | null
           created_at?: string
           domain: string
           id?: string
           last_checked_at?: string | null
           metrics?: Json
           project_id: string
+          snippet?: string | null
+          title?: string | null
           user_id: string
         }
         Update: {
+          appearances?: number | null
+          best_position?: number | null
           created_at?: string
           domain?: string
           id?: string
           last_checked_at?: string | null
           metrics?: Json
           project_id?: string
+          snippet?: string | null
+          title?: string | null
           user_id?: string
         }
         Relationships: [
@@ -700,6 +712,92 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_onboarding: {
+        Row: {
+          business_description: string | null
+          business_name: string | null
+          competitors: Json
+          completed: boolean
+          completed_at: string | null
+          country: string | null
+          created_at: string
+          current_step: number
+          data_source: string
+          detected: Json
+          id: string
+          industry: string | null
+          keywords: Json
+          language: string | null
+          project_id: string | null
+          shopify_installed: boolean
+          shopify_shop_domain: string | null
+          shopify_shop_name: string | null
+          target_market: string | null
+          tone: string | null
+          updated_at: string
+          user_id: string
+          website_url: string | null
+        }
+        Insert: {
+          business_description?: string | null
+          business_name?: string | null
+          competitors?: Json
+          completed?: boolean
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          current_step?: number
+          data_source?: string
+          detected?: Json
+          id?: string
+          industry?: string | null
+          keywords?: Json
+          language?: string | null
+          project_id?: string | null
+          shopify_installed?: boolean
+          shopify_shop_domain?: string | null
+          shopify_shop_name?: string | null
+          target_market?: string | null
+          tone?: string | null
+          updated_at?: string
+          user_id: string
+          website_url?: string | null
+        }
+        Update: {
+          business_description?: string | null
+          business_name?: string | null
+          competitors?: Json
+          completed?: boolean
+          completed_at?: string | null
+          country?: string | null
+          created_at?: string
+          current_step?: number
+          data_source?: string
+          detected?: Json
+          id?: string
+          industry?: string | null
+          keywords?: Json
+          language?: string | null
+          project_id?: string | null
+          shopify_installed?: boolean
+          shopify_shop_domain?: string | null
+          shopify_shop_name?: string | null
+          target_market?: string | null
+          tone?: string | null
+          updated_at?: string
+          user_id?: string
+          website_url?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_onboarding_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

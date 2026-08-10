@@ -69,9 +69,9 @@ export const detectMarket = createServerFn({ method: "POST" })
   )
   .handler(async ({ data }) => {
     const { normalizeUrl } = await import("./scrape.server");
-    const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
-    const { competitorDomains, keywordIdeas, keywordsForSite } = await import("./dataforseo.server");
-    const { QUOTA, dedupeKeywords, dedupeDomains } = await import("./quotas");
+    const { localeOpts, requireLiveDataForSeo, discoverCompetitorsFromSerp } = await import("./research.server");
+    const { keywordIdeas, keywordsForSite } = await import("./dataforseo.server");
+    const { QUOTA, dedupeKeywords } = await import("./quotas");
     const { scoreRelevance, compositeScore, MIN_RELEVANCE } = await import("./relevance.server");
 
     const website = normalizeUrl(data.website);
@@ -79,7 +79,14 @@ export const detectMarket = createServerFn({ method: "POST" })
     const opts = localeOpts(data.locale ?? null);
     await requireLiveDataForSeo();
 
-    const competitors: { domain: string }[] = await competitorDomains(domain, opts, QUOTA.competitors);
+    // Real Google SERP results only — no AI-invented rivals.
+    const competitorRows = await discoverCompetitorsFromSerp(
+      { name: data.name ?? null, website_url: website, industry: data.industry ?? null },
+      data.locale ?? null,
+      null,
+      null,
+      QUOTA.competitors,
+    );
 
     // Site first: DataForSEO tells us what the domain actually ranks for,
     // before any AI-guessed seed can steer the scan into the wrong industry.
@@ -113,7 +120,7 @@ export const detectMarket = createServerFn({ method: "POST" })
     return {
       live: true,
       source: "dataforseo" as const,
-      competitors: dedupeDomains(competitors.map((c) => c.domain), domain, QUOTA.competitors),
+      competitors: competitorRows.map((c) => c.domain),
       keywords: ranked.map(({ k }) => ({
         keyword: k.keyword,
         volume: k.search_volume ?? null,

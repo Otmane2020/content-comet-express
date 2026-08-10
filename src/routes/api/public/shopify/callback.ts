@@ -21,10 +21,11 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
 
         try {
           const { access_token } = await mod.exchangeCode(shop, code);
-          const [blogId, info, snapshot] = await Promise.all([
+          const [blogId, info, snapshot, content] = await Promise.all([
             mod.resolveBlogId(shop, access_token),
             mod.fetchShopInfo(shop, access_token),
             mod.fetchProductSnapshot(shop, access_token),
+            mod.fetchStoreContent(shop, access_token),
           ]);
 
           const provision = await import("@/lib/shopifyProvision.server");
@@ -40,11 +41,15 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
             projectId = state.projectId;
             const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
             email = user.user?.email ?? info.email ?? `${shop}@shopify-merchant.ranki.ai`;
+            // Scope the lookup to this exact shop: a merchant can connect several
+            // stores to the same project, and matching on project only would make
+            // a second install silently overwrite the first store's token.
             const { data: existing } = await supabaseAdmin
               .from("integrations")
               .select("id")
               .eq("project_id", state.projectId)
               .eq("platform", "shopify")
+              .eq("config->>shop", shop)
               .limit(1)
               .maybeSingle();
             const row = {
@@ -52,19 +57,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
               project_id: state.projectId,
               platform: "shopify",
               label: info.name || shop.replace(".myshopify.com", ""),
-              config: {
-                shop,
-                blog_id: blogId,
-                access_token,
-                shop_name: info.name,
-                site_url: info.domain,
-                currency: info.currency,
-                locale: info.locale,
-                country: info.country,
-                products_count: snapshot.count,
-                product_types: snapshot.types,
-                synced_at: new Date().toISOString(),
-              },
+              config: provision.buildShopifyConfig(shop, access_token, blogId, info, snapshot, content),
               status: "connected",
               last_error: null,
             };
@@ -80,6 +73,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
               blogId,
               info,
               snapshot,
+              content,
             });
             userId = created.userId;
             email = created.email;

@@ -1,4 +1,4 @@
-import type { ShopInfo } from "./shopify.server";
+import type { ShopInfo, ShopifyStoreContent } from "./shopify.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
 
@@ -13,6 +13,57 @@ async function findUserByEmail(admin: Admin, email: string) {
   return null;
 }
 
+/** Everything captured about the store, persisted on integrations.config for onboarding + autopilot. */
+export function buildShopifyConfig(
+  shop: string,
+  accessToken: string,
+  blogId: string,
+  info: ShopInfo,
+  snapshot: { count: number; types: string[]; titles: string[] },
+  content?: ShopifyStoreContent,
+) {
+  return {
+    shop,
+    shop_id: info.shopId,
+    myshopify_domain: info.myshopifyDomain,
+    primary_domain: info.primaryDomain,
+    blog_id: blogId,
+    access_token: accessToken,
+    shop_name: info.name,
+    shop_email: info.email,
+    site_url: info.domain,
+    currency: info.currency,
+    locale: info.locale,
+    country: info.country,
+    country_code: info.countryCode,
+    timezone: info.timezone,
+    phone: info.phone,
+    city: info.city,
+    address1: info.address1,
+    plan: info.planName,
+    description: info.description,
+    products_count: snapshot.count,
+    product_types: snapshot.types,
+    products_sample: (content?.products ?? []).slice(0, 10).map((p) => ({
+      title: p.title,
+      handle: p.handle,
+      url: p.url,
+      productType: p.productType,
+      price: p.variants[0]?.price ?? null,
+      images: p.images.slice(0, 1),
+    })),
+    collections: (content?.collections ?? []).slice(0, 20).map((c) => ({
+      title: c.title,
+      handle: c.handle,
+      url: c.url,
+      kind: c.kind,
+    })),
+    pages: (content?.pages ?? []).map((p) => ({ title: p.title, handle: p.handle, url: p.url })),
+    policies: (content?.policies ?? []).map((p) => ({ title: p.title, handle: p.handle })),
+    synced_at: new Date().toISOString(),
+  };
+}
+
 /**
  * A merchant installing from Shopify never fills a signup form: we create the
  * account, the project and the destination from the store data itself.
@@ -23,6 +74,7 @@ export async function provisionShopifyMerchant(args: {
   blogId: string;
   info: ShopInfo;
   snapshot: { count: number; types: string[]; titles: string[] };
+  content?: ShopifyStoreContent;
 }) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const handle = args.shop.replace(".myshopify.com", "");
@@ -90,19 +142,7 @@ export async function provisionShopifyMerchant(args: {
     project_id: projectId,
     platform: "shopify",
     label: args.info.name || handle,
-    config: {
-      shop: args.shop,
-      blog_id: args.blogId,
-      access_token: args.accessToken,
-      shop_name: args.info.name,
-      site_url: args.info.domain,
-      currency: args.info.currency,
-      locale: args.info.locale,
-      country: args.info.country,
-      products_count: args.snapshot.count,
-      product_types: args.snapshot.types,
-      synced_at: new Date().toISOString(),
-    },
+    config: buildShopifyConfig(args.shop, args.accessToken, args.blogId, args.info, args.snapshot, args.content),
     status: "connected",
     last_error: null,
     auto_publish: true,

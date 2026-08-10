@@ -119,6 +119,16 @@ export type ShopInfo = {
   locale: string | null;
   country: string | null;
   description: string | null;
+  /** Richer fields captured from shop.json, additive — existing callers keep working. */
+  shopId: string | null;
+  myshopifyDomain: string | null;
+  primaryDomain: string | null;
+  countryCode: string | null;
+  countryName: string | null;
+  phone: string | null;
+  city: string | null;
+  address1: string | null;
+  planName: string | null;
 };
 
 /** Everything we need about the store to run the autopilot without asking the merchant. */
@@ -129,6 +139,7 @@ export async function fetchShopInfo(shop: string, token: string): Promise<ShopIn
   if (!res.ok) throw new Error(`Could not read the Shopify store (${res.status}).`);
   const { shop: s } = (await res.json()) as {
     shop: {
+      id?: number;
       name: string;
       email?: string;
       customer_email?: string;
@@ -138,18 +149,34 @@ export async function fetchShopInfo(shop: string, token: string): Promise<ShopIn
       iana_timezone?: string;
       primary_locale?: string;
       country_name?: string;
+      country_code?: string;
       description?: string;
+      phone?: string;
+      city?: string;
+      address1?: string;
+      plan_name?: string;
+      plan_display_name?: string;
     };
   };
+  const primaryDomain = s.domain ? `https://${s.domain}` : `https://${s.myshopify_domain ?? shop}`;
   return {
     name: s.name,
     email: s.customer_email ?? s.email ?? null,
-    domain: s.domain ? `https://${s.domain}` : `https://${s.myshopify_domain ?? shop}`,
+    domain: primaryDomain,
     currency: s.currency ?? null,
     timezone: s.iana_timezone ?? null,
     locale: s.primary_locale ?? null,
     country: s.country_name ?? null,
     description: s.description ?? null,
+    shopId: s.id != null ? String(s.id) : null,
+    myshopifyDomain: s.myshopify_domain ?? shop,
+    primaryDomain,
+    countryCode: s.country_code ?? null,
+    countryName: s.country_name ?? null,
+    phone: s.phone ?? null,
+    city: s.city ?? null,
+    address1: s.address1 ?? null,
+    planName: s.plan_display_name ?? s.plan_name ?? null,
   };
 }
 
@@ -166,6 +193,202 @@ export async function fetchProductSnapshot(shop: string, token: string) {
   const products = data.products ?? [];
   const types = [...new Set(products.map((p) => p.product_type).filter(Boolean) as string[])].slice(0, 12);
   return { count: products.length, types, titles: products.slice(0, 20).map((p) => p.title) };
+}
+
+/* ---------------------------- Store content ---------------------------- */
+
+export type ShopifyVariant = {
+  id: string;
+  title: string;
+  price: string | null;
+  sku: string | null;
+  inventoryQuantity: number | null;
+};
+
+export type ShopifyProduct = {
+  id: string;
+  title: string;
+  handle: string;
+  productType: string | null;
+  vendor: string | null;
+  tags: string[];
+  bodyHtml: string | null;
+  url: string;
+  images: string[];
+  variants: ShopifyVariant[];
+};
+
+export type ShopifyCollection = {
+  id: string;
+  title: string;
+  handle: string;
+  url: string;
+  kind: "custom" | "smart";
+};
+
+export type ShopifyPage = {
+  id: string;
+  title: string;
+  handle: string;
+  url: string;
+};
+
+export type ShopifyPolicy = {
+  title: string;
+  handle: string;
+  url: string | null;
+};
+
+export type ShopifyStoreContent = {
+  products: ShopifyProduct[];
+  collections: ShopifyCollection[];
+  pages: ShopifyPage[];
+  policies: ShopifyPolicy[];
+};
+
+const PRODUCT_FIELDS =
+  "id,title,handle,product_type,vendor,tags,body_html,images,variants";
+
+/** Products (with variants/images), collections and pages — capped so installs stay fast. */
+export async function fetchStoreContent(
+  shop: string,
+  token: string,
+  opts: { productLimit?: number; pageLimit?: number } = {},
+): Promise<ShopifyStoreContent> {
+  const headers = adminHeaders(token);
+  const productLimit = Math.min(opts.productLimit ?? 30, 100);
+  const base = `https://${shop}/admin/api/2024-10`;
+  const siteUrl = `https://${shop}`;
+
+  const safeJson = async <T,>(url: string): Promise<T | null> => {
+    try {
+      const res = await fetch(url, { headers });
+      if (!res.ok) return null;
+      return (await res.json()) as T;
+    } catch {
+      return null;
+    }
+  };
+
+  const [productsRes, customRes, smartRes, pagesRes, policiesRes] = await Promise.all([
+    safeJson<{
+      products?: {
+        id: number;
+        title: string;
+        handle: string;
+        product_type?: string;
+        vendor?: string;
+        tags?: string;
+        body_html?: string;
+        images?: { src: string }[];
+        variants?: { id: number; title: string; price?: string; sku?: string; inventory_quantity?: number }[];
+      }[];
+    }>(`${base}/products.json?limit=${productLimit}&fields=${PRODUCT_FIELDS}`),
+    safeJson<{ custom_collections?: { id: number; title: string; handle: string }[] }>(
+      `${base}/custom_collections.json?limit=50`,
+    ),
+    safeJson<{ smart_collections?: { id: number; title: string; handle: string }[] }>(
+      `${base}/smart_collections.json?limit=50`,
+    ),
+    safeJson<{ pages?: { id: number; title: string; handle: string }[] }>(
+      `${base}/pages.json?limit=${opts.pageLimit ?? 20}`,
+    ),
+    safeJson<{ policies?: { title: string; handle: string; url?: string }[] }>(`${base}/policies.json`),
+  ]);
+
+  const products: ShopifyProduct[] = (productsRes?.products ?? []).map((p) => ({
+    id: String(p.id),
+    title: p.title,
+    handle: p.handle,
+    productType: p.product_type ?? null,
+    vendor: p.vendor ?? null,
+    tags: (p.tags ?? "").split(",").map((t) => t.trim()).filter(Boolean),
+    bodyHtml: p.body_html ?? null,
+    url: `${siteUrl}/products/${p.handle}`,
+    images: (p.images ?? []).map((i) => i.src).slice(0, 5),
+    variants: (p.variants ?? []).map((v) => ({
+      id: String(v.id),
+      title: v.title,
+      price: v.price ?? null,
+      sku: v.sku ?? null,
+      inventoryQuantity: typeof v.inventory_quantity === "number" ? v.inventory_quantity : null,
+    })),
+  }));
+
+  const collections: ShopifyCollection[] = [
+    ...(customRes?.custom_collections ?? []).map((c) => ({
+      id: String(c.id),
+      title: c.title,
+      handle: c.handle,
+      url: `${siteUrl}/collections/${c.handle}`,
+      kind: "custom" as const,
+    })),
+    ...(smartRes?.smart_collections ?? []).map((c) => ({
+      id: String(c.id),
+      title: c.title,
+      handle: c.handle,
+      url: `${siteUrl}/collections/${c.handle}`,
+      kind: "smart" as const,
+    })),
+  ];
+
+  const pages: ShopifyPage[] = (pagesRes?.pages ?? []).map((p) => ({
+    id: String(p.id),
+    title: p.title,
+    handle: p.handle,
+    url: `${siteUrl}/pages/${p.handle}`,
+  }));
+
+  const policies: ShopifyPolicy[] = (policiesRes?.policies ?? []).map((p) => ({
+    title: p.title,
+    handle: p.handle,
+    url: p.url ?? null,
+  }));
+
+  return { products, collections, pages, policies };
+}
+
+/* --------------------------- Onboarding profile -------------------------- */
+
+export type ShopifyOnboardingProfile = {
+  source: "shopify";
+  business_name: string;
+  website_url: string | null;
+  business_description: string | null;
+  industry: string | null;
+  country: string | null;
+  language: string | null;
+  currency: string | null;
+  products_summary: string | null;
+  collections_summary: string | null;
+};
+
+/** Normalized snapshot another agent can use to prefill onboarding without re-asking the merchant. */
+export function buildShopifyOnboardingProfile(
+  info: ShopInfo,
+  content: Pick<ShopifyStoreContent, "products" | "collections">,
+): ShopifyOnboardingProfile {
+  const productTypes = [
+    ...new Set(content.products.map((p) => p.productType).filter(Boolean) as string[]),
+  ].slice(0, 5);
+  return {
+    source: "shopify",
+    business_name: info.name,
+    website_url: info.primaryDomain ?? info.domain,
+    business_description: info.description,
+    industry: productTypes[0] ?? null,
+    country: info.countryName ?? info.country,
+    language: info.locale,
+    currency: info.currency,
+    products_summary:
+      content.products.length > 0
+        ? `${content.products.length} products, categories: ${productTypes.join(", ") || "n/a"}`
+        : null,
+    collections_summary:
+      content.collections.length > 0
+        ? content.collections.map((c) => c.title).slice(0, 10).join(", ")
+        : null,
+  };
 }
 
 /* ------------------------------- Billing ------------------------------- */

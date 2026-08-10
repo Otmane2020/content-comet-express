@@ -204,3 +204,52 @@ export async function competitorDomains(domain: string, opts: LocationOpts = {},
     organic_traffic: i.full_domain_metrics?.organic?.etv ?? null,
   }));
 }
+
+export type SerpOrganicResult = {
+  keyword: string;
+  domain: string;
+  title: string | null;
+  snippet: string | null;
+  position: number;
+  url: string | null;
+};
+
+/**
+ * Real Google organic SERP results for one query (live advanced endpoint).
+ * Used for competitor discovery: who actually ranks for the buyer's queries,
+ * never an AI guess.
+ */
+export async function serpOrganicSearch(
+  keyword: string,
+  opts: LocationOpts = {},
+  depth = 20,
+): Promise<SerpOrganicResult[]> {
+  const result = await post<
+    {
+      items?: {
+        type?: string;
+        rank_absolute?: number;
+        domain?: string;
+        title?: string;
+        description?: string;
+        url?: string;
+      }[];
+    }[]
+  >("/serp/google/organic/live/advanced", {
+    keyword,
+    ...loc(opts),
+    device: "desktop",
+    depth,
+  });
+  const items = result[0]?.items ?? [];
+  return items
+    .filter((i) => i.type === "organic" && i.domain)
+    .map((i) => ({
+      keyword,
+      domain: (i.domain ?? "").replace(/^www\./, "").toLowerCase(),
+      title: i.title ?? null,
+      snippet: i.description ?? null,
+      position: i.rank_absolute ?? 999,
+      url: i.url ?? null,
+    }));
+}
