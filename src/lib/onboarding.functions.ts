@@ -51,9 +51,10 @@ export const saveOnboarding = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => draftSchema.parse(input))
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
+    const clean = Object.fromEntries(Object.entries(data).filter(([, v]) => v !== undefined));
     const { error } = await supabase
       .from("user_onboarding")
-      .upsert({ user_id: userId, ...data }, { onConflict: "user_id" });
+      .upsert({ user_id: userId, ...clean }, { onConflict: "user_id" });
     if (error) {
       console.error(`[onboarding] save failed: ${error.message}`);
       throw new Error(error.message);
@@ -98,7 +99,7 @@ export const getShopifyPrefill = createServerFn({ method: "GET" })
       .maybeSingle();
     if (error) console.error(`[onboarding] shopify prefill read failed: ${error.message}`);
     const cfg = (data?.config ?? null) as Record<string, any> | null;
-    if (!cfg?.shop) return { connected: false as const };
+    if (!cfg || !cfg["shop"]) return { connected: false as const };
 
     const products = Array.isArray(cfg["products"]) ? cfg["products"] : [];
     const collections = Array.isArray(cfg["collections"]) ? cfg["collections"] : [];
