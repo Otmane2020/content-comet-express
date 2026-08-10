@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
@@ -9,14 +9,15 @@ import {
   CalendarDays,
   Check,
   Loader2,
-  Plus,
   Radar,
+  RefreshCw,
   Rocket,
   Send,
   Sparkles,
   ShieldCheck,
   Tag,
   Wand2,
+  X,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
@@ -106,6 +107,26 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     competitors: string[];
     keywords: { keyword: string; volume: number | null; difficulty: number | null }[];
   } | null>(null);
+  const [marketError, setMarketError] = useState<string | null>(null);
+  const [showManualEdit, setShowManualEdit] = useState(false);
+  const [scanStage, setScanStage] = useState(0);
+  const marketAttempted = useRef(false);
+
+  const SCAN_STAGES = [
+    { icon: Radar, label: "We're searching your competitors…" },
+    { icon: Tag, label: "We're searching their keywords…" },
+    { icon: Sparkles, label: "We're keeping the winners…" },
+  ];
+
+  useEffect(() => {
+    if (!scanningMarket) {
+      setScanStage(0);
+      return;
+    }
+    const id = setInterval(() => setScanStage((s) => (s + 1) % SCAN_STAGES.length), 1600);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scanningMarket]);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
     name: "",
@@ -280,12 +301,20 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     }
   }
 
-  async function autodetectMarket() {
+  /**
+   * `silent`: called automatically on entering step 2 — failures (e.g. no
+   * website yet, DataForSEO not configured) surface as an inline note
+   * instead of an unprompted error toast. A manual "Scan now"/"Rescan"
+   * click always gives explicit toast feedback.
+   */
+  async function autodetectMarket(silent = false) {
     if (!form.website_url.trim()) {
-      toast.error("Add your website URL in step 1 first.");
+      if (silent) setMarketError("Add your website in step 1 to launch this automatically.");
+      else toast.error("Add your website URL in step 1 first.");
       return;
     }
     setScanningMarket(true);
+    setMarketError(null);
     try {
       const r = await detectMkt({
         data: {
@@ -316,27 +345,45 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
           keywords: merged.join(", "),
         };
       });
-      toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
+      if (!silent) toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Market scan failed");
+      const msg = err instanceof Error ? err.message : "Market scan failed";
+      setMarketError(msg);
+      if (!silent) toast.error(msg);
     } finally {
       setScanningMarket(false);
     }
   }
 
-  const addKeyword = (kw: string) =>
-    setForm((f) => {
-      const list = f.keywords.split(",").map((k) => k.trim()).filter(Boolean);
-      if (list.some((k) => k.toLowerCase() === kw.toLowerCase())) return f;
-      return { ...f, keywords: [...list, kw].join(", ") };
-    });
+  // Runs the scan on its own the moment step 2 is reached and a website is
+  // known — the wizard used to require an extra click for this.
+  useEffect(() => {
+    if (step !== 1 || marketAttempted.current || market || scanningMarket) return;
+    if (!form.website_url.trim()) return;
+    marketAttempted.current = true;
+    void autodetectMarket(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, form.website_url]);
 
-  const addCompetitor = (domain: string) =>
-    setForm((f) => {
-      const list = f.competitors.split(/[\n,]/).map((c) => c.trim()).filter(Boolean);
-      if (list.some((c) => c.toLowerCase() === domain.toLowerCase())) return f;
-      return { ...f, competitors: [...list, domain].join("\n") };
-    });
+  const removeKeyword = (kw: string) =>
+    setForm((f) => ({
+      ...f,
+      keywords: f.keywords
+        .split(",")
+        .map((k) => k.trim())
+        .filter((k) => k && k.toLowerCase() !== kw.toLowerCase())
+        .join(", "),
+    }));
+
+  const removeCompetitor = (domain: string) =>
+    setForm((f) => ({
+      ...f,
+      competitors: f.competitors
+        .split(/[\n,]/)
+        .map((c) => c.trim())
+        .filter((c) => c && c.toLowerCase() !== domain.toLowerCase())
+        .join("\n"),
+    }));
 
   async function submit() {
     setBusy(true);
@@ -619,68 +666,109 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
                 {step === 1 && (
                   <div className="mt-6 space-y-5">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {[
-                        { t: "We list your rivals", d: "The sites already capturing your customers." },
-                        { t: "We extract their keywords", d: "Real volume, difficulty and cost per click." },
-                        { t: "We keep the winners", d: "The ones you can realistically win." },
-                      ].map((c, i) => (
-                        <motion.div
-                          key={c.t}
-                          initial={{ opacity: 0, y: 12 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.06 * i }}
-                          className="rounded-xl border border-border bg-secondary/40 p-3.5"
-                        >
-                          <span className="text-[11px] font-bold text-gold">0{i + 1}</span>
-                          <p className="mt-1 text-[12.5px] font-semibold">{c.t}</p>
-                          <p className="mt-0.5 text-[11.5px] leading-snug text-muted-foreground">{c.d}</p>
-                        </motion.div>
-                      ))}
+                    <div className="rounded-2xl border border-border bg-secondary/40 p-5">
+                      <AnimatePresence mode="wait">
+                        {scanningMarket ? (
+                          <motion.div
+                            key={`stage-${scanStage}`}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.35 }}
+                            className="flex items-center gap-3"
+                          >
+                            <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+                              <Loader2 className="size-[18px] animate-spin" />
+                            </span>
+                            <div>
+                              <p className="text-[13.5px] font-semibold">{SCAN_STAGES[scanStage]!.label}</p>
+                              <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                                Live data from DataForSEO — this takes a few seconds.
+                              </p>
+                            </div>
+                          </motion.div>
+                        ) : market ? (
+                          <motion.div
+                            key="done"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex flex-wrap items-center justify-between gap-3"
+                          >
+                            <div className="flex items-center gap-3">
+                              <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-success-soft text-success">
+                                <Check className="size-[18px]" />
+                              </span>
+                              <div>
+                                <p className="text-[13.5px] font-semibold">
+                                  {market.competitors.length} rivals · {market.keywords.length} keywords found
+                                </p>
+                                <p className="mt-0.5 text-[11.5px] text-muted-foreground">
+                                  {market.source === "dataforseo" ? "Live DataForSEO data" : "AI estimate"} — already
+                                  added below.
+                                </p>
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => autodetectMarket()}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-[12px] font-semibold text-primary transition-colors hover:bg-primary/5"
+                            >
+                              <RefreshCw className="size-3.5" /> Rescan
+                            </button>
+                          </motion.div>
+                        ) : (
+                          <motion.div
+                            key="idle"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            className="flex flex-wrap items-center justify-between gap-3"
+                          >
+                            <p className="text-[12.5px] text-muted-foreground">
+                              {form.website_url.trim()
+                                ? "Ready to scan your market."
+                                : (marketError ?? "Add your website in step 1 to launch this automatically.")}
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => autodetectMarket()}
+                              disabled={!form.website_url.trim()}
+                              className="inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-deep px-3.5 py-2 text-[12.5px] font-semibold text-background transition-colors hover:bg-deep/90 disabled:opacity-40"
+                            >
+                              <Radar className="size-3.5" /> Scan now
+                            </button>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border bg-secondary/40 p-3.5">
-                      <Button
-                        type="button"
-                        onClick={autodetectMarket}
-                        disabled={scanningMarket}
-                        className="bg-deep text-background hover:bg-deep/90"
-                      >
-                        {scanningMarket ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Radar className="mr-1.5 size-4" />}
-                        {scanningMarket ? "Scanning market…" : "Auto-detect competitors & keywords"}
-                      </Button>
-                      <p className="text-[11.5px] leading-snug text-muted-foreground">
-                        Live keyword and competitor data from DataForSEO.
+                    {marketError && !scanningMarket && !market && form.website_url.trim() && (
+                      <p className="rounded-xl border border-destructive/30 bg-destructive/5 px-4 py-2.5 text-[12px] leading-relaxed text-destructive">
+                        {marketError}
                       </p>
-                      {market && (
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                            market.source === "dataforseo"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-gold-soft text-foreground/70"
-                          }`}
-                        >
-                          {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
-                        </span>
-                      )}
-                    </div>
+                    )}
 
-                    {market && (
+                    {market && (market.competitors.length > 0 || market.keywords.length > 0) && (
                       <div className="grid gap-4 sm:grid-cols-2">
                         <div className="rounded-xl border border-border p-3.5">
                           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                            Competitors found
+                            Competitors
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {market.competitors.map((d) => (
-                              <button
+                              <span
                                 key={d}
-                                type="button"
-                                onClick={() => addCompetitor(d)}
-                                className="flex items-center gap-1 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px]"
                               >
-                                <Plus className="size-3 text-primary" /> {d}
-                              </button>
+                                <span className="size-1.5 rounded-full bg-gold" /> {d}
+                                <button
+                                  type="button"
+                                  onClick={() => removeCompetitor(d)}
+                                  className="text-muted-foreground hover:text-destructive"
+                                  aria-label={`Remove ${d}`}
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              </span>
                             ))}
                             {!market.competitors.length && (
                               <span className="text-[11.5px] text-muted-foreground">None found.</span>
@@ -689,21 +777,27 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         </div>
                         <div className="rounded-xl border border-border p-3.5">
                           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
-                            Keyword opportunities
+                            Keywords
                           </p>
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             {market.keywords.slice(0, 12).map((k) => (
-                              <button
+                              <span
                                 key={k.keyword}
-                                type="button"
-                                onClick={() => addKeyword(k.keyword)}
-                                className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px] hover:border-primary/50 hover:bg-primary/5"
+                                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px]"
                               >
-                                <Plus className="size-3 text-primary" /> {k.keyword}
+                                {k.keyword}
                                 {k.volume != null && (
                                   <span className="text-[10.5px] text-muted-foreground">{k.volume}/mo</span>
                                 )}
-                              </button>
+                                <button
+                                  type="button"
+                                  onClick={() => removeKeyword(k.keyword)}
+                                  className="text-muted-foreground hover:text-destructive"
+                                  aria-label={`Remove ${k.keyword}`}
+                                >
+                                  <X className="size-3" />
+                                </button>
+                              </span>
                             ))}
                             {!market.keywords.length && (
                               <span className="text-[11.5px] text-muted-foreground">None found.</span>
@@ -713,21 +807,34 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       </div>
                     )}
 
-                    <div>
-                      <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
-                      <Textarea
-                        id="competitors"
-                        value={form.competitors}
-                        onChange={set("competitors")}
-                        className="mt-1.5"
-                        rows={3}
-                        placeholder={"competitor1.com\ncompetitor2.com"}
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
-                      <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowManualEdit((v) => !v)}
+                      className="text-[12px] font-semibold text-primary hover:underline"
+                    >
+                      {showManualEdit ? "Hide manual edit" : "Edit the list manually"}
+                    </button>
+
+                    {showManualEdit && (
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
+                          <Textarea
+                            id="competitors"
+                            value={form.competitors}
+                            onChange={set("competitors")}
+                            className="mt-1.5"
+                            rows={3}
+                            placeholder={"competitor1.com\ncompetitor2.com"}
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
+                          <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
+                        </div>
+                      </div>
+                    )}
+
                     <p className="rounded-xl border border-gold/30 bg-gold-soft/50 px-4 py-3 text-[12.5px] leading-relaxed text-foreground/80">
                       You can leave this empty: the app analyses your site and finds competitors and keywords
                       on its own as soon as you open the dashboard.
