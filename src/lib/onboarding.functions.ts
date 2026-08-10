@@ -82,6 +82,69 @@ export const completeOnboarding = createServerFn({ method: "POST" })
   });
 
 /**
+ * Persist the onboarding market scan (step 2) into the same `competitors` and
+ * `keyword_research` tables the app's Research dashboard reads. Without this,
+ * the DataForSEO data shown during onboarding was discarded — the dashboard
+ * opened empty and silently re-ran (and re-billed) the exact same scan, which
+ * also wiped out onboarding-picked competitors because they carried no
+ * `last_checked_at` and looked stale to the cache guard.
+ */
+export const saveMarketResearch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) =>
+    z
+      .object({
+        projectId: z.string().uuid(),
+        competitors: z.array(z.string().max(200)).max(50),
+        keywords: z
+          .array(
+            z.object({
+              keyword: z.string().min(1).max(120),
+              volume: z.number().nullable().optional(),
+              difficulty: z.number().nullable().optional(),
+            }),
+          )
+          .max(200),
+      })
+      .parse(input),
+  )
+  .handler(async ({ data, context }) => {
+    const { supabase, userId } = context;
+    const { saveKeywords } = await import("./research.server");
+
+    if (data.competitors.length) {
+      const { error } = await supabase.from("competitors").upsert(
+        data.competitors.map((domain) => ({
+          user_id: userId,
+          project_id: data.projectId,
+          domain,
+          last_checked_at: new Date().toISOString(),
+        })),
+        { onConflict: "project_id,domain" },
+      );
+      if (error) console.error(`[onboarding] competitor save failed: ${error.message}`);
+    }
+
+    if (data.keywords.length) {
+      await saveKeywords(
+        supabase,
+        userId,
+        data.projectId,
+        data.keywords.map((k) => ({
+          keyword: k.keyword,
+          search_volume: k.volume ?? null,
+          cpc: null,
+          competition: null,
+          difficulty: k.difficulty ?? null,
+          intent: null,
+          origin: "seed" as const,
+        })),
+      );
+    }
+    return { ok: true };
+  });
+
+/**
  * If the account arrived through the Shopify app install, reuse everything the
  * store already told us instead of asking the merchant to retype it.
  */

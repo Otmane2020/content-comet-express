@@ -26,6 +26,7 @@ import {
   completeOnboarding,
   getOnboarding,
   getShopifyPrefill,
+  saveMarketResearch,
   saveOnboarding,
 } from "@/lib/onboarding.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
@@ -90,6 +91,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const syncSub = useServerFn(syncSubscription);
   const loadDraft = useServerFn(getOnboarding);
   const persistDraft = useServerFn(saveOnboarding);
+  const persistMarket = useServerFn(saveMarketResearch);
   const markComplete = useServerFn(completeOnboarding);
   const loadShopify = useServerFn(getShopifyPrefill);
   const [shopContext, setShopContext] = useState<string | null>(null);
@@ -361,15 +363,27 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       const rivals = form.competitors
         .split(/[\n,]/)
         .map((c) => c.trim())
-        .filter(Boolean);
-      if (rivals.length) {
-        await supabase.from("competitors").insert(
-          rivals.map((domain) => ({
-            user_id: userId,
-            project_id: data.id,
-            domain: domain.replace(/^https?:\/\//, "").replace(/\/.*$/, ""),
-          })),
-        );
+        .filter(Boolean)
+        .map((domain) => domain.replace(/^https?:\/\//, "").replace(/\/.*$/, ""));
+
+      // Carry over the live volume/difficulty the market scan already found so
+      // the dashboard opens with real numbers instead of re-scanning (and
+      // re-billing DataForSEO) from a blank slate.
+      const marketByKeyword = new Map(
+        (market?.keywords ?? []).map((k) => [k.keyword.toLowerCase(), k]),
+      );
+      const keywordsForResearch = form.keywords
+        .split(",")
+        .map((k) => k.trim())
+        .filter(Boolean)
+        .map((keyword) => {
+          const m = marketByKeyword.get(keyword.toLowerCase());
+          return { keyword, volume: m?.volume ?? null, difficulty: m?.difficulty ?? null };
+        });
+      if (rivals.length || keywordsForResearch.length) {
+        await persistMarket({
+          data: { projectId: data.id, competitors: rivals, keywords: keywordsForResearch },
+        }).catch(() => undefined);
       }
 
       toast.info("Building your 30-day calendar…");
