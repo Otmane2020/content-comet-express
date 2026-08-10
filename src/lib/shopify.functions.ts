@@ -24,3 +24,42 @@ export const startShopifyInstall = createServerFn({ method: "POST" })
     });
     return { url: authorizeUrl(shop, state, data.origin) };
   });
+
+/**
+ * Silently signs a merchant in when the app loads embedded in Shopify admin.
+ * Browsers partition storage by top-level site, so a Supabase session that
+ * exists when Ranki.ai is visited directly is invisible inside the Shopify
+ * iframe — this trades a verified App Bridge session token for a fresh
+ * Supabase session instead of bouncing the merchant out to sign in again.
+ * Deliberately has no requireSupabaseAuth: there is no session yet.
+ */
+export const exchangeShopifySession = createServerFn({ method: "POST" })
+  .inputValidator((raw: unknown) => z.object({ token: z.string().min(10) }).parse(raw))
+  .handler(async ({ data }) => {
+    const { verifyShopifySessionToken } = await import("./shopify.server");
+    const claims = verifyShopifySessionToken(data.token);
+    if (!claims) throw new Error("Invalid Shopify session token");
+
+    const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+    const { data: integration } = await supabaseAdmin
+      .from("integrations")
+      .select("user_id")
+      .eq("platform", "shopify")
+      .eq("config->>shop", claims.shop)
+      .limit(1)
+      .maybeSingle();
+    if (!integration?.user_id) throw new Error("This store isn't connected to Ranki.ai yet.");
+
+    const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
+    const email = user.user?.email;
+    if (!email) throw new Error("Could not resolve the merchant account.");
+
+    const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+    });
+    if (error || !link.properties?.hashed_token) {
+      throw new Error(error?.message ?? "Could not start a session.");
+    }
+    return { email, hashedToken: link.properties.hashed_token };
+  });

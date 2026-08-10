@@ -1,7 +1,7 @@
 import { createHmac, timingSafeEqual } from "crypto";
+import { SHOPIFY_CLIENT_ID } from "./shopify.constants";
 
-/** Public app credentials — the client id is public, the secret lives in env. */
-export const SHOPIFY_CLIENT_ID = "a57869f9e856fc6af974670ab5dcd6a2";
+export { SHOPIFY_CLIENT_ID };
 export const SHOPIFY_SCOPES = "read_content,write_content,read_products";
 
 export function shopifySecret() {
@@ -59,6 +59,38 @@ export function verifyRequestHmac(url: URL) {
   const a = Buffer.from(digest);
   const b = Buffer.from(hmac);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Verifies an App Bridge session token (window.shopify.idToken()): a JWT
+ * signed HS256 with the app's client secret. Confirms the signature, the
+ * audience (our client id) and the expiry, then returns the shop it was
+ * issued for. https://shopify.dev/docs/apps/build/authentication-authorization/session-tokens
+ */
+export function verifyShopifySessionToken(token: string): { shop: string } | null {
+  const parts = token.split(".");
+  if (parts.length !== 3) return null;
+  const [header, payload, sig] = parts as [string, string, string];
+  const expected = createHmac("sha256", shopifySecret())
+    .update(`${header}.${payload}`)
+    .digest("base64url");
+  const a = Buffer.from(sig);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
+
+  let claims: { aud?: string; dest?: string; exp?: number; nbf?: number };
+  try {
+    claims = JSON.parse(Buffer.from(payload, "base64url").toString());
+  } catch {
+    return null;
+  }
+  if (claims.aud !== SHOPIFY_CLIENT_ID) return null;
+  const now = Date.now() / 1000;
+  if (typeof claims.exp !== "number" || claims.exp < now) return null;
+  if (typeof claims.nbf === "number" && claims.nbf > now) return null;
+
+  const shop = normalizeShop(claims.dest ?? null);
+  return shop ? { shop } : null;
 }
 
 export function redirectUri(origin: string) {

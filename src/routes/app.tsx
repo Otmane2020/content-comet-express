@@ -12,6 +12,8 @@ import { startGoogleConnect } from "@/lib/google.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { ShopifyWelcome } from "@/components/dashboard/ShopifyWelcome";
+import { exchangeShopifySession } from "@/lib/shopify.functions";
+import { SHOPIFY_CLIENT_ID } from "@/lib/shopify.constants";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
@@ -55,6 +57,18 @@ type Project = {
   keywords: string[] | null;
 };
 
+const APP_BRIDGE_SRC = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
+
+/** App Bridge attaches window.shopify asynchronously once its script loads. */
+async function waitForShopifyAppBridge(timeoutMs = 8000): Promise<Window["shopify"] | null> {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (window.shopify) return window.shopify;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return null;
+}
+
 function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -68,15 +82,64 @@ function Dashboard() {
   });
   const build = useServerFn(buildPlan);
   const announceSignup = useServerFn(notifySignup);
+  const exchangeSession = useServerFn(exchangeShopifySession);
   const [refilling, setRefilling] = useState(false);
   const [showShopifyWelcome, setShowShopifyWelcome] = useState(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("shopify") === "connected";
   });
+  // Shopify appends ?host=... to every load of an embedded app — the one
+  // reliable signal that we're running inside the admin iframe.
+  const [embedded] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return Boolean(new URLSearchParams(window.location.search).get("host"));
+  });
+  // Storage is partitioned inside the iframe, so a session that exists when
+  // Ranki.ai is visited directly is invisible here — this stays false while
+  // we try to silently establish one from the App Bridge session token, so
+  // the plain "no session -> /auth" redirect below doesn't fire too early.
+  const [shopifyAuthChecked, setShopifyAuthChecked] = useState(!embedded);
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/auth", replace: true });
-  }, [loading, user, navigate]);
+    if (!embedded) return;
+    if (document.querySelector("script[data-shopify-app-bridge]")) return;
+    const script = document.createElement("script");
+    script.src = APP_BRIDGE_SRC;
+    script.dataset["apiKey"] = SHOPIFY_CLIENT_ID;
+    script.dataset["shopifyAppBridge"] = "1";
+    document.head.appendChild(script);
+  }, [embedded]);
+
+  useEffect(() => {
+    if (!embedded || loading || user || shopifyAuthChecked) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const shopify = await waitForShopifyAppBridge();
+        if (cancelled || !shopify) return;
+        const token = await shopify.idToken();
+        const { email, hashedToken } = await exchangeSession({ data: { token } });
+        const { error } = await supabase.auth.verifyOtp({
+          email,
+          token: hashedToken,
+          type: "magiclink",
+        });
+        if (error) throw error;
+      } catch {
+        // No linked account for this store yet, or App Bridge didn't load —
+        // fall through to the normal /auth screen, still inside the iframe.
+      } finally {
+        if (!cancelled) setShopifyAuthChecked(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [embedded, loading, user, shopifyAuthChecked, exchangeSession]);
+
+  useEffect(() => {
+    if (!loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
+  }, [loading, user, shopifyAuthChecked, navigate]);
 
   useEffect(() => {
     if (!user) return;
@@ -127,7 +190,7 @@ function Dashboard() {
     };
   }, [user, project, startGoogle]);
 
-  if (loading || (user && projectLoading)) {
+  if (loading || (user && projectLoading) || (embedded && !user && !shopifyAuthChecked)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Loading your autopilot…
@@ -183,49 +246,64 @@ function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground md:flex">
-        <div className="px-1 pb-6">
-          <BrandLockup dark />
-        </div>
-        <nav className="space-y-1">
-          {nav.map((entry) => (
+      {/* Embedded in Shopify admin: Shopify supplies the nav chrome, we only
+          feed it links — our own sidebar would just duplicate it. Ranki
+          keeps its branding on content (buttons, badges, accent colors). */}
+      {embedded && (
+        <ui-nav-menu>
+          {nav.map((entry, i) => (
+            <a key={entry.id} href={`/app?tab=${entry.id}`} rel={i === 0 ? "home" : undefined}>
+              {entry.label}
+            </a>
+          ))}
+        </ui-nav-menu>
+      )}
+
+      {!embedded && (
+        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground md:flex">
+          <div className="px-1 pb-6">
+            <BrandLockup dark />
+          </div>
+          <nav className="space-y-1">
+            {nav.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setTab(entry.id)}
+                className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] font-medium transition-colors ${
+                  tab === entry.id
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "hover:bg-sidebar-accent/60"
+                }`}
+              >
+                <entry.icon className="size-4" />
+                {entry.label}
+              </button>
+            ))}
+          </nav>
+          <div className="mt-auto space-y-1 px-1 text-[12px] text-sidebar-foreground/70">
             <button
-              key={entry.id}
               type="button"
-              onClick={() => setTab(entry.id)}
-              className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-[13.5px] font-medium transition-colors ${
-                tab === entry.id
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "hover:bg-sidebar-accent/60"
+              onClick={() => setTab("help")}
+              className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors ${
+                tab === "help" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60"
               }`}
             >
-              <entry.icon className="size-4" />
-              {entry.label}
+              <LifeBuoy className="size-3.5" /> Help
             </button>
-          ))}
-        </nav>
-        <div className="mt-auto space-y-1 px-1 text-[12px] text-sidebar-foreground/70">
-          <button
-            type="button"
-            onClick={() => setTab("help")}
-            className={`flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors ${
-              tab === "help" ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/60"
-            }`}
-          >
-            <LifeBuoy className="size-3.5" /> Help
-          </button>
-          <button
-            type="button"
-            onClick={async () => {
-              await supabase.auth.signOut();
-              navigate({ to: "/", replace: true });
-            }}
-            className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-primary"
-          >
-            <LogOut className="size-3.5" /> Sign out
-          </button>
-        </div>
-      </aside>
+            <button
+              type="button"
+              onClick={async () => {
+                await supabase.auth.signOut();
+                navigate({ to: "/", replace: true });
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-primary"
+            >
+              <LogOut className="size-3.5" /> Sign out
+            </button>
+          </div>
+        </aside>
+      )}
 
       <main className="min-w-0 flex-1">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 bg-gradient-to-r from-background via-background to-muted/30 px-5 py-4">
