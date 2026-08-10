@@ -73,6 +73,12 @@ const FORMATS = [
   { code: "SHOP", desc: "Shopping comparison" },
 ];
 
+const BUSINESS_ANALYSIS_STAGES = [
+  { icon: Wand2, label: "Reading your website" },
+  { icon: Building2, label: "Understanding your positioning" },
+  { icon: Sparkles, label: "Preparing your content strategy" },
+];
+
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
   const build = useServerFn(buildPlan);
   const kickstart = useServerFn(kickstartFirstDay);
@@ -271,7 +277,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   async function autodetectBusiness() {
     if (!form.website_url.trim()) {
       toast.error("Add your website URL first.");
-      return;
+      return false;
     }
     setScanning(true);
     try {
@@ -286,12 +292,25 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         keywords: f.keywords || d.keywords.join(", "),
       }));
       setDetected(d.summary);
-      toast.success("Website analysed — fields filled in.");
+      toast.success("Website analysed — your profile is ready.");
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not read that website");
+      return false;
     } finally {
       setScanning(false);
     }
+  }
+
+  async function analyseAndContinue() {
+    if (!form.website_url.trim()) {
+      toast.error("Add your website URL so we can analyse it.");
+      return;
+    }
+    const analysed = await autodetectBusiness();
+    if (!analysed) return;
+    void saveDraft(1);
+    setStep(1);
   }
 
   async function autodetectMarket() {
@@ -525,7 +544,47 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   {active.blurb}
                 </p>
 
-                {step === 0 && (
+                {step === 0 && scanning && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="relative mt-6 overflow-hidden rounded-2xl bg-deep px-6 py-8 text-background"
+                  >
+                    <motion.div
+                      aria-hidden
+                      className="pointer-events-none absolute -right-14 -top-14 size-64 rounded-full bg-gold/30 blur-3xl"
+                      animate={{ scale: [1, 1.16, 1], opacity: [0.45, 0.85, 0.45] }}
+                      transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                    <div className="relative mx-auto max-w-md text-center">
+                      <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-background/10 text-gold">
+                        <Loader2 className="size-6 animate-spin" />
+                      </span>
+                      <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-gold">AI analysis in progress</p>
+                      <h2 className="mt-2 font-display text-2xl font-bold">We’re analysing your business…</h2>
+                      <p className="mt-2 text-[13px] leading-relaxed text-background/70">
+                        We’re turning what makes {form.name || "your brand"} unique into a content plan made for your audience.
+                      </p>
+                      <div className="mt-7 space-y-2 text-left">
+                        {BUSINESS_ANALYSIS_STAGES.map((item, index) => (
+                          <motion.div
+                            key={item.label}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: [0.5, 1, 0.5], x: 0 }}
+                            transition={{ duration: 2.4, repeat: Infinity, delay: index * 0.45 }}
+                            className="flex items-center gap-3 rounded-xl bg-background/10 px-3.5 py-3 text-[12.5px] font-medium"
+                          >
+                            <item.icon className="size-4 text-gold" />
+                            {item.label}
+                            <Loader2 className="ml-auto size-3.5 animate-spin text-background/50" />
+                          </motion.div>
+                        ))}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {step === 0 && !scanning && (
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
                       <Label htmlFor="name" className="text-[12.5px]">Business name</Label>
@@ -535,18 +594,9 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       <Label htmlFor="url" className="text-[12.5px]">Website</Label>
                       <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
                         <Input id="url" value={form.website_url} onChange={set("website_url")} placeholder="https://yoursite.com" />
-                        <Button
-                          type="button"
-                          onClick={autodetectBusiness}
-                          disabled={scanning}
-                          className="shrink-0 bg-gold text-gold-foreground hover:bg-gold/90"
-                        >
-                          {scanning ? <Loader2 className="mr-1.5 size-4 animate-spin" /> : <Wand2 className="mr-1.5 size-4" />}
-                          {scanning ? "Reading site…" : "Auto-detect with AI"}
-                        </Button>
                       </div>
                       <p className="mt-1.5 text-[11.5px] text-muted-foreground">
-                        We read your homepage and fill industry, audience, tone and language for you.
+                        Add your URL and we’ll automatically prepare your profile, competitors and keyword opportunities.
                       </p>
                       {detected && (
                         <motion.p
@@ -867,17 +917,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
               {step < 2 ? (
                 <Button
                   type="button"
-                  onClick={() =>
+                  onClick={() => {
+                    if (step === 0) {
+                      void analyseAndContinue();
+                      return;
+                    }
                     setStep((s) => {
                       const next = Math.min(2, s + 1);
                       void saveDraft(next);
                       return next;
-                    })
-                  }
-                  disabled={!canNext}
+                    });
+                  }}
+                  disabled={!canNext || scanning}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
-                  Continue <ArrowRight className="ml-1.5 size-4" />
+                  {step === 0 ? "Analyse & continue" : "Continue"} <ArrowRight className="ml-1.5 size-4" />
                 </Button>
               ) : subActive === false ? (
                 <Button
