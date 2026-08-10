@@ -79,3 +79,41 @@ export const completeOnboarding = createServerFn({ method: "POST" })
     if (error) console.error(`[onboarding] complete failed: ${error.message}`);
     return { ok: true };
   });
+
+/**
+ * If the account arrived through the Shopify app install, reuse everything the
+ * store already told us instead of asking the merchant to retype it.
+ */
+export const getShopifyPrefill = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { supabase, userId } = context;
+    const { data, error } = await supabase
+      .from("integrations")
+      .select("config")
+      .eq("user_id", userId)
+      .eq("platform", "shopify")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) console.error(`[onboarding] shopify prefill read failed: ${error.message}`);
+    const cfg = (data?.config ?? null) as Record<string, any> | null;
+    if (!cfg?.shop) return { connected: false as const };
+
+    const products = Array.isArray(cfg["products"]) ? cfg["products"] : [];
+    const collections = Array.isArray(cfg["collections"]) ? cfg["collections"] : [];
+    const types = [...new Set(products.map((p: any) => p?.productType).filter(Boolean))].slice(0, 5);
+
+    return {
+      connected: true as const,
+      shop: String(cfg["shop"]),
+      business_name: (cfg["shop_name"] ?? cfg["name"] ?? null) as string | null,
+      website_url: (cfg["primary_domain"] ?? cfg["shop"] ?? null) as string | null,
+      business_description: (cfg["description"] ?? null) as string | null,
+      industry: (types[0] ?? null) as string | null,
+      country: (cfg["country_name"] ?? cfg["country_code"] ?? null) as string | null,
+      language: ((cfg["locale"] as string | undefined)?.slice(0, 2) ?? null) as string | null,
+      productCount: products.length,
+      collectionTitles: collections.map((c: any) => c?.title).filter(Boolean).slice(0, 10) as string[],
+    };
+  });
