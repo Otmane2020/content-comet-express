@@ -394,6 +394,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
         );
       }
       localStorage.removeItem(DRAFT_KEY);
+      await markComplete({ data: { projectId: data.id } }).catch(() => undefined);
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
