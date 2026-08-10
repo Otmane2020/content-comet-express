@@ -29,6 +29,7 @@ export const generateArticle = createServerFn({ method: "POST" })
   .handler(async ({ data, context }) => {
     const { writeArticle } = await import("./plan.server");
     const { DEFAULT_MODEL } = await import("./ai.server");
+    const { internalLinkTargets } = await import("./netlinking.server");
     const { supabase } = context;
 
     const { data: item, error } = await supabase
@@ -62,11 +63,12 @@ export const generateArticle = createServerFn({ method: "POST" })
           .in("platform", CATALOG_PLATFORMS as unknown as string[]);
         products = await fetchCatalog((stores ?? []) as never);
       }
+      const links = await internalLinkTargets(supabase, item.project_id);
       const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
       const article = await writeArticle(
         { ...project, keywords: target ? [target] : (project.keywords ?? []) },
         { content_type: item.content_type as ContentType, topic: item.topic },
-        { products },
+        { products, links },
       );
       const { error: updateError } = await supabase
         .from("content_items")
@@ -150,6 +152,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
     const { writeArticle } = await import("./plan.server");
     const { DEFAULT_MODEL } = await import("./ai.server");
     const { generateImageBytes, storeImage, coverPrompt } = await import("./images.server");
+    const { internalLinkTargets } = await import("./netlinking.server");
     const { supabase, userId } = context;
 
     const { data: project } = await supabase
@@ -183,7 +186,8 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
     }
 
     async function write(itemId: string, type: ContentType, topic: string | null) {
-      const article = await writeArticle(ctx, { content_type: type, topic });
+      const links = await internalLinkTargets(supabase, data.projectId);
+      const article = await writeArticle(ctx, { content_type: type, topic }, { links });
       await supabase
         .from("content_items")
         .update({

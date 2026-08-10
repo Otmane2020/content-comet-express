@@ -79,9 +79,13 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
 export async function writeArticle(
   project: ProjectBrief,
   item: { content_type: ContentType; topic: string | null },
-  extras?: { products?: { title: string; price: string | null; url: string | null; description: string | null }[] },
+  extras?: {
+    products?: { title: string; price: string | null; url: string | null; description: string | null }[];
+    links?: { title: string; url: string }[];
+  },
 ) {
   const products = extras?.products ?? [];
+  const links = extras?.links ?? [];
   const guidance: Record<ContentType, string> = {
     geo: "Write so that generative engines (ChatGPT, Perplexity, Gemini, AI Overviews) can quote you: crisp factual claims, statistics, named entities, and a quotable summary paragraph near the top.",
     seo: "Write a classic long-form SEO article: search intent match, H2/H3 structure, internal-link suggestions, and a keyword-rich but natural style.",
@@ -97,6 +101,12 @@ export async function writeArticle(
         .join("\n")}\n\nBuild the comparison table and the recommendation from this catalogue, and link each product to its URL in markdown.`
     : "";
 
+  const linksBlock = links.length
+    ? `\n\nReal internal pages of this business, for internal linking (use ONLY these exact URLs, never invent or alter one):\n${links
+        .map((l) => `${l.title} — ${l.url}`)
+        .join("\n")}\n\nPick 2-4 that are genuinely relevant to this topic and weave them into the body as natural markdown links [anchor text](url) — never a dumped list, never a link that isn't in this exact list.`
+    : "";
+
   const year = new Date().getUTCFullYear();
   const raw = await callOpenRouter({
     json: true,
@@ -108,7 +118,7 @@ export async function writeArticle(
 Content type: ${TYPE_META[item.content_type].label}
 Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
-${guidance[item.content_type]}${catalogBlock}
+${guidance[item.content_type]}${catalogBlock}${linksBlock}
 
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.

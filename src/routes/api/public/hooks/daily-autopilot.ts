@@ -23,6 +23,7 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
         const { writeArticle } = await import("@/lib/plan.server");
         const { ensureWindow } = await import("@/lib/rotation.server");
         const { publishTo } = await import("@/lib/publish.server");
+        const { internalLinkTargets } = await import("@/lib/netlinking.server");
 
         const today = planWindow(new Date(), 1)[0]!.date;
         const { data: projects } = await supabaseAdmin.from("projects").select("*");
@@ -100,11 +101,13 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
                   .in("platform", CATALOG_PLATFORMS as unknown as string[]);
                 products = await fetchCatalog((stores ?? []) as never);
               }
+              const links = await internalLinkTargets(supabaseAdmin, project.id);
               const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
-              const article = await writeArticle(target ? { ...brief, keywords: [target] } : brief, {
-                content_type: item.content_type as ContentType,
-                topic: item.topic,
-              }, { products });
+              const article = await writeArticle(
+                target ? { ...brief, keywords: [target] } : brief,
+                { content_type: item.content_type as ContentType, topic: item.topic },
+                { products, links },
+              );
               body = article.body_md;
               title = article.title;
               excerpt = article.excerpt;
