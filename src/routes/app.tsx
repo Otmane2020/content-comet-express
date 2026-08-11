@@ -285,6 +285,8 @@ function Dashboard() {
   if (showShopifyWelcome) {
     return (
       <ShopifyWelcome
+        userId={user.id}
+        projectId={project.id}
         onContinue={() => {
           setShowShopifyWelcome(false);
           window.history.replaceState(null, "", "/app");
