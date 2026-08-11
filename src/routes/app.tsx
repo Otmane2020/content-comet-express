@@ -120,15 +120,6 @@ function Dashboard() {
         setShopifyAuthChecked(true);
       };
       try {
-            if (window.top) window.top.location.href = url;
-          } catch {
-            /* window.open above already attempted the navigation */
-          }
-          return;
-        }
-        setShopifyAuthChecked(true);
-      };
-      try {
         const shopify = await waitForShopifyAppBridge();
         if (cancelled) return;
         if (!shopify) {
@@ -182,7 +173,7 @@ function Dashboard() {
 
   useEffect(() => {
     if (!embedded && !loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
-  }, [loading, user, shopifyAuthChecked, navigate]);
+  }, [embedded, loading, user, shopifyAuthChecked, navigate]);
 
   useEffect(() => {
     if (!user) return;
