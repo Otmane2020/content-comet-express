@@ -879,44 +879,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                 {step === 2 && (
                   <div className="mt-6 space-y-5">
                     {false && scanningMarket && (
-                      <div className="grid gap-3 sm:grid-cols-3">
-                        {MARKET_STAGES.map((s, i) => {
-                          const done = i < marketStage;
-                          const current = i === marketStage;
-                          return (
-                            <motion.div
-                              key={s.label}
-                              initial={{ opacity: 0, y: 12 }}
-                              animate={{ opacity: 1, y: 0 }}
-                              transition={{ delay: 0.06 * i }}
-                              className={`surface relative overflow-hidden p-4 pl-5 transition ${
-                                current
-                                  ? "border-primary/40 bg-primary/5"
-                                  : done
-                                    ? "border-primary/20 bg-primary/5"
-                                  : "border-border bg-card"
-                              }`}
-                            >
-                              <span aria-hidden className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${current ? "bg-primary" : done ? "bg-gold" : "bg-border"}`} />
-                              <span
-                                className={`flex size-7 items-center justify-center rounded-lg ${
-                                  done ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
-                                }`}
-                              >
-                                {done ? (
-                                  <Check className="size-3.5" />
-                                ) : (
-                                  <s.icon className={`size-3.5 ${current ? "animate-pulse" : ""}`} />
-                                )}
-                              </span>
-                              <p className="mt-2 text-[12.5px] font-semibold leading-snug">{s.label}</p>
-                            </motion.div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {false && scanningMarket && (
                       <div className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background">
                         <motion.div
                           aria-hidden
