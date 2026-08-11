@@ -1,11 +1,11 @@
 export const LANGUAGES = [
-  { code: "en", label: "English", flag: "🇬🇧" },
-  { code: "fr", label: "French", flag: "🇫🇷" },
-  { code: "es", label: "Spanish", flag: "🇪🇸" },
-  { code: "de", label: "German", flag: "🇩🇪" },
-  { code: "it", label: "Italian", flag: "🇮🇹" },
-  { code: "nl", label: "Dutch", flag: "🇳🇱" },
-  { code: "pt", label: "Portuguese", flag: "🇵🇹" },
+  { code: "en", label: "English", countryCode: "gb" },
+  { code: "fr", label: "French", countryCode: "fr" },
+  { code: "es", label: "Spanish", countryCode: "es" },
+  { code: "de", label: "German", countryCode: "de" },
+  { code: "it", label: "Italian", countryCode: "it" },
+  { code: "nl", label: "Dutch", countryCode: "nl" },
+  { code: "pt", label: "Portuguese", countryCode: "pt" },
 ] as const;
 
 export const INDUSTRY_GROUPS: { group: string; items: string[] }[] = [
