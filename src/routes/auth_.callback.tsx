@@ -4,6 +4,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { supabase } from "@/integrations/supabase/client";
 import { createCheckout } from "@/lib/billing.functions";
 import { takeCheckoutIntent } from "@/lib/checkoutIntent";
+import { SHOPIFY_CLIENT_ID } from "@/lib/shopify.constants";
 
 /**
  * Public landing route for OAuth / email-confirmation redirects.
@@ -33,10 +34,22 @@ function AuthCallback() {
     const finish = () => {
       if (done) return;
       done = true;
-      const fromShopify =
-        new URLSearchParams(window.location.search).get("shopify") === "connected";
+      const params = new URLSearchParams(window.location.search);
+      const fromShopify = params.get("shopify") === "connected";
       if (fromShopify) {
-        window.location.replace("/app?shopify=connected");
+        // OAuth and billing approval both required escaping the iframe to a
+        // top-level tab, so we're no longer inside Shopify admin. Sending the
+        // merchant to our own bare domain would leave them there — this app
+        // is embedded, so the loop only closes by navigating back into
+        // Shopify admin. Shopify auto-embeds this legacy myshopify.com admin
+        // URL into the new admin.shopify.com shell, which reloads our app
+        // inside the iframe; by then everything (account, subscription,
+        // integration row) is already set up, so the embedded silent-auth
+        // path signs the merchant in without any further redirect.
+        const shop = params.get("shop");
+        window.location.replace(
+          shop ? `https://${shop}/admin/apps/${SHOPIFY_CLIENT_ID}` : "/app?shopify=connected",
+        );
         return;
       }
       // A "Start now" click on the marketing page (e.g. via Google sign-in)
