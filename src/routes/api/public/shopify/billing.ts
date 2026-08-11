@@ -4,6 +4,7 @@ const back = (origin: string, params: Record<string, string>) => new Response(nu
  * has no session yet, so /app would only offer them the sign-up wizard. */
 const installError = (origin: string, shop: string | null, message: string) =>
   new Response(null, { status: 302, headers: { location: `${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}` } });
+const publicOrigin = () => (process.env["PUBLIC_SITE_URL"] || "https://www.ranki.ai").replace(/\/$/, "");
 
 export const Route = createFileRoute("/api/public/shopify/billing")({ server: { handlers: { GET: async ({ request }) => {
   const url = new URL(request.url); const origin = url.origin; const mod = await import("@/lib/shopify.server");
@@ -67,6 +68,6 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
     if (pending) await pendingStore.markPendingShopifyInstall(shop, "active");
 
     if (flow === "dashboard") return back(origin, { shopify: "connected" });
-    return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(merchant.email, `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
+    return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(merchant.email, `${publicOrigin()}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
   } catch (e) { console.error("[shopify billing] return failed", e); return fail((e instanceof Error ? e.message : "failed").slice(0, 160)); }
 } } } });
