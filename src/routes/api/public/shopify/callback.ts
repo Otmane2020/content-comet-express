@@ -53,7 +53,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
           await pending.savePendingShopifyInstall({
             shop, access_token, blog_id: "", store_info: info,
             snapshot: { count: 0, types: [], titles: [] },
-            content: { products: [], collections: [], pages: [], policies: [] },
+          content: { products: [], collections: [], pages: [], policies: [], articles: [] },
             billing_plan: "monthly",
           });
           const setupState = mod.signState({ origin: "", shop, ts: Date.now() });

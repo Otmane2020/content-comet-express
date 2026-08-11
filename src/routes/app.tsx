@@ -355,6 +355,7 @@ function Dashboard() {
     { id: "help", label: "Help & contact", icon: LifeBuoy },
     { id: "settings", label: "Settings", icon: Settings2 },
   ];
+  const primaryNav = nav.filter((entry) => entry.id !== "help");
 
   return (
     <div className={`flex min-h-screen bg-background ${embedded ? "bg-muted/30" : ""}`}>
@@ -420,7 +421,7 @@ function Dashboard() {
 
           <div className="flex items-center gap-2">
             <div className={`${embedded ? "hidden" : "flex gap-1 md:hidden"}`}>
-              {nav.map((entry) => (
+              {primaryNav.map((entry) => (
                 <Button
                   key={entry.id}
                   size="sm"
@@ -460,7 +461,7 @@ function Dashboard() {
                 <DropdownMenuItem onClick={() => setTab("settings")} className="gap-2 text-xs">
                   <Settings2 className="size-3.5" /> Project settings
                 </DropdownMenuItem>
-                <DropdownMenuSeparator />
+                {!embedded && <><DropdownMenuSeparator />
                 <DropdownMenuItem
                   onClick={async () => {
                     await supabase.auth.signOut();
@@ -469,7 +470,7 @@ function Dashboard() {
                   className="gap-2 text-xs text-destructive focus:text-destructive"
                 >
                   <LogOut className="size-3.5" /> Sign out
-                </DropdownMenuItem>
+                </DropdownMenuItem></>}
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
@@ -477,7 +478,7 @@ function Dashboard() {
 
         {embedded && (
           <nav aria-label="Ranki navigation" className="flex gap-1 overflow-x-auto border-b border-border/60 bg-background/95 px-3 py-2 shadow-sm">
-            {nav.map((entry) => (
+            {primaryNav.map((entry) => (
               <button
                 key={entry.id}
                 type="button"
@@ -503,6 +504,7 @@ function Dashboard() {
           {tab === "help" && <Support />}
           {tab === "settings" && <SettingsTab project={project} />}
         </div>
+        {embedded && <footer className="border-t border-border/60 px-5 py-3"><button type="button" onClick={() => setTab("help")} className="flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground"><LifeBuoy className="size-3.5" /> Help & contact</button></footer>}
       </main>
     </div>
   );

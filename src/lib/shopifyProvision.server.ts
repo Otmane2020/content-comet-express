@@ -63,6 +63,7 @@ export function buildShopifyConfig(
     })),
     pages: (content?.pages ?? []).map((p) => ({ title: p.title, handle: p.handle, url: p.url })),
     policies: (content?.policies ?? []).map((p) => ({ title: p.title, handle: p.handle })),
+    articles: (content?.articles ?? []).slice(0, 100).map((a) => ({ title: a.title, handle: a.handle, url: a.url, blog_id: a.blogId })),
     synced_at: new Date().toISOString(),
   };
 }

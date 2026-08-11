@@ -304,11 +304,14 @@ export type ShopifyPolicy = {
   url: string | null;
 };
 
+export type ShopifyArticle = { id: string; title: string; handle: string; url: string; blogId: string };
+
 export type ShopifyStoreContent = {
   products: ShopifyProduct[];
   collections: ShopifyCollection[];
   pages: ShopifyPage[];
   policies: ShopifyPolicy[];
+  articles: ShopifyArticle[];
 };
 
 const PRODUCT_FIELDS =
@@ -404,13 +407,19 @@ export async function fetchStoreContent(
     url: `${siteUrl}/pages/${p.handle}`,
   }));
 
+  const blogs = await safeJson<{ blogs?: { id: number }[] }>(`${base}/blogs.json?limit=10`);
+  const articles = (await Promise.all((blogs?.blogs ?? []).slice(0, 10).map(async (blog) => {
+    const data = await safeJson<{ articles?: { id: number; title: string; handle: string }[] }>(`${base}/blogs/${blog.id}/articles.json?limit=20&fields=id,title,handle`);
+    return (data?.articles ?? []).map((article) => ({ id: String(article.id), title: article.title, handle: article.handle, url: `${siteUrl}/blogs/${blog.id}/${article.handle}`, blogId: String(blog.id) }));
+  }))).flat();
+
   const policies: ShopifyPolicy[] = (policiesRes?.policies ?? []).map((p) => ({
     title: p.title,
     handle: p.handle,
     url: p.url ?? null,
   }));
 
-  return { products, collections, pages, policies };
+  return { products, collections, pages, policies, articles };
 }
 
 /* --------------------------- Onboarding profile -------------------------- */
