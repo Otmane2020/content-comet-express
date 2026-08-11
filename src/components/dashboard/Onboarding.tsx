@@ -164,6 +164,18 @@ function audienceFieldCopy(locale: string) {
 const bareDomain = (value: string) =>
   value.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
 
+/** The favicon confirms that the scan refers to a real website. A concise
+ * initial is used when a storefront has no exposed favicon. */
+function WebsiteFavicon({ website, label, className = "" }: { website: string; label: string; className?: string }) {
+  const [failed, setFailed] = useState(false);
+  const domain = bareDomain(website);
+  const initial = (label.trim().charAt(0) || domain.charAt(0) || "?").toUpperCase();
+  if (!domain || failed) {
+    return <span aria-label={`${label} icon`} className={`flex shrink-0 items-center justify-center rounded-full bg-primary/10 text-[9px] font-bold text-primary ${className}`}>{initial}</span>;
+  }
+  return <img src={`https://${domain}/favicon.ico`} alt="" loading="lazy" onError={() => setFailed(true)} className={`shrink-0 rounded-full border border-border/70 bg-background object-contain p-0.5 ${className}`} />;
+}
+
 /**
  * The answer cites domains while this caption names the business, so the check
  * has to run on the domain. Without it the caption claimed the merchant was
@@ -1275,6 +1287,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
                     {!scanningMarket && market && !market.error && (
                       <div className="surface flex items-center gap-3 px-4 py-3 text-[12.5px] font-medium text-foreground">
+                        <WebsiteFavicon website={form.website_url} label={form.name || "Your brand"} className="size-6" />
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                           <Check className="size-3.5" />
                         </span>
@@ -1313,7 +1326,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                             {market.competitors.slice(0, 5).map((d, index) => (
                               <div key={d} className="flex items-center gap-2.5 py-2.5 text-[13px] font-medium">
                                 <span className="w-5 font-mono text-[10.5px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
-                                <span className="size-1.5 rounded-full bg-gold" />
+                                <WebsiteFavicon website={d} label={d} className="size-5" />
                                 <span className="truncate">{d}</span>
                               </div>
                             ))}
