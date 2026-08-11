@@ -41,17 +41,26 @@ const STEPS = [
   },
   {
     id: 1,
-    icon: Radar,
+    icon: Sparkles,
     kicker: "Step 2",
+    title: "Your content profile",
+    lead: "Set the voice of your autopilot",
+    blurb:
+      "Confirm the industry, language, editorial tone and audience Ranki should use. These settings shape every article before we scan your market.",
+  },
+  {
+    id: 2,
+    icon: Radar,
+    kicker: "Step 3",
     title: "Competitors & keywords",
     lead: "We scan your market",
     blurb:
       "We analyse your competitors and pull the keywords that actually drive traffic: volume, difficulty, CPC. They feed the calendar.",
   },
   {
-    id: 2,
+    id: 3,
     icon: Rocket,
-    kicker: "Step 3",
+    kicker: "Step 4",
     title: "Generation & auto-publish",
     lead: "We write and publish daily",
     blurb:
@@ -176,7 +185,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       }
       if (new URLSearchParams(window.location.search).get("checkout") === "success") {
         returned = true;
-        setStep(2);
+        setStep(3);
       }
     } catch {
       /* ignore */
@@ -257,7 +266,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   // Run the competitor/keyword scan the moment the merchant reaches step 2 —
   // no button to press, it just happens while they read.
   useEffect(() => {
-    if (step === 1 && !market && !scanningMarket && form.website_url.trim()) {
+    if (step === 2 && !market && !scanningMarket && form.website_url.trim()) {
       void autodetectMarket();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -279,7 +288,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     setBusy(true);
     try {
       localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
-      await saveDraft(2);
+      await saveDraft(3);
       const { url, alreadyActive } = await checkout({
         data: {
           cycle,
@@ -489,7 +498,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
             />
             <div className="relative">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
-                Setup · {step + 1}/3
+                Setup · {step + 1}/4
               </p>
               <h2 className="mt-2 font-display text-[21px] font-bold leading-tight">
                 3 minutes to launch 30 days of content
@@ -544,7 +553,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
               <div className="mt-8 h-1 overflow-hidden rounded-full bg-background/15">
                 <motion.div
                   className="h-full rounded-full bg-gold"
-                  animate={{ width: `${((step + 1) / 3) * 100}%` }}
+                  animate={{ width: `${((step + 1) / 4) * 100}%` }}
                   transition={{ type: "spring", stiffness: 120, damping: 20 }}
                 />
               </div>
@@ -726,6 +735,61 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
                 {step === 1 && (
                   <div className="mt-6 space-y-5">
+                    <div className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-5">
+                      <div className="flex items-center gap-2">
+                        <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                          <Sparkles className="size-4" />
+                        </span>
+                        <div>
+                          <p className="text-[13px] font-semibold">Your AI writing brief</p>
+                          <p className="text-[12px] text-muted-foreground">Fine-tune what Ranki learned before the live SEO scan.</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div>
+                        <Label htmlFor="profile-industry" className="text-[12.5px]">Industry</Label>
+                        <select id="profile-industry" value={form.industry} onChange={set("industry")} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
+                          <option value="">Select an industry…</option>
+                          {INDUSTRY_GROUPS.map((g) => (
+                            <optgroup key={g.group} label={g.group}>
+                              {g.items.map((i) => <option key={i} value={i}>{i}</option>)}
+                            </optgroup>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <Label className="text-[12.5px]">Content language</Label>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {LANGUAGES.map((l) => (
+                            <button key={l.code} type="button" onClick={() => setForm((f) => ({ ...f, locale: l.code }))} className={`rounded-lg border px-2.5 py-2 text-[12px] font-medium transition ${form.locale === l.code ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-background hover:border-primary/40"}`}>
+                              {l.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label className="text-[12.5px]">Editorial tone</Label>
+                        <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                          {TONES.map((t) => (
+                            <button key={t.id} type="button" onClick={() => setForm((f) => ({ ...f, tone: t.id }))} className={`rounded-xl border px-3 py-2.5 text-left transition ${form.tone === t.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-primary/40"}`}>
+                              <span className="block text-[12.5px] font-semibold">{t.label}</span>
+                              <span className="mt-0.5 block text-[11px] text-muted-foreground">{t.hint}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="sm:col-span-2">
+                        <Label htmlFor="profile-audience" className="text-[12.5px]">Who are we writing for?</Label>
+                        <Textarea id="profile-audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={3} placeholder="Businesses seeking AI-powered automation and data insights." />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {step === 2 && (
+                  <div className="mt-6 space-y-5">
                     {scanningMarket && (
                       <div className="grid gap-3 sm:grid-cols-3">
                         {MARKET_STAGES.map((s, i) => {
@@ -898,7 +962,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   </div>
                 )}
 
-                {step === 2 && (
+                {step === 3 && (
                   <div className="mt-6 space-y-5">
                     <div className="grid gap-2 sm:grid-cols-5">
                       {FORMATS.map((f, i) => (
@@ -1011,12 +1075,12 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 <ArrowLeft className="mr-1.5 size-4" /> Back
               </Button>
 
-              {step < 2 ? (
+              {step < 3 ? (
                 <Button
                   type="button"
                   onClick={() => {
                     setStep((s) => {
-                      const next = Math.min(2, s + 1);
+                      const next = Math.min(3, s + 1);
                       void saveDraft(next);
                       return next;
                     });
