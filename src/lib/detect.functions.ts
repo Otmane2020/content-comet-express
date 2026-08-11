@@ -83,7 +83,7 @@ export const detectMarket = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { normalizeUrl } = await import("./scrape.server");
     const { localeOpts, requireLiveDataForSeo, discoverCompetitorsFromSerp } = await import("./research.server");
-    const { keywordSuggestions, keywordsForSite } = await import("./dataforseo.server");
+    const { competitorDomains, keywordSuggestions, keywordsForSite } = await import("./dataforseo.server");
     const { QUOTA, dedupeKeywords } = await import("./quotas");
     const { scoreRelevance, compositeScore, MIN_RELEVANCE, productSeeds, buildCanonicalProfile } = await import(
       "./relevance.server"
@@ -125,8 +125,15 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     const biz = canonical;
 
-    // 2. Discover competitors using the canonical profile.
-    const competitorRows = await discoverCompetitorsFromSerp(biz, data.locale ?? null, null, null, QUOTA.competitors);
+    // 2. DataForSEO's domain-competitor graph is the primary source. It uses
+    // real shared rankings, so rivals are not guessed from generic queries.
+    let competitorRows = await competitorDomains(domain, opts, Math.max(8, QUOTA.competitors)).catch(() => []);
+    if (competitorRows.length < 5) {
+      // Only fall back to live SERPs when Labs has insufficient domain data.
+      const serpRows = await discoverCompetitorsFromSerp(biz, data.locale ?? null, null, null, QUOTA.competitors);
+      const known = new Set(competitorRows.map((row) => row.domain.toLowerCase()));
+      competitorRows = [...competitorRows, ...serpRows.filter((row) => !known.has(row.domain.toLowerCase()))].slice(0, Math.max(8, QUOTA.competitors));
+    }
 
     // 3. Site keywords from DataForSEO — what the domain actually ranks for.
     let siteRows: Awaited<ReturnType<typeof keywordsForSite>> = [];
