@@ -4,6 +4,17 @@ import type { ShopInfo, ShopifyStoreContent } from "./shopify.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
 
+/** Shopify data is external input. Drop the Unicode replacement character so
+ * a malformed store field can never make a downstream HTTP header invalid. */
+function cleanShopifyValue(value: unknown): unknown {
+  if (typeof value === "string") return value.replace(/\uFFFD/g, "").trim() || null;
+  if (Array.isArray(value)) return value.map(cleanShopifyValue);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cleanShopifyValue(item)]));
+  }
+  return value;
+}
+
 async function findUserByEmail(admin: Admin, email: string) {
   for (let page = 1; page <= 10; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
@@ -115,6 +126,8 @@ export async function provisionShopifyMerchant(args: {
 }) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const handle = args.shop.replace(".myshopify.com", "");
+  const info = cleanShopifyValue(args.info) as ShopInfo;
+  const content = cleanShopifyValue(content) as ShopifyStoreContent | undefined;
 
   // Re-install of a store we already know: keep the existing account.
   const { data: known } = await supabaseAdmin
@@ -126,13 +139,13 @@ export async function provisionShopifyMerchant(args: {
     .maybeSingle();
 
   let userId = known?.user_id ?? null;
-  const email = args.info.email ?? `${handle}@shopify-merchant.ranki.ai`;
+  const email = info.email ?? `${handle}@shopify-merchant.ranki.ai`;
 
   if (!userId) {
     const created = await supabaseAdmin.auth.admin.createUser({
       email,
       email_confirm: true,
-      user_metadata: { source: "shopify", shopify_shop: args.shop, store_name: args.info.name },
+      user_metadata: { source: "shopify", shopify_shop: args.shop, store_name: info.name },
     });
     userId = created.data.user?.id ?? (await findUserByEmail(supabaseAdmin, email));
     if (!userId) throw new Error(created.error?.message ?? "Could not create the merchant account.");
@@ -155,13 +168,13 @@ export async function provisionShopifyMerchant(args: {
       .from("projects")
       .insert({
         user_id: userId,
-        name: args.info.name || handle,
-        website_url: args.info.domain,
+        name: info.name || handle,
+        website_url: info.domain,
         industry: args.snapshot.types[0] ?? "E-commerce",
-        audience: args.info.country ? `Shoppers in ${args.info.country}` : null,
+        audience: info.country ? `Shoppers in ${info.country}` : null,
         keywords: args.snapshot.types.slice(0, 10),
-        locale: args.info.locale ?? "en",
-        timezone: args.info.timezone ?? "UTC",
+        locale: info.locale ?? "en",
+        timezone: info.timezone ?? "UTC",
       })
       .select("id")
       .single();
@@ -170,7 +183,7 @@ export async function provisionShopifyMerchant(args: {
   } else {
     await supabaseAdmin
       .from("projects")
-      .update({ website_url: args.info.domain, timezone: args.info.timezone ?? "UTC" })
+      .update({ website_url: info.domain, timezone: info.timezone ?? "UTC" })
       .eq("id", projectId);
   }
 
@@ -178,8 +191,8 @@ export async function provisionShopifyMerchant(args: {
     user_id: userId,
     project_id: projectId,
     platform: "shopify",
-    label: args.info.name || handle,
-    config: buildShopifyConfig(args.shop, args.accessToken, args.blogId, args.info, args.snapshot, args.content),
+    label: info.name || handle,
+    config: buildShopifyConfig(args.shop, args.accessToken, args.blogId, args.info, args.snapshot, content),
     status: "connected",
     last_error: null,
     auto_publish: true,
