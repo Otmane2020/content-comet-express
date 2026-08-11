@@ -2,9 +2,13 @@ import { useEffect, useState } from "react";
 import { useServerFn } from "@tanstack/react-start";
 import { motion } from "motion/react";
 import { ArrowRight, Globe2, Layers, Loader2, Package, ShoppingBag, Tag } from "lucide-react";
-import { getShopifyPrefill } from "@/lib/onboarding.functions";
+import { completeOnboarding, getShopifyPrefill } from "@/lib/onboarding.functions";
+import { buildPlan } from "@/lib/autopilot.functions";
+import { supabase } from "@/integrations/supabase/client";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 /**
  * Shown once, right after a merchant installs from the Shopify App Store:
@@ -12,16 +16,38 @@ import { Button } from "@/components/ui/button";
  * server-side from the store data), so this is the only moment they get to
  * see what we actually pulled in before landing in the dashboard.
  */
-export function ShopifyWelcome({ onContinue }: { onContinue: () => void }) {
+export function ShopifyWelcome({
+  userId,
+  projectId,
+  onContinue,
+}: {
+  userId: string;
+  projectId: string;
+  onContinue: () => void;
+}) {
   const loadShopify = useServerFn(getShopifyPrefill);
+  const completeOnboarding = useServerFn(completeOnboarding);
+  const build = useServerFn(buildPlan);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Awaited<ReturnType<typeof getShopifyPrefill>> | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ name: "", website: "", industry: "", audience: "" });
 
   useEffect(() => {
     let cancelled = false;
     loadShopify()
       .then((r) => {
-        if (!cancelled) setData(r);
+        if (!cancelled) {
+          setData(r);
+          if (r.connected) {
+            setForm({
+              name: r.business_name ?? "",
+              website: r.website_url ?? "",
+              industry: r.industry ?? "",
+              audience: r.country ? `Shoppers in ${r.country}` : "",
+            });
+          }
+        }
       })
       .catch(() => undefined)
       .finally(() => {
@@ -39,6 +65,28 @@ export function ShopifyWelcome({ onContinue }: { onContinue: () => void }) {
   }, [loading, data, onContinue]);
 
   if (!loading && (!data || !data.connected)) return null;
+
+  async function finishOnboarding() {
+    setSaving(true);
+    try {
+      const { error } = await supabase
+        .from("projects")
+        .update({
+          name: form.name.trim() || data?.business_name || "My Shopify store",
+          website_url: form.website.trim() || null,
+          industry: form.industry.trim() || null,
+          audience: form.audience.trim() || null,
+        })
+        .eq("id", projectId)
+        .eq("user_id", userId);
+      if (error) throw error;
+      await completeOnboarding({ data: { projectId } });
+      await build({ data: { projectId, days: 30 } });
+      onContinue();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   const stats = data?.connected
     ? [
@@ -91,9 +139,14 @@ export function ShopifyWelcome({ onContinue }: { onContinue: () => void }) {
             ) : (
               <>
                 <p className="text-[13.5px] leading-relaxed text-muted-foreground">
-                  We read your store the moment you installed Ranki.ai — here's what came in. Your 30-day
-                  content plan is already building from it.
+                  Your store is imported. Review the prefilled details, then we’ll build your first 30-day content plan.
                 </p>
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <div className="sm:col-span-2"><Label htmlFor="shopify-name">Business name</Label><Input id="shopify-name" className="mt-1.5" value={form.name} onChange={(e) => setForm((v) => ({ ...v, name: e.target.value }))} /></div>
+                  <div className="sm:col-span-2"><Label htmlFor="shopify-site">Website</Label><Input id="shopify-site" className="mt-1.5" value={form.website} onChange={(e) => setForm((v) => ({ ...v, website: e.target.value }))} /></div>
+                  <div><Label htmlFor="shopify-industry">Industry</Label><Input id="shopify-industry" className="mt-1.5" value={form.industry} onChange={(e) => setForm((v) => ({ ...v, industry: e.target.value }))} /></div>
+                  <div><Label htmlFor="shopify-audience">Audience</Label><Input id="shopify-audience" className="mt-1.5" value={form.audience} onChange={(e) => setForm((v) => ({ ...v, audience: e.target.value }))} /></div>
+                </div>
                 <div className="mt-5 grid gap-3 sm:grid-cols-2">
                   {stats.map((s, i) => (
                     <motion.div
@@ -128,11 +181,11 @@ export function ShopifyWelcome({ onContinue }: { onContinue: () => void }) {
             <div className="mt-7 flex justify-end border-t border-border pt-5">
               <Button
                 type="button"
-                onClick={onContinue}
-                disabled={loading}
+                onClick={() => void finishOnboarding()}
+                disabled={loading || saving}
                 className="bg-deep text-background hover:bg-deep/90"
               >
-                Go to my dashboard <ArrowRight className="ml-1.5 size-4" />
+                {saving ? "Building your dashboard…" : "Launch my dashboard"} <ArrowRight className="ml-1.5 size-4" />
               </Button>
             </div>
           </div>

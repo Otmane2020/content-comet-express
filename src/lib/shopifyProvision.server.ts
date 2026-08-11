@@ -225,6 +225,7 @@ export async function recordShopifySubscription(
   userId: string,
   email: string,
   sub: { id: string; status: string; currentPeriodEnd: string | null } | null,
+  cycle: "monthly" | "annual" = "monthly",
 ) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   await supabaseAdmin.from("subscriptions").upsert(
@@ -232,7 +233,7 @@ export async function recordShopifySubscription(
       user_id: userId,
       email,
       status: sub ? "active" : "inactive",
-      cycle: sub ? "monthly" : null,
+      cycle: sub ? cycle : null,
       stripe_subscription_id: sub ? `shopify:${sub.id}` : null,
       current_period_end: sub?.currentPeriodEnd ?? null,
       updated_at: new Date().toISOString(),
