@@ -131,9 +131,14 @@ function Dashboard() {
             ? await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${await waitForShopifyIdToken()}` } })
             : null;
         if (!res) return;
-        const body = await res.json() as { token_hash?: string; type?: "email"; error?: string };
+        const body = await res.json() as { token_hash?: string; type?: "email"; error?: string; billing_url?: string };
         if (cancelled || !body.token_hash) {
           if (body.error) {
+            if (body.error === "billing_required" && body.billing_url) {
+              if (window.top !== window.self) window.open(body.billing_url, "_top");
+              else window.location.assign(body.billing_url);
+              return;
+            }
             if (body.error === "shop_not_installed") {
               const shop = launch.get("shop");
               if (shop) {

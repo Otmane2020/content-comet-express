@@ -17,10 +17,25 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
           if (!shop || !state || state.shop !== shop) throw new Error("invalid_plan_selection");
           const pendingStore = await import("@/lib/shopifyPendingInstall.server");
           const pending = await pendingStore.getPendingShopifyInstall(shop);
-          if (!pending) throw new Error("install_expired");
-          await pendingStore.setPendingShopifyPlan(shop, plan);
+          // Partial installs from an older flow have a connected integration
+          // but no pending record. They still need to resume native billing
+          // rather than landing in onboarding without a subscription.
+          const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+          const { data: integration } = pending
+            ? { data: null }
+            : await supabaseAdmin
+                .from("integrations")
+                .select("config")
+                .eq("platform", "shopify")
+                .eq("config->>shop", shop)
+                .limit(1)
+                .maybeSingle();
+          const config = (integration?.config ?? {}) as { access_token?: string; is_test_store?: boolean };
+          const accessToken = pending?.access_token ?? config.access_token;
+          if (!accessToken) throw new Error("install_expired");
+          if (pending) await pendingStore.setPendingShopifyPlan(shop, plan);
           const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(mod.signState({ origin: "", shop, plan, ts: Date.now() }))}`;
-          const { confirmationUrl } = await mod.createAppSubscription(shop, pending.access_token, returnUrl, plan, pending.store_info.isTestStore);
+          const { confirmationUrl } = await mod.createAppSubscription(shop, accessToken, returnUrl, plan, pending?.store_info.isTestStore ?? config.is_test_store === true);
           return redirect(confirmationUrl);
         } catch (error) {
           const message = (error instanceof Error ? error.message : "failed").slice(0, 140);

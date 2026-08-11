@@ -22,12 +22,28 @@ async function issueEmbeddedSession(shop: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data: integration } = await supabaseAdmin
     .from("integrations")
-    .select("user_id")
+    .select("user_id, config")
     .eq("platform", "shopify")
     .eq("config->>shop", shop)
     .limit(1)
     .maybeSingle();
   if (!integration?.user_id) return { error: "shop_not_installed" } as const;
+  const config = (integration.config ?? {}) as { access_token?: string };
+  const { activeAppSubscription, signState } = await import("@/lib/shopify.server");
+  // Opening the embedded tile must never be treated as payment approval. Old
+  // partial installs can have an integration/user but no Shopify subscription.
+  // Send those merchants back through the plan picker before issuing Ranki's
+  // authenticated session.
+  const active = config.access_token
+    ? await activeAppSubscription(shop, config.access_token).catch(() => null)
+    : null;
+  if (!active) {
+    const state = signState({ origin: "", shop, ts: Date.now() });
+    return {
+      error: "billing_required",
+      billing_url: `/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(state)}`,
+    } as const;
+  }
   const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
   if (!user.user?.email) return { error: "merchant_not_found" } as const;
   const provision = await import("@/lib/shopifyProvision.server");
