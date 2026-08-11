@@ -234,6 +234,23 @@ function Dashboard() {
     },
   });
 
+  // A Shopify project is created immediately after billing so it can store the
+  // catalog. That must not be mistaken for a completed onboarding: only this
+  // explicit flag is allowed to open the dashboard.
+  const { data: onboardingState, isLoading: onboardingLoading } = useQuery({
+    queryKey: ["shopify-onboarding", user?.id],
+    enabled: !!user && embedded,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("user_onboarding")
+        .select("completed")
+        .eq("user_id", user!.id)
+        .maybeSingle();
+      if (error) throw error;
+      return data;
+    },
+  });
+
   // Someone who just signed in with Google is asked once, right away, for
   // Search Console + Business Profile access — wherever they land in the app.
   const startGoogle = useServerFn(startGoogleConnect);
@@ -263,7 +280,7 @@ function Dashboard() {
     };
   }, [user, project, startGoogle]);
 
-  if (loading || (user && projectLoading)) {
+  if (loading || (user && projectLoading) || (user && embedded && onboardingLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Loading your autopilot…
@@ -302,12 +319,13 @@ function Dashboard() {
   // A Shopify merchant arrives with their project already provisioned. Keep
   // them in the full Ranki onboarding wizard, prefilled from their store,
   // rather than dropping them into a separate abbreviated welcome screen.
-  if (showShopifyWelcome) {
+  if (showShopifyWelcome || (embedded && onboardingState?.completed !== true)) {
     return (
       <Onboarding
         userId={user.id}
         onDone={() => {
           void qc.invalidateQueries({ queryKey: ["project", user.id] });
+          void qc.invalidateQueries({ queryKey: ["shopify-onboarding", user.id] });
           setShowShopifyWelcome(false);
           window.history.replaceState(null, "", "/app");
         }}

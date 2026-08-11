@@ -22,6 +22,7 @@ import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as ShopifyErrorRouteImport } from './routes/shopify.error'
+import { Route as ShopifyPlanRouteImport } from './routes/shopify.plan'
 import { Route as ShopifySetupRouteImport } from './routes/shopify.setup'
 import { Route as ApiPublicArticlesRouteImport } from './routes/api/public/articles'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google/callback'
@@ -30,6 +31,7 @@ import { Route as ApiPublicHooksRefillCalendarRouteImport } from './routes/api/p
 import { Route as ApiPublicHooksStripeRouteImport } from './routes/api/public/hooks/stripe'
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img/$'
 import { Route as ApiPublicShopifyBillingRouteImport } from './routes/api/public/shopify/billing'
+import { Route as ApiPublicShopifyBillingChoiceRouteImport } from './routes/api/public/shopify/billing-choice'
 import { Route as ApiPublicShopifyCallbackRouteImport } from './routes/api/public/shopify/callback'
 import { Route as ApiPublicShopifyEmbeddedLoginRouteImport } from './routes/api/public/shopify/embedded-login'
 import { Route as ApiPublicShopifyInstallRouteImport } from './routes/api/public/shopify/install'
@@ -100,6 +102,11 @@ const ShopifyErrorRoute = ShopifyErrorRouteImport.update({
   path: '/shopify/error',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ShopifyPlanRoute = ShopifyPlanRouteImport.update({
+  id: '/shopify/plan',
+  path: '/shopify/plan',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShopifySetupRoute = ShopifySetupRouteImport.update({
   id: '/shopify/setup',
   path: '/shopify/setup',
@@ -142,6 +149,12 @@ const ApiPublicShopifyBillingRoute = ApiPublicShopifyBillingRouteImport.update({
   path: '/api/public/shopify/billing',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicShopifyBillingChoiceRoute =
+  ApiPublicShopifyBillingChoiceRouteImport.update({
+    id: '/api/public/shopify/billing-choice',
+    path: '/api/public/shopify/billing-choice',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicShopifyCallbackRoute =
   ApiPublicShopifyCallbackRouteImport.update({
     id: '/api/public/shopify/callback',
@@ -179,6 +192,7 @@ export interface FileRoutesByFullPath {
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/shopify/error': typeof ShopifyErrorRoute
+  '/shopify/plan': typeof ShopifyPlanRoute
   '/shopify/setup': typeof ShopifySetupRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
@@ -188,6 +202,7 @@ export interface FileRoutesByFullPath {
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
+  '/api/public/shopify/billing-choice': typeof ApiPublicShopifyBillingChoiceRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/embedded-login': typeof ApiPublicShopifyEmbeddedLoginRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
@@ -205,6 +220,7 @@ export interface FileRoutesByTo {
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/shopify/error': typeof ShopifyErrorRoute
+  '/shopify/plan': typeof ShopifyPlanRoute
   '/shopify/setup': typeof ShopifySetupRoute
   '/blog': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
@@ -214,6 +230,7 @@ export interface FileRoutesByTo {
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
+  '/api/public/shopify/billing-choice': typeof ApiPublicShopifyBillingChoiceRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/embedded-login': typeof ApiPublicShopifyEmbeddedLoginRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
@@ -233,6 +250,7 @@ export interface FileRoutesById {
   '/auth_/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/shopify/error': typeof ShopifyErrorRoute
+  '/shopify/plan': typeof ShopifyPlanRoute
   '/shopify/setup': typeof ShopifySetupRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
@@ -242,6 +260,7 @@ export interface FileRoutesById {
   '/api/public/hooks/stripe': typeof ApiPublicHooksStripeRoute
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
+  '/api/public/shopify/billing-choice': typeof ApiPublicShopifyBillingChoiceRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
   '/api/public/shopify/embedded-login': typeof ApiPublicShopifyEmbeddedLoginRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
@@ -262,6 +281,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/blog/$slug'
     | '/shopify/error'
+    | '/shopify/plan'
     | '/shopify/setup'
     | '/blog/'
     | '/api/public/articles'
@@ -271,6 +291,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
     | '/api/public/shopify/billing'
+    | '/api/public/shopify/billing-choice'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/embedded-login'
     | '/api/public/shopify/install'
@@ -288,6 +309,7 @@ export interface FileRouteTypes {
     | '/auth/callback'
     | '/blog/$slug'
     | '/shopify/error'
+    | '/shopify/plan'
     | '/shopify/setup'
     | '/blog'
     | '/api/public/articles'
@@ -297,6 +319,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
     | '/api/public/shopify/billing'
+    | '/api/public/shopify/billing-choice'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/embedded-login'
     | '/api/public/shopify/install'
@@ -315,6 +338,7 @@ export interface FileRouteTypes {
     | '/auth_/callback'
     | '/blog/$slug'
     | '/shopify/error'
+    | '/shopify/plan'
     | '/shopify/setup'
     | '/blog/'
     | '/api/public/articles'
@@ -324,6 +348,7 @@ export interface FileRouteTypes {
     | '/api/public/hooks/stripe'
     | '/api/public/img/$'
     | '/api/public/shopify/billing'
+    | '/api/public/shopify/billing-choice'
     | '/api/public/shopify/callback'
     | '/api/public/shopify/embedded-login'
     | '/api/public/shopify/install'
@@ -342,6 +367,7 @@ export interface RootRouteChildren {
   TermsRoute: typeof TermsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   ShopifyErrorRoute: typeof ShopifyErrorRoute
+  ShopifyPlanRoute: typeof ShopifyPlanRoute
   ShopifySetupRoute: typeof ShopifySetupRoute
   ApiPublicArticlesRoute: typeof ApiPublicArticlesRoute
   ApiPublicGoogleCallbackRoute: typeof ApiPublicGoogleCallbackRoute
@@ -350,6 +376,7 @@ export interface RootRouteChildren {
   ApiPublicHooksStripeRoute: typeof ApiPublicHooksStripeRoute
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
   ApiPublicShopifyBillingRoute: typeof ApiPublicShopifyBillingRoute
+  ApiPublicShopifyBillingChoiceRoute: typeof ApiPublicShopifyBillingChoiceRoute
   ApiPublicShopifyCallbackRoute: typeof ApiPublicShopifyCallbackRoute
   ApiPublicShopifyEmbeddedLoginRoute: typeof ApiPublicShopifyEmbeddedLoginRoute
   ApiPublicShopifyInstallRoute: typeof ApiPublicShopifyInstallRoute
@@ -449,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ShopifyErrorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/shopify/plan': {
+      id: '/shopify/plan'
+      path: '/shopify/plan'
+      fullPath: '/shopify/plan'
+      preLoaderRoute: typeof ShopifyPlanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/shopify/setup': {
       id: '/shopify/setup'
       path: '/shopify/setup'
@@ -503,6 +537,13 @@ declare module '@tanstack/react-router' {
       path: '/api/public/shopify/billing'
       fullPath: '/api/public/shopify/billing'
       preLoaderRoute: typeof ApiPublicShopifyBillingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/shopify/billing-choice': {
+      id: '/api/public/shopify/billing-choice'
+      path: '/api/public/shopify/billing-choice'
+      fullPath: '/api/public/shopify/billing-choice'
+      preLoaderRoute: typeof ApiPublicShopifyBillingChoiceRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/shopify/callback': {
@@ -560,6 +601,7 @@ const rootRouteChildren: RootRouteChildren = {
   TermsRoute: TermsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   ShopifyErrorRoute: ShopifyErrorRoute,
+  ShopifyPlanRoute: ShopifyPlanRoute,
   ShopifySetupRoute: ShopifySetupRoute,
   ApiPublicArticlesRoute: ApiPublicArticlesRoute,
   ApiPublicGoogleCallbackRoute: ApiPublicGoogleCallbackRoute,
@@ -568,6 +610,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicHooksStripeRoute: ApiPublicHooksStripeRoute,
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
   ApiPublicShopifyBillingRoute: ApiPublicShopifyBillingRoute,
+  ApiPublicShopifyBillingChoiceRoute: ApiPublicShopifyBillingChoiceRoute,
   ApiPublicShopifyCallbackRoute: ApiPublicShopifyCallbackRoute,
   ApiPublicShopifyEmbeddedLoginRoute: ApiPublicShopifyEmbeddedLoginRoute,
   ApiPublicShopifyInstallRoute: ApiPublicShopifyInstallRoute,

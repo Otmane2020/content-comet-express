@@ -49,3 +49,8 @@ export async function markPendingShopifyInstall(shop: string, status: "active" |
   const { error } = await pendingTable().update({ status }).eq("shop", shop);
   if (error) throw new Error(error.message);
 }
+
+export async function setPendingShopifyPlan(shop: string, billingPlan: "monthly" | "annual") {
+  const { error } = await pendingTable().update({ billing_plan: billingPlan }).eq("shop", shop);
+  if (error) throw new Error(error.message);
+}

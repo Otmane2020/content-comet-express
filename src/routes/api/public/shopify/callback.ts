@@ -56,9 +56,8 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
             content: { products: [], collections: [], pages: [], policies: [] },
             billing_plan: "monthly",
           });
-          const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin: "", shop, ts: Date.now() }))}`;
-          const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
-          return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+          const setupState = mod.signState({ origin: "", shop, ts: Date.now() });
+          return new Response(null, { status: 302, headers: { location: `${origin}/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(setupState)}` } });
         }
       }
     }
