@@ -26,7 +26,7 @@ export function ShopifyWelcome({
   onContinue: () => void;
 }) {
   const loadShopify = useServerFn(getShopifyPrefill);
-  const completeOnboarding = useServerFn(completeOnboarding);
+  const markOnboardingComplete = useServerFn(completeOnboarding);
   const build = useServerFn(buildPlan);
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<Awaited<ReturnType<typeof getShopifyPrefill>> | null>(null);
@@ -80,7 +80,7 @@ export function ShopifyWelcome({
         .eq("id", projectId)
         .eq("user_id", userId);
       if (error) throw error;
-      await completeOnboarding({ data: { projectId } });
+      await markOnboardingComplete({ data: { projectId } });
       await build({ data: { projectId, days: 30 } });
       onContinue();
     } finally {
