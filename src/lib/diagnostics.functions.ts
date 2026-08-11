@@ -12,6 +12,19 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const siteInput = z.object({ website: z.string().min(3).max(300) });
 
+/** A storefront theme's html lang is often English even on a French shop. */
+function marketLocale(website: string, declared: string | null | undefined) {
+  try {
+    const host = new URL(website.startsWith("http") ? website : `https://${website}`).hostname.toLowerCase();
+    const byTld: Record<string, string> = { ".fr": "fr", ".es": "es", ".de": "de", ".it": "it", ".nl": "nl", ".pt": "pt" };
+    const match = Object.entries(byTld).find(([tld]) => host.endsWith(tld));
+    if (match) return match[1];
+  } catch {
+    /* validation happens in the scraper */
+  }
+  return declared?.slice(0, 2).toLowerCase() || "en";
+}
+
 export type PipelineDiagnosticStage = {
   id: "landing" | "profile" | "keywords" | "serp" | "rivals" | "calendar" | "article";
   ok: boolean;
@@ -76,8 +89,14 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
       await requireLiveDataForSeo();
       const proposed = await candidateKeywords(profile, site.landing ?? null, 120);
       if (!proposed.length) throw new Error("The AI returned no buyer-query candidates from this landing page.");
-      const measured = await searchVolumeFor(proposed, localeOpts(site.landing?.lang ?? null));
-      if (!measured.length) throw new Error("DataForSEO returned no measured search volume for the AI candidates.");
+      const locale = marketLocale(data.website, site.landing?.lang);
+      const opts = localeOpts(locale);
+      const measured = await searchVolumeFor(proposed, opts);
+      if (!measured.length) {
+        throw new Error(
+          `DataForSEO returned no measured search volume for ${proposed.length} AI candidates in ${opts.locationName} / ${opts.languageCode}. First candidates: ${proposed.slice(0, 5).join(" | ")}`,
+        );
+      }
       const scores = await scoreRelevance(profile, measured.map((row) => row.keyword));
       const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE);
       if (!qualified.length) throw new Error("Every measurable keyword failed the business-audience relevance gate.");
