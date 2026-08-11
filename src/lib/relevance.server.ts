@@ -295,15 +295,33 @@ export async function candidateKeywords(
   // taxonomy, so it can safely provide a small, auditable set of candidates
   // when the model returns malformed/empty JSON.
   const deterministicFallback = () => {
+    const compactSeoPhrase = (value: string) =>
+      value
+        .replace(/\s+/g, " ")
+        .split(/[|—–:]/)[0]!
+        .trim()
+        .split(/\s+/)
+        .slice(0, 6)
+        .join(" ")
+        .toLowerCase();
     const rawTerms = [
       ...(profile.products ?? []),
       ...(profile.services ?? []),
       ...(landing?.categoryLinks ?? []),
+      // These are verbatim merchant-owned SEO signals, used only if product
+      // taxonomy is absent. A reliable profile should normally make this
+      // branch unnecessary, but it must never turn a rich landing page into
+      // an empty candidate list.
+      profile.positioning ?? "",
+      profile.canonical ?? "",
+      landing?.title ?? "",
+      landing?.pageTitle ?? "",
+      landing?.metaDescription ?? "",
     ];
     const terms = Array.from(
       new Set(
         rawTerms
-          .map((term) => String(term).replace(/\s+/g, " ").trim().toLowerCase())
+          .map((term) => compactSeoPhrase(String(term)))
           .filter((term) => term.length > 2 && term.length <= 60 && term.split(/\s+/).length <= 6)
           .filter((term) => !/^(home|accueil|blog|contact|shop|products?|collections?)$/i.test(term)),
       ),
@@ -384,6 +402,7 @@ ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.j
 Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least 12 grounded buyer queries; never return an empty array.`,
     });
     let aiCandidates = normaliseCandidates(raw);
+    console.info("[keyword-candidates] AI response", { count: aiCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
     if (!aiCandidates.length) {
       // Ask the model to repair its own empty/mis-shaped answer, with the same
       // verbatim SEO evidence. This is still AI-led research, not a hidden
@@ -395,9 +414,14 @@ Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least
         user: `${profileBlock(profile)}\n${landingBlock}\n\nReturn at least 12 specific buyer queries in the site language. They must use the evidence above. Return exactly {"keywords":["..."]}.`,
       });
       aiCandidates = normaliseCandidates(retry);
+      console.info("[keyword-candidates] AI retry response", { count: aiCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
     }
     return aiCandidates.length ? aiCandidates : deterministicFallback();
-  } catch {
+  } catch (error) {
+    console.error("[keyword-candidates] AI candidate generation failed", {
+      error: error instanceof Error ? error.message : String(error),
+      hasLandingEvidence: Boolean(landingBlock),
+    });
     return deterministicFallback();
   }
 }
