@@ -370,7 +370,34 @@ export async function discoverCompetitorsFromSerp(
 
   // Build queries from the canonical profile when available.
   const productQueries = (biz.products ?? []).slice(0, 3).map((p) => p);
-  const salesPrefix = biz.sales_model === "wholesale" ? "grossiste " : "";
+  const isFrench = opts.languageCode === "fr";
+  const isPhysicalGoods =
+    biz.sales_model === "wholesale" ||
+    biz.sales_model === "retail" ||
+    biz.sales_model === "manufacturer" ||
+    biz.sales_model === "marketplace";
+  const salesPrefix = biz.sales_model === "wholesale" ? (isFrench ? "grossiste " : "wholesale ") : "";
+  // Buying-intent modifiers aren't the same across sectors: "supplier"/
+  // "cheap"/"online" only make sense for physical goods (wholesale, retail,
+  // manufacturer, marketplace) — a service, SaaS, logistics or B2B business
+  // is searched for with "best"/"reviews"/"alternative" instead. Picking one
+  // set for every sector is what used to build nonsense queries like
+  // "fournisseur assistant vocal IA" and silently return zero competitors.
+  const intentQueries = isPhysicalGoods
+    ? isFrench
+      ? [
+          salesPrefix ? `${salesPrefix}${category}`.trim() : `fournisseur ${category}`,
+          `${category} en ligne`,
+          city ? `${category} ${city} ${country}` : `${category} pas cher`,
+        ]
+      : [
+          salesPrefix ? `${salesPrefix}${category}`.trim() : `${category} supplier`,
+          `${category} online`,
+          city ? `${category} ${city} ${country}` : `cheap ${category}`,
+        ]
+    : isFrench
+      ? [`meilleur ${category}`, `${category} avis`, `comparatif ${category}`]
+      : [`best ${category}`, `${category} reviews`, `${category} alternative`];
   const queries = Array.from(
     new Set(
       [
@@ -384,9 +411,7 @@ export async function discoverCompetitorsFromSerp(
         category,
         city ? `${category} ${city}` : null,
         `${category} ${country}`,
-        salesPrefix ? `${salesPrefix}${category}`.trim() : `fournisseur ${category}`,
-        `${category} en ligne`,
-        city ? `${category} ${city} ${country}` : `${category} pas cher`,
+        ...intentQueries,
       ].filter((q): q is string => Boolean(q && q.trim())),
     ),
   ).slice(0, 9);
