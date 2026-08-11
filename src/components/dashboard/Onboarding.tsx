@@ -664,7 +664,13 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                                 : "border-border bg-background/70 text-muted-foreground hover:border-primary/40 hover:bg-background"
                             }`}
                           >
-                            <span className="text-[15px] leading-none">{l.flag}</span>
+                            <img
+                              src={`https://flagcdn.com/24x18/${l.countryCode}.png`}
+                              alt=""
+                              width={16}
+                              height={12}
+                              className="h-3 w-4 rounded-[2px] object-cover shadow-[0_0_0_1px_rgba(15,23,42,0.12)]"
+                            />
                             {l.label}
                           </button>
                         ))}
