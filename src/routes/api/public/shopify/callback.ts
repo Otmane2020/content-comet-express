@@ -98,6 +98,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
           );
           return new Response(null, { status: 302, headers: { location: link } });
         } catch (e) {
+          console.error("[shopify callback] installation failed", e);
           return back(origin, {
             shopify: "error",
             message: (e instanceof Error ? e.message : "failed").slice(0, 160),
