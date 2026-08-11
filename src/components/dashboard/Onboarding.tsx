@@ -652,7 +652,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     return (
       <div className="paper-grid min-h-screen px-4 py-10">
         <div className="mx-auto w-full max-w-5xl">
-          <div className="relative flex justify-center">
+          <div className="sticky top-0 z-40 -mx-4 flex justify-center bg-background/92 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
             <BrandLockup />
             <nav className="absolute left-0 top-1/2 hidden -translate-y-1/2 items-center gap-5 text-[11px] font-semibold text-muted-foreground lg:flex" aria-label="Shopify setup progress">
               <span className="flex items-center gap-1.5 text-primary"><Check className="size-3.5" /> Store synced</span>
@@ -759,7 +759,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         )}
       </AnimatePresence>
       <div className="mx-auto w-full max-w-5xl">
-        <div className="relative flex justify-center">
+        <div className="sticky top-0 z-40 -mx-4 flex justify-center bg-background/92 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
           <BrandLockup />
           <Button
             type="button"
