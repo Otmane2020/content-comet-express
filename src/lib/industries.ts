@@ -6,6 +6,16 @@ export const LANGUAGES = [
   { code: "it", label: "Italian", countryCode: "it" },
   { code: "nl", label: "Dutch", countryCode: "nl" },
   { code: "pt", label: "Portuguese", countryCode: "pt" },
+  { code: "pl", label: "Polish", countryCode: "pl" },
+  { code: "sv", label: "Swedish", countryCode: "se" },
+  { code: "da", label: "Danish", countryCode: "dk" },
+  { code: "no", label: "Norwegian", countryCode: "no" },
+  { code: "fi", label: "Finnish", countryCode: "fi" },
+  { code: "ro", label: "Romanian", countryCode: "ro" },
+  { code: "tr", label: "Turkish", countryCode: "tr" },
+  { code: "ja", label: "Japanese", countryCode: "jp" },
+  { code: "ko", label: "Korean", countryCode: "kr" },
+  { code: "ar", label: "Arabic", countryCode: "sa" },
 ] as const;
 
 export const INDUSTRY_GROUPS: { group: string; items: string[] }[] = [

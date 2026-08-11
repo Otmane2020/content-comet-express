@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, BookOpen, Bot, Building2, CalendarDays, Check, FileText, Globe2, Layers3, Loader as Loader2, LogOut, Package, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Building2, CalendarDays, Check, FileText, Globe2, Layers3, Loader as Loader2, LogOut, Package, Plus, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -167,6 +167,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     error?: string;
   } | null>(null);
   const [step, setStep] = useState(0);
+  const [showMoreLanguages, setShowMoreLanguages] = useState(false);
   const [form, setForm] = useState({
     name: "",
     website_url: "",
@@ -975,11 +976,21 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       <div className="border-l-2 border-primary pl-3">
                         <Label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Content language</Label>
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {LANGUAGES.map((l) => (
-                            <button key={l.code} type="button" onClick={() => setForm((f) => ({ ...f, locale: l.code }))} className={`rounded-lg border px-2.5 py-2 text-[12px] font-medium transition ${form.locale === l.code ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-background hover:border-primary/40"}`}>
+                          {LANGUAGES.slice(0, showMoreLanguages ? LANGUAGES.length : 7).map((l) => (
+                            <button key={l.code} type="button" onClick={() => setForm((f) => ({ ...f, locale: l.code }))} className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-2 text-[12px] font-medium transition ${form.locale === l.code ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-background hover:border-primary/40"}`}>
+                              <img src={`https://flagcdn.com/24x18/${l.countryCode}.png`} alt="" width={16} height={12} className="h-3 w-4 rounded-[2px] object-cover shadow-[0_0_0_1px_rgba(15,23,42,0.12)]" />
                               {l.label}
                             </button>
                           ))}
+                          <button
+                            type="button"
+                            onClick={() => setShowMoreLanguages((shown) => !shown)}
+                            aria-expanded={showMoreLanguages}
+                            className="flex size-[34px] items-center justify-center rounded-lg border border-dashed border-primary/40 bg-primary/5 text-primary transition hover:bg-primary/10"
+                            title={showMoreLanguages ? "Show fewer languages" : "More languages"}
+                          >
+                            <Plus className={`size-4 transition-transform ${showMoreLanguages ? "rotate-45" : ""}`} />
+                          </button>
                         </div>
                       </div>
                       <div className="border-t border-border pt-5 sm:col-span-2">
