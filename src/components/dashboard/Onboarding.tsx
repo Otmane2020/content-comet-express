@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Globe2, Loader as Loader2, LogOut, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, FileText, Globe2, Layers3, Loader as Loader2, LogOut, Package, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -89,6 +89,17 @@ const BUSINESS_ANALYSIS_STAGES = [
   { icon: Sparkles, label: "Preparing your content strategy" },
 ];
 
+type ShopifyWelcomeReport = {
+  shop: string;
+  business_name: string | null;
+  website_url: string | null;
+  productCount: number;
+  collectionTitles: string[];
+  pages: { title: string | null; url: string | null }[];
+  products: { title: string | null; url: string | null; image: string | null }[];
+  blogConnected: boolean;
+};
+
 /**
  * Illustrative-only mockup of a buyer question, built from the detected
  * category — never sent to an AI model. Pairs with aiPreviewAnswer below to
@@ -123,6 +134,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const markComplete = useServerFn(completeOnboarding);
   const loadShopify = useServerFn(getShopifyPrefill);
   const [shopContext, setShopContext] = useState<string | null>(null);
+  const [shopifyWelcome, setShopifyWelcome] = useState(false);
+  const [shopifyReport, setShopifyReport] = useState<ShopifyWelcomeReport | null>(null);
+  const [launching, setLaunching] = useState(false);
   const [busy, setBusy] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
   const [email, setEmail] = useState("");
@@ -227,6 +241,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       .then((s) => {
         if (!s.connected) return;
         setShopContext(s.shop);
+        setShopifyReport(s);
+        setShopifyWelcome(true);
         setForm((f) => ({
           ...f,
           name: f.name || s.business_name || "",
@@ -529,6 +545,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       }
       localStorage.removeItem(DRAFT_KEY);
       await markComplete({ data: { projectId: data.id } }).catch(() => undefined);
+      setLaunching(true);
+      await new Promise((resolve) => window.setTimeout(resolve, 2200));
       onDone();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
@@ -539,8 +557,90 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
   const active = STEPS[step]!;
 
+  if (shopifyWelcome && shopifyReport) {
+    const displayDomain = (shopifyReport.website_url || shopifyReport.shop).replace(/^https?:\/\//, "").replace(/\/$/, "");
+    const previews = [
+      ...shopifyReport.products.slice(0, 3).map((item) => ({ ...item, kind: "Product", icon: Package })),
+      ...shopifyReport.collectionTitles.slice(0, 2).map((title) => ({ title, url: null, image: null, kind: "Collection", icon: Layers3 })),
+      ...shopifyReport.pages.slice(0, 2).map((item) => ({ ...item, image: null, kind: "Page", icon: FileText })),
+    ].slice(0, 7);
+    return (
+      <div className="paper-grid min-h-screen px-4 py-10">
+        <div className="mx-auto w-full max-w-5xl">
+          <div className="relative flex justify-center">
+            <BrandLockup />
+            <Button type="button" variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); window.location.assign("/"); }} className="absolute right-0 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground hover:text-foreground">
+              <LogOut className="mr-1.5 size-3.5" /> Sign out
+            </Button>
+          </div>
+          <section className="surface mt-7 overflow-hidden">
+            <div className="relative overflow-hidden bg-deep px-7 py-9 text-background sm:px-10">
+              <motion.div aria-hidden className="absolute -right-10 -top-20 size-72 rounded-full bg-gold/25 blur-3xl" animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.7, 0.35] }} transition={{ duration: 6, repeat: Infinity }} />
+              <div className="relative max-w-2xl">
+                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Shopify store synced</p>
+                <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">Welcome, {shopifyReport.business_name || "your store"}.</h1>
+                <p className="mt-3 text-sm leading-6 text-background/70">Your Shopify data is securely connected. Here is the content foundation Ranki will use to build your GEO autopilot.</p>
+                <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-background/15 bg-background/10 px-3 py-1.5 text-sm font-medium">
+                  <Globe2 className="size-4 text-gold" /> {displayDomain}
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8">
+              <div className="grid gap-3 sm:grid-cols-4">
+                {[
+                  { label: "Products", value: shopifyReport.productCount, icon: Package },
+                  { label: "Collections", value: shopifyReport.collectionTitles.length, icon: Layers3 },
+                  { label: "Store pages", value: shopifyReport.pages.length, icon: FileText },
+                  { label: "Blog", value: shopifyReport.blogConnected ? "Connected" : "Not connected", icon: BookOpen },
+                ].map((stat) => <div key={stat.label} className="rounded-2xl border border-border bg-muted/30 p-4"><stat.icon className="size-4 text-primary" /><p className="mt-3 text-2xl font-bold">{stat.value}</p><p className="mt-0.5 text-xs text-muted-foreground">{stat.label}</p></div>)}
+              </div>
+
+              <div className="mt-8 flex items-end justify-between gap-4">
+                <div><p className="font-display text-xl font-bold">Your connected content</p><p className="mt-1 text-sm text-muted-foreground">Real Shopify products, collections and pages — ready for internal linking.</p></div>
+                <span className="hidden rounded-full bg-success-soft px-3 py-1 text-xs font-semibold text-success sm:block">Sync complete</span>
+              </div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                {previews.map((item, index) => {
+                  const Icon = item.icon;
+                  return <article key={`${item.kind}-${item.title}-${index}`} className="group overflow-hidden rounded-2xl border border-border bg-card">
+                    <div className="relative flex aspect-[16/9] items-center justify-center overflow-hidden bg-gradient-to-br from-primary/15 via-muted to-gold/15">
+                      {item.image ? <img src={item.image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <Icon className="size-7 text-primary/60" />}
+                      <span className="absolute left-2 top-2 rounded-full bg-background/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">{item.kind}</span>
+                    </div>
+                    <div className="p-3"><p className="truncate text-sm font-semibold">{item.title || "Untitled"}</p><p className="mt-1 text-xs text-muted-foreground">Available for GEO content</p></div>
+                  </article>;
+                })}
+              </div>
+              <div className="mt-8 flex flex-col justify-between gap-4 border-t border-border pt-6 sm:flex-row sm:items-center">
+                <p className="max-w-xl text-sm leading-6 text-muted-foreground">Next, confirm your writing profile. We then map the queries and competitors that matter for {shopifyReport.business_name || "your store"}.</p>
+                <Button type="button" size="lg" onClick={() => { setShopifyWelcome(false); setStep(1); void saveDraft(1); }} className="bg-deep text-background hover:bg-deep/90">Start your onboarding <ArrowRight className="ml-2 size-4" /></Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="paper-grid min-h-screen px-4 py-10">
+      <AnimatePresence>
+        {launching && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-deep/95 px-4 text-background backdrop-blur-md">
+            <motion.section initial={{ y: 18, scale: 0.96 }} animate={{ y: 0, scale: 1 }} className="relative w-full max-w-xl overflow-hidden rounded-3xl border border-background/15 bg-background/10 p-8 text-center shadow-2xl sm:p-12">
+              <motion.div aria-hidden className="absolute left-1/2 top-0 size-64 -translate-x-1/2 -translate-y-1/2 rounded-full bg-gold/30 blur-3xl" animate={{ scale: [1, 1.25, 1] }} transition={{ duration: 2, repeat: Infinity }} />
+              <div className="relative">
+                <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-gold text-gold-foreground shadow-xl shadow-gold/30"><Rocket className="size-8" /></div>
+                <p className="mt-7 font-mono text-[11px] font-bold uppercase tracking-[0.2em] text-gold">Autopilot launched</p>
+                <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">Your 30-day GEO engine is live.</h2>
+                <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-background/70">We’re generating optimized content designed to be discovered in AI Search, ChatGPT, Gemini and Google — with your products and pages linked naturally.</p>
+                <div className="mt-7 flex flex-wrap justify-center gap-2">{["AI Search", "ChatGPT", "Gemini", "Google"].map((channel) => <span key={channel} className="rounded-full border border-background/15 bg-background/10 px-3 py-1.5 text-xs font-semibold">{channel}</span>)}</div>
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
       <div className="mx-auto w-full max-w-5xl">
         <div className="relative flex justify-center">
           <BrandLockup />

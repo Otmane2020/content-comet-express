@@ -185,6 +185,7 @@ export const getShopifyPrefill = createServerFn({ method: "GET" })
       country: (cfg["country"] ?? cfg["country_code"] ?? null) as string | null,
       language: ((cfg["locale"] as string | undefined)?.slice(0, 2) ?? null) as string | null,
       productCount: (typeof cfg["products_count"] === "number" ? cfg["products_count"] : productsSample.length) as number,
+      blogConnected: Boolean(cfg["blog_id"]),
       collectionTitles: collections.map((c: any) => c?.title).filter(Boolean).slice(0, 10) as string[],
       products: productsSample
         .slice(0, 6)
