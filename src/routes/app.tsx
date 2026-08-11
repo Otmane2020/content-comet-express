@@ -76,13 +76,19 @@ function Dashboard() {
   });
 
   useEffect(() => {
-    if (!loading && !user) navigate({ to: "/auth", replace: true });
-  }, [loading, user, navigate]);
-
-  useEffect(() => {
     if (!user) return;
     void announceSignup({ data: undefined }).catch(() => undefined);
   }, [user, announceSignup]);
+
+  // A merchant can hit a Shopify install error before they have an account
+  // (e.g. the very first install attempt) — Platforms.tsx only shows this
+  // toast once signed in, so also surface it here, unconditionally.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("shopify") !== "error") return;
+    toast.error(params.get("message") ?? "Shopify install failed.");
+    window.history.replaceState({}, "", window.location.pathname);
+  }, []);
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", user?.id],
@@ -135,15 +141,15 @@ function Dashboard() {
       </div>
     );
   }
-  if (!user) return null;
   if (!project) {
     return (
       <Onboarding
-        userId={user.id}
-        onDone={() => void qc.invalidateQueries({ queryKey: ["project", user.id] })}
+        userId={user?.id ?? null}
+        onDone={() => void qc.invalidateQueries({ queryKey: ["project", user?.id] })}
       />
     );
   }
+  if (!user) return null;
 
   // A merchant installed from the Shopify App Store: their project was
   // provisioned server-side, so this welcome screen is the only place they

@@ -36,7 +36,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null); await provision.recordShopifySubscription(state.userId, email, active, state.plan ?? "monthly");
       if (active) return back(origin, { shopify: "connected" });
       const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ ...state, shop, ts: Date.now() }))}`;
-      const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, state.plan ?? "monthly"); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+      const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, state.plan ?? "monthly", info.isTestStore); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
     const { data: existing } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
     if (existing?.user_id) {
@@ -49,11 +49,11 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const pending = await import("@/lib/shopifyPendingInstall.server");
       await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
       const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, ts: Date.now() }))}`;
-      const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly");
+      const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
       return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
     const pending = await import("@/lib/shopifyPendingInstall.server"); await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
     const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, ts: Date.now() }))}`;
-    const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly"); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+    const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
   } catch (e) { console.error("[shopify callback] installation failed", e); return back(origin, { shopify: "error", message: (e instanceof Error ? e.message : "failed").slice(0, 160) }); }
 } } } });

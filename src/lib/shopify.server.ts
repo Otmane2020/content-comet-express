@@ -140,6 +140,9 @@ export type ShopInfo = {
   city: string | null;
   address1: string | null;
   planName: string | null;
+  /** Partner/dev sandbox stores (e.g. "test-ranki-vuqz8ryn") can't be charged
+   * real money — Shopify rejects appSubscriptionCreate unless test:true. */
+  isTestStore: boolean;
 };
 
 /** Everything we need about the store to run the autopilot without asking the merchant. */
@@ -188,6 +191,7 @@ export async function fetchShopInfo(shop: string, token: string): Promise<ShopIn
     city: s.city ?? null,
     address1: s.address1 ?? null,
     planName: s.plan_display_name ?? s.plan_name ?? null,
+    isTestStore: s.plan_name === "partner_test" || s.plan_name === "developer_preview" || s.plan_name === "dormant",
   };
 }
 
@@ -435,6 +439,7 @@ export async function createAppSubscription(
   token: string,
   returnUrl: string,
   planId: ShopifyPlanId = "monthly",
+  forceTest = false,
 ) {
   const plan = SHOPIFY_PLANS[planId];
   const query = `
@@ -464,7 +469,7 @@ export async function createAppSubscription(
     amount: plan.amount,
     currency: plan.currency,
     interval: plan.interval,
-    test: process.env["SHOPIFY_BILLING_TEST"] === "1",
+    test: forceTest || process.env["SHOPIFY_BILLING_TEST"] === "1",
   });
   const result = data.appSubscriptionCreate;
   if (result.userErrors?.length) throw new Error(result.userErrors[0]!.message);

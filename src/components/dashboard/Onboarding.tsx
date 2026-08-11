@@ -107,7 +107,7 @@ function aiPreviewAnswer(industry: string, competitors: string[], locale: string
     : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
 }
 
-export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
+export function Onboarding({ userId, onDone }: { userId: string | null; onDone: () => void }) {
   const build = useServerFn(buildPlan);
   const kickstart = useServerFn(kickstartFirstDay);
   const detectBiz = useServerFn(detectBusiness);
@@ -123,6 +123,9 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const loadShopify = useServerFn(getShopifyPrefill);
   const [shopContext, setShopContext] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [signingUp, setSigningUp] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [subActive, setSubActive] = useState<boolean | null>(null);
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [scanning, setScanning] = useState(false);
@@ -155,6 +158,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
   /** Mirror the wizard into the database so it survives Checkout and reloads. */
   async function saveDraft(atStep: number, values = form, description = detected) {
+    if (!userId) return; // no session yet — nothing to persist to until sign-up
     try {
       await persistDraft({
         data: {
@@ -175,20 +179,27 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     }
   }
 
+  // Local-only restore: runs once, independent of whether a session exists yet.
   useEffect(() => {
-    let returned = false;
     try {
       const raw = localStorage.getItem(DRAFT_KEY);
       if (raw) {
         const saved = JSON.parse(raw) as typeof form;
         setForm((f) => ({ ...f, ...saved }));
       }
-      if (new URLSearchParams(window.location.search).get("checkout") === "success") {
-        returned = true;
-        setStep(3);
-      }
     } catch {
       /* ignore */
+    }
+  }, []);
+
+  // Everything below needs a session — re-runs once sign-up (in step 1)
+  // establishes one, since it starts null for a brand-new visitor.
+  useEffect(() => {
+    if (!userId) return;
+    let returned = false;
+    if (new URLSearchParams(window.location.search).get("checkout") === "success") {
+      returned = true;
+      setStep(3);
     }
 
     // Server draft wins over the local copy: it survives device changes.
@@ -251,7 +262,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [userId]);
 
   // Advance the animated stage indicator while the live market scan runs.
   useEffect(() => {
@@ -313,7 +324,34 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const set = (key: keyof typeof form) => (e: { target: { value: string } }) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const canNext = step !== 0 || form.name.trim().length > 1;
+  const canNext =
+    step !== 0 || (form.name.trim().length > 1 && (!!userId || (email.trim().length > 3 && password.length >= 6)));
+
+  /** Step 1's Continue also doubles as sign-up for a brand-new visitor —
+   * the account is created here, then the rest of the wizard runs signed in. */
+  async function continueFromStep0() {
+    if (!userId) {
+      setSigningUp(true);
+      try {
+        const { error } = await supabase.auth.signUp({
+          email: email.trim(),
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+        });
+        if (error) throw error;
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Could not create your account");
+        setSigningUp(false);
+        return;
+      }
+      setSigningUp(false);
+    }
+    setStep((s) => {
+      const next = Math.min(3, s + 1);
+      void saveDraft(next);
+      return next;
+    });
+  }
 
   async function autodetectBusiness() {
     if (!form.website_url.trim()) {
@@ -393,6 +431,10 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   }
 
   async function submit() {
+    if (!userId) {
+      toast.error("Please finish creating your account first.");
+      return;
+    }
     setBusy(true);
     try {
       const { data, error } = await supabase
@@ -625,6 +667,41 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       <Label htmlFor="name" className="text-[12.5px]">Business name</Label>
                       <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Maison Dupont" />
                     </div>
+                    {!userId && (
+                      <div className="sm:col-span-2 grid gap-3 rounded-2xl border border-border bg-secondary/25 p-4 sm:grid-cols-2">
+                        <div>
+                          <Label htmlFor="signup-email" className="text-[12.5px]">Email</Label>
+                          <Input
+                            id="signup-email"
+                            type="email"
+                            required
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="you@company.com"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="signup-password" className="text-[12.5px]">Password</Label>
+                          <Input
+                            id="signup-password"
+                            type="password"
+                            required
+                            minLength={6}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            className="mt-1.5"
+                            placeholder="••••••••"
+                          />
+                        </div>
+                        <p className="text-[11.5px] text-muted-foreground sm:col-span-2">
+                          Creates your Ranki account — no separate sign-up step.{" "}
+                          <a href="/auth" className="underline underline-offset-2 hover:text-foreground">
+                            Already have an account?
+                          </a>
+                        </p>
+                      </div>
+                    )}
                     <div className="sm:col-span-2 rounded-2xl border border-primary/15 bg-primary/[0.025] p-4 shadow-sm">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <Label htmlFor="url" className="text-[12.5px] font-semibold">Website</Label>
@@ -1083,16 +1160,26 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 <Button
                   type="button"
                   onClick={() => {
+                    if (step === 0) {
+                      void continueFromStep0();
+                      return;
+                    }
                     setStep((s) => {
                       const next = Math.min(3, s + 1);
                       void saveDraft(next);
                       return next;
                     });
                   }}
-                  disabled={!canNext || scanning}
+                  disabled={!canNext || scanning || signingUp}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
-                  {step === 0 ? (detected ? "Continue" : "Continue without analysis") : "Continue"}{" "}
+                  {signingUp
+                    ? "Creating your account…"
+                    : step === 0
+                      ? detected
+                        ? "Continue"
+                        : "Continue without analysis"
+                      : "Continue"}{" "}
                   <ArrowRight className="ml-1.5 size-4" />
                 </Button>
               ) : subActive === false ? (
