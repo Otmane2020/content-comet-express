@@ -360,6 +360,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     }
     setLastAnalysedWebsite(form.website_url.trim());
     setScanning(true);
+    // The live market scan builds its own canonical profile, so it can run
+    // alongside the step-1 website analysis instead of making the merchant wait.
+    if (!market && !scanningMarket) void autodetectMarket();
     try {
       const d = await detectBiz({ data: { website: form.website_url } });
       const nextForm = {
@@ -924,9 +927,23 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                     )}
 
                     {scanningMarket && (
-                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                        <Loader2 className="size-3.5 animate-spin text-primary" />
-                        Live scan running with DataForSEO…
+                      <div className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background">
+                        <motion.div
+                          aria-hidden
+                          className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-gold/30 to-transparent blur-xl"
+                          animate={{ x: ["-120%", "260%"] }}
+                          transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                        />
+                        <div className="relative flex items-center gap-3">
+                          <span className="flex size-9 items-center justify-center rounded-xl bg-background/10 text-gold">
+                            <Radar className="size-4 animate-pulse" />
+                          </span>
+                          <div>
+                            <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Live DataForSEO</p>
+                            <p className="mt-0.5 text-[13px] font-semibold">Mapping your real search market…</p>
+                          </div>
+                          <Loader2 className="ml-auto size-4 animate-spin text-background/60" />
+                        </div>
                       </div>
                     )}
 
