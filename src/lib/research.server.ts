@@ -62,7 +62,16 @@ async function loadOrBackfillProfile(
     .eq("id", projectId)
     .single();
   const storedProfile = stored?.business_profile as import("./relevance.server").CanonicalBusinessProfile | null;
-  if (storedProfile?.reliable) {
+  // A stored profile is only valid for the site it was built from. Correcting
+  // the project's website — the fix when an install recorded the
+  // myshopify.com address instead of the real shop — has to rebuild it, or the
+  // merchant changes the URL and every later scan silently keeps describing the
+  // old one.
+  const bare = (u: string | null | undefined) =>
+    (u ?? "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "").toLowerCase();
+  const builtForThisSite =
+    !project.website_url || !storedProfile?.website_url || bare(storedProfile.website_url) === bare(project.website_url);
+  if (storedProfile?.reliable && builtForThisSite) {
     return {
       ...storedProfile,
       website_url: storedProfile.website_url ?? project.website_url ?? null,
@@ -106,7 +115,7 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   const { keywordSuggestions, keywordsForSite, competitorKeywords } = await import(
     "./dataforseo.server"
   );
-  const { QUOTA, dedupeKeywords, dedupeDomains, isFresh } = await import("./quotas");
+  const { QUOTA, dedupeKeywords, dedupeDomains, isFresh, matchesRequestedLanguage } = await import("./quotas");
   const { data: project } = await supabase
     .from("projects")
     .select("id, name, industry, audience, locale, target_country, website_url, keywords, business_profile")
@@ -248,7 +257,12 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     }
   }
 
-  const unique = dedupeKeywords(rows.filter(onTopic), QUOTA.totalKeywords * 4);
+  // The language guard used to run only in the onboarding scan, so this daily
+  // pass quietly re-polluted a non-English calendar with English phrases.
+  const unique = dedupeKeywords(
+    rows.filter((r) => onTopic(r) && matchesRequestedLanguage(r.keyword, opts.languageCode)),
+    QUOTA.totalKeywords * 4,
+  );
   const saved = await saveKeywords(supabase, userId, projectId, unique, biz);
   return { found: saved, skipped: false, live: true, cachedCompetitors: cacheUsable };
 }
@@ -338,6 +352,50 @@ export type SerpCompetitor = {
   relevance: number;
 };
 
+/** What a rival puts on its own landing page — the observable half of "best practice". */
+export type CompetitorLanding = {
+  domain: string;
+  title: string | null;
+  metaDescription: string | null;
+  positioning: string;
+  headings: string[];
+  categories: string[];
+  sellsToBusinesses: boolean;
+};
+
+/**
+ * Reads the landing page of each rival with the same extractor used on the
+ * merchant's own site, so the writer can be told what the pages already winning
+ * these queries actually cover — instead of inventing "best practice" from
+ * nothing. Failures are skipped: a rival that blocks us must not fail the scan.
+ */
+export async function analyseCompetitorLandings(
+  domains: string[],
+  max = 5,
+): Promise<CompetitorLanding[]> {
+  const { scrapeLandingProfile } = await import("./scrape.server");
+  const picked = domains.slice(0, max);
+  const results = await Promise.all(
+    picked.map(async (domain) => {
+      try {
+        const p = await scrapeLandingProfile(domain);
+        return {
+          domain,
+          title: p.title,
+          metaDescription: p.metaDescription,
+          positioning: p.positioning,
+          headings: [...p.h1, ...p.h2, ...p.h3].slice(0, 12),
+          categories: p.categoryLinks.slice(0, 12),
+          sellsToBusinesses: p.sellsToBusinesses,
+        };
+      } catch {
+        return null;
+      }
+    }),
+  );
+  return results.filter((r): r is CompetitorLanding => r !== null);
+}
+
 /**
  * Builds realistic commercial Google queries from the business profile and
  * runs them through the real DataForSEO SERP (Google Organic) API. Only
@@ -359,7 +417,7 @@ export async function discoverCompetitorsFromSerp(
   city?: string | null,
   limit = 5,
 ): Promise<SerpCompetitor[]> {
-  const { serpOrganicSearch, competitorDomains } = await import("./dataforseo.server");
+  const { serpWithAiSignals, competitorDomains } = await import("./dataforseo.server");
   const { dedupeDomains, isRealCompetitor } = await import("./quotas");
   const { scoreCompetitorDomains, MIN_COMPETITOR_RELEVANCE } = await import("./relevance.server");
 
@@ -424,11 +482,24 @@ export async function discoverCompetitorsFromSerp(
   // organic keyword overlap with this site (only useful once the site has
   // some ranking history — silently empty otherwise, never blocking).
   const [batches, overlapDomains] = await Promise.all([
-    Promise.all(queries.map((q) => serpOrganicSearch(q, opts, 20))),
+    Promise.all(queries.map((q) => serpWithAiSignals(q, opts, 20))),
     selfDomain ? competitorDomains(selfDomain, opts, 15).catch(() => []) : Promise.resolve([]),
   ]);
-  const allResults = batches.flat();
-  if (!allResults.length && !overlapDomains.length) {
+  const allResults = batches.flatMap((b) => b.organic);
+  // Who the AI assistant actually quotes when asked the buyer's question. For a
+  // generative-engine product this outranks organic position: these are the
+  // sites already occupying the answer the merchant wants to be in. Same
+  // response, no extra request — it used to be filtered out and discarded.
+  const aiCited = batches.flatMap((b) => b.ai.citedDomains);
+  const aiQueryCount = batches.filter((b) => b.ai.hasAiOverview).length;
+  if (aiQueryCount) {
+    console.info("[competitors] AI Overview present", {
+      queriesWithAi: aiQueryCount,
+      of: batches.length,
+      citedDomains: Array.from(new Set(aiCited)).slice(0, 10),
+    });
+  }
+  if (!allResults.length && !overlapDomains.length && !aiCited.length) {
     throw new Error("DataForSEO returned no organic SERP results for these queries.");
   }
 
@@ -459,6 +530,18 @@ export async function discoverCompetitorsFromSerp(
       existing.appearances += 1;
     } else {
       byDomain.set(d.domain, { title: null, snippet: null, appearances: 1, bestPosition: 999 });
+    }
+  }
+  // A domain the AI answer cites counts double: it is not merely ranking, it is
+  // already inside the answer the merchant is trying to enter.
+  for (const domain of aiCited) {
+    if (!isRealCompetitor(domain, selfDomain)) continue;
+    const existing = byDomain.get(domain);
+    if (existing) {
+      existing.appearances += 2;
+      existing.bestPosition = Math.min(existing.bestPosition, 1);
+    } else {
+      byDomain.set(domain, { title: null, snippet: null, appearances: 2, bestPosition: 1 });
     }
   }
 

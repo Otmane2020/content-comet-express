@@ -166,7 +166,11 @@ export async function provisionShopifyMerchant(args: {
         user_id: userId,
         name: info.name || handle,
         website_url: info.domain,
-        industry: args.snapshot.types[0] ?? "E-commerce",
+        // `snapshot.types[0]` is a raw Shopify product type — on a store with a
+        // gift card it is literally "giftcard", which then drives keyword
+        // research as if that were the merchant's line of business. The real
+        // industry comes from the canonical profile built from the site.
+        industry: "E-commerce",
         audience: info.country ? `Shoppers in ${info.country}` : null,
         keywords: args.snapshot.types.slice(0, 10),
         locale: info.locale ?? "en",
@@ -177,9 +181,24 @@ export async function provisionShopifyMerchant(args: {
     if (error || !inserted) throw new Error(error?.message ?? "Could not create the project.");
     projectId = inserted.id;
   } else {
+    // Never overwrite a website the merchant corrected by hand. A store with no
+    // custom domain reports its myshopify.com address here, and re-imposing it
+    // on every reinstall would keep pointing research at a bare storefront
+    // instead of the real site — only fill it in when it is still missing or
+    // still the myshopify address.
+    const { data: current } = await supabaseAdmin
+      .from("projects")
+      .select("website_url")
+      .eq("id", projectId)
+      .maybeSingle();
+    const existingUrl = current?.website_url ?? null;
+    const isPlaceholder = !existingUrl || /\.myshopify\.com/i.test(existingUrl);
     await supabaseAdmin
       .from("projects")
-      .update({ website_url: info.domain, timezone: info.timezone ?? "UTC" })
+      .update({
+        ...(isPlaceholder && info.domain ? { website_url: info.domain } : {}),
+        timezone: info.timezone ?? "UTC",
+      })
       .eq("id", projectId);
   }
 

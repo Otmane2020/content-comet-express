@@ -20,6 +20,15 @@ export type BusinessProfile = {
   services?: string[] | null;
   /** Geographic areas confirmed on the site. */
   locations?: string[] | null;
+  /**
+   * The merchant's own positioning, verbatim: the SEO <title> and meta
+   * description of the landing page. These are the words the business chose to
+   * describe itself, already in its language and already aimed at its real
+   * buyer — sweet-deco.fr's title is literally "Grossiste de Meubles
+   * Professionnels". Keyword seeds should be built from this, not from a
+   * paraphrase of it.
+   */
+  positioning?: string | null;
 };
 
 export type CanonicalBusinessProfile = BusinessProfile & {
@@ -52,6 +61,8 @@ function profileBlock(profile: BusinessProfile) {
     `What it sells / category: ${profile.industry ?? "unknown"}`,
     `Audience: ${profile.audience ?? "unknown"}`,
   ];
+  // First, and verbatim: these are the merchant's own words about who they are.
+  if (profile.positioning) lines.push(`Own positioning (SEO title + meta description): ${profile.positioning}`);
   if (profile.description) lines.push(`Description: ${profile.description}`);
   if (profile.sales_model) lines.push(`Sales model: ${profile.sales_model}`);
   if (profile.products?.length) lines.push(`Products: ${profile.products.join(", ")}`);
@@ -164,9 +175,17 @@ export async function scoreRelevance(
  * is NOT a carpenter, upholsterer, or repair service).
  */
 export async function buildCanonicalProfile(
-  site: { title: string | null; description: string | null; headings: string[]; text: string; lang?: string | null },
-  hints?: { name?: string | null; industry?: string | null; website_url?: string | null },
+  site: {
+    title: string | null;
+    description: string | null;
+    headings: string[];
+    text: string;
+    lang?: string | null;
+    landing?: import("./scrape.server").LandingProfile;
+  },
+  hints?: { name?: string | null; industry?: string | null; website_url?: string | null; audience?: string | null },
 ): Promise<CanonicalBusinessProfile> {
+  const landing = site.landing;
   const raw = await callOpenRouter({
     json: true,
     maxTokens: 900,
@@ -175,11 +194,17 @@ export async function buildCanonicalProfile(
       "Never invent services, crafts, or locations that are not visible on the site. " +
       "A furniture SELLER is not a carpenter, upholsterer, or repair service. " +
       "Distinguish wholesale from retail from local service.",
-    user: `Website title: ${site.title ?? ""}
+    user: `${landing?.positioning ? `How the business describes itself, verbatim (SEO title, site name, meta description) — trust this over your reading of the page body:\n${landing.positioning}\n` : ""}${
+      landing?.sellsToBusinesses
+        ? `Wholesale/B2B wording on this page: ${(landing.b2bMarkers ?? []).join(", ") || "in the body copy"} — ${landing.b2bMentions ?? 0} mentions across the landing page. This business sells to other businesses: "sales_model" MUST be "wholesale" or "manufacturer", and "audience" must describe the professional buyer, not a consumer.\n`
+        : ""
+    }${landing?.schemaTypes?.length ? `schema.org types declared by the site: ${landing.schemaTypes.slice(0, 6).join(", ")}\n` : ""}${landing?.categoryLinks?.length ? `Category/product links on the page: ${landing.categoryLinks.slice(0, 15).join(", ")}\n` : ""}
+Website title: ${site.title ?? ""}
 Description: ${site.description ?? ""}
 Headings: ${site.headings?.slice(0, 15).join(" | ") ?? ""}
 Page text (truncated): ${site.text?.slice(0, 3000) ?? ""}
 Hints — name: ${hints?.name ?? ""}, industry: ${hints?.industry ?? ""}, website: ${hints?.website_url ?? ""}
+${hints?.audience ? `Known audience (already confirmed for this business, trust it over your own reading of the page): ${hints.audience}\nIf that audience is resellers, retailers, professionals or other businesses, "sales_model" MUST be "wholesale" or "manufacturer" — never "retail".` : ""}
 
 Return JSON:
 {
@@ -211,16 +236,24 @@ Rules:
     p.description?.toString().slice(0, 400) ??
     `${p.sales_model ?? ""} ${products.join(", ")}`.trim();
   const reliable = Boolean(p.reliable) && (products.length > 0 || services.length > 0);
+  // The page's own wording wins over the model's reading of it. sweet-deco.fr
+  // says "Grossiste de Meubles Professionnels" in its <title>, yet was being
+  // classified as retail — and that single field decides whether the whole
+  // keyword set targets resellers or shoppers.
+  const modelSaysB2B = ["wholesale", "manufacturer"].includes((p.sales_model ?? "").trim().toLowerCase());
+  const sales_model =
+    landing?.sellsToBusinesses && !modelSaysB2B ? "wholesale" : (p.sales_model?.toString().slice(0, 40) ?? null);
   return {
     name: p.name?.toString().slice(0, 120) ?? hints?.name ?? site.title,
     website_url: hints?.website_url ?? null,
     industry: hints?.industry ?? null,
     audience: p.audience?.toString().slice(0, 300) ?? null,
     description: p.description?.toString().slice(0, 400) ?? null,
-    sales_model: p.sales_model?.toString().slice(0, 40) ?? null,
+    sales_model,
     products,
     services,
     locations,
+    positioning: landing?.positioning || null,
     canonical,
     reliable,
   };
@@ -231,16 +264,105 @@ Rules:
  * buyers use. Seeds only — every metric still comes from DataForSEO.
  * Preserves the sales model distinction (wholesaler vs retailer vs service).
  */
+/**
+ * Candidate search queries proposed by the AI from the landing page itself.
+ *
+ * This is the entry point of the research: the model reads the merchant's own
+ * positioning and product taxonomy and writes the queries their buyer would
+ * type. DataForSEO then measures those candidates (`searchVolumeFor`) and
+ * anything with no real volume is dropped.
+ *
+ * The order matters. Letting DataForSEO generate the candidate space instead —
+ * phrase-match expansion from a seed — makes every result inherit the seed's
+ * audience, which is how a wholesaler's scan filled up with consumer queries.
+ * Here the audience is decided before a single metric is fetched.
+ */
+export async function candidateKeywords(
+  profile: BusinessProfile,
+  landing?: import("./scrape.server").LandingProfile | null,
+  max = 120,
+): Promise<string[]> {
+  const sellsToBusinesses = ["wholesale", "manufacturer"].includes(
+    (profile.sales_model ?? "").trim().toLowerCase(),
+  );
+  // The page itself, not a paraphrase of it. The SEO <title> and the visible
+  // page title are given separately because they are frequently written for
+  // different readers, and the SEO one is where the business model shows up.
+  const landingBlock = landing
+    ? [
+        landing.title ? `SEO title (<title>): ${landing.title}` : null,
+        landing.pageTitle && landing.pageTitle !== landing.title ? `Page title: ${landing.pageTitle}` : null,
+        landing.metaDescription ? `Meta description: ${landing.metaDescription}` : null,
+        landing.h2.length || landing.h3.length
+          ? `Section headings: ${[...landing.h2, ...landing.h3].slice(0, 15).join(" | ")}`
+          : null,
+        landing.categoryLinks.length ? `Categories on the page: ${landing.categoryLinks.slice(0, 15).join(", ")}` : null,
+        landing.bodyExcerpt ? `Landing page copy (truncated):\n${landing.bodyExcerpt.slice(0, 2500)}` : null,
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+  try {
+    const raw = await callOpenRouter({
+      json: true,
+      maxTokens: 2000,
+      system:
+        "You turn a business's own landing page into the exact search queries its buyers type. Strict JSON only.",
+      user: `${profileBlock(profile)}
+${landingBlock ? `\n--- The business's actual landing page ---\n${landingBlock}\n--- end of landing page ---\n` : ""}
+Propose up to ${max} distinct search queries that would bring THIS business a qualified visitor.
+Ground every query in the landing page above: the vocabulary, product names and phrasing it already
+uses are what this business is findable for.
+Write them in the business's own language, exactly as a buyer would type them — never translated,
+never a normalised or agrammatical form.
+
+${
+  sellsToBusinesses
+    ? `This business sells to OTHER BUSINESSES — resellers, retailers, professional buyers.
+Every query must be one a PROFESSIONAL BUYER types when sourcing: the local-language equivalents of
+"fournisseur <product>", "grossiste <product>", "<product> en gros", "<product> professionnel",
+"acheter <product> en volume", "<product> pour revendeur".
+NEVER a single-unit consumer query: "canapé d'angle convertible" matches the product but brings a
+shopper, not a reseller — that is the wrong audience and must not appear.`
+    : `These are consumers buying for themselves. Mix head terms, buying-intent queries and
+comparison queries.`
+}
+
+Cover the range: category queries, buying-intent queries, and questions a buyer asks before choosing
+a supplier. Use ONLY the products and services confirmed above — invent no new product category.
+${profile.locations?.length ? `Geographic terms only with: ${profile.locations.join(", ")}.` : "No city or region names."}
+
+Return JSON: {"keywords":["...","..."]}`,
+    });
+    const parsed = parseJsonLoose<{ keywords?: string[] }>(raw);
+    return Array.from(
+      new Set(
+        (parsed.keywords ?? [])
+          .map((k) => String(k).trim().toLowerCase())
+          .filter((k) => k.length > 2 && k.split(/\s+/).length <= 8),
+      ),
+    ).slice(0, max);
+  } catch {
+    return [];
+  }
+}
+
 export async function productSeeds(profile: BusinessProfile, max = 12): Promise<string[]> {
-  const salesPrefix = profile.sales_model === "wholesale" ? "grossiste " : "";
+  // Wholesalers and manufacturers sell to businesses. The distinction decides
+  // the whole keyword set, so it is read once here and drives both the seed
+  // instruction and whether bare categories are seeded at all.
+  const sellsToBusinesses = ["wholesale", "manufacturer"].includes(
+    (profile.sales_model ?? "").trim().toLowerCase(),
+  );
   // The bare product categories (e.g. "meubles design") are the highest-volume
   // anchor terms available: short, unmodified, exactly what most buyers type.
   // Phrase-match keyword expansion can only ever get as broad as its seed, so
-  // if every seed already carries a buyer-intent modifier ("grossiste meubles
-  // design", "fabricant meubles bois"), every suggestion inherits that same
-  // narrow, low-volume long tail. Seeding with the bare category first fixes
-  // that without loosening relevance — every suggestion still has to contain
-  // the seed verbatim.
+  // if every seed already carries a buyer-intent modifier, every suggestion
+  // inherits that same narrow long tail. Seeding with the bare category first
+  // fixes that — but ONLY for a business whose buyer is the person typing it.
+  // For a wholesaler the bare category is a shopper's query, and seeding it
+  // guarantees a page of consumer long-tail ("canapés d'angle convertibles")
+  // for a business that sells pallets to resellers.
   const bareSeeds = (profile.products ?? [])
     .map((p) => p.trim().toLowerCase())
     .filter((p) => p.length > 2 && p.split(/\s+/).length <= 4);
@@ -253,10 +375,19 @@ export async function productSeeds(profile: BusinessProfile, max = 12): Promise<
       user: `${profileBlock(profile)}
 
 List ${max} short search terms (2-4 words) that a buyer looking for THIS product would type.
-Mix the terms: about half should be the bare product category alone or with a common synonym
+Write them in the language of the business described above, never translated to English.
+${
+  sellsToBusinesses
+    ? `This business sells to OTHER BUSINESSES — resellers, retailers and professional buyers — not to consumers.
+Every term must be one a PROFESSIONAL BUYER types when SOURCING this product: the local-language
+equivalents of "fournisseur <product>", "grossiste <product>", "<product> en gros",
+"<product> professionnel", "<product> b2b", "acheter <product> en volume".
+Do NOT return a bare consumer product category on its own, and never a single-unit shopper phrasing:
+a query like "canapé d'angle convertible" matches the product but brings the wrong audience entirely.`
+    : `Mix the terms: about half should be the bare product category alone or with a common synonym
 (the highest-volume, most generic phrasing a buyer would type), and the other half can carry
-buying-intent modifiers.
-${salesPrefix ? `The business is a WHOLESALER — for the intent half, use terms like "grossiste <product>", "<product> en gros", "fournisseur <product>".` : "For the intent half, use comparison or buying phrasings."}
+buying-intent modifiers such as comparison or buying phrasings.`
+}
 Use ONLY product categories from the confirmed products list above. Do NOT invent new product categories.
 No brand names other than this business's own. No generic one-word terms. No unrelated markets.
 ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.join(", ")}.` : "No city or region names."}
@@ -267,8 +398,12 @@ Return JSON: {"seeds":["...", "..."]}`,
     const aiSeeds = (parsed.seeds ?? [])
       .map((s) => String(s).trim().toLowerCase())
       .filter((s) => s.length > 2 && s.split(/\s+/).length <= 6);
-    return Array.from(new Set([...bareSeeds, ...aiSeeds])).slice(0, max);
+    // For a B2B seller the bare categories are deliberately left out: they are
+    // the consumer phrasing, and phrase-match would inherit it.
+    return Array.from(new Set([...(sellsToBusinesses ? [] : bareSeeds), ...aiSeeds])).slice(0, max);
   } catch {
+    // Last resort only. For a B2B seller these are the wrong audience, but no
+    // seeds at all would leave the scan with nothing to expand from.
     return bareSeeds.slice(0, max);
   }
 }

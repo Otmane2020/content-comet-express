@@ -1,5 +1,6 @@
 import { callOpenRouter, parseJsonLoose } from "./ai.server";
 import { TYPE_META, type ContentType } from "./geo";
+import { LANGUAGES } from "./industries";
 
 export type ProjectBrief = {
   name: string;
@@ -11,8 +12,41 @@ export type ProjectBrief = {
   keywords: string[];
 };
 
+/**
+ * English name of the project's writing language.
+ *
+ * Built from LANGUAGES — the same list the onboarding selector offers — because
+ * a hardcoded 6-entry map silently told Polish, Swedish, Japanese and eight
+ * other projects to "write exclusively in English".
+ */
+export function languageName(locale: string | null | undefined): string {
+  const code = (locale ?? "fr").slice(0, 2).toLowerCase();
+  return LANGUAGES.find((l) => l.code === code)?.label ?? "English";
+}
+
+/** Section heading appended after the article body, in the article's language. */
+const FAQ_HEADING: Record<string, string> = {
+  en: "Frequently asked questions",
+  fr: "Questions fréquentes",
+  es: "Preguntas frecuentes",
+  de: "Häufige Fragen",
+  it: "Domande frequenti",
+  nl: "Veelgestelde vragen",
+  pt: "Perguntas frequentes",
+  pl: "Najczęstsze pytania",
+  sv: "Vanliga frågor",
+  da: "Ofte stillede spørgsmål",
+  no: "Ofte stilte spørsmål",
+  fi: "Usein kysytyt kysymykset",
+  ro: "Întrebări frecvente",
+  tr: "Sıkça sorulan sorular",
+  ja: "よくある質問",
+  ko: "자주 묻는 질문",
+  ar: "الأسئلة الشائعة",
+};
+
 export function briefLine(project: ProjectBrief) {
-  const language = ({ fr: "French", es: "Spanish", de: "German", it: "Italian", nl: "Dutch", pt: "Portuguese" } as Record<string, string>)[project.locale ?? "fr"] ?? "English";
+  const language = languageName(project.locale);
   return [
     `Business: ${project.name}`,
     project.website_url ? `Website: ${project.website_url}` : null,
@@ -26,12 +60,21 @@ export function briefLine(project: ProjectBrief) {
     .join("\n");
 }
 
+/**
+ * Used when the topic-planning call fails. It still ships as the published
+ * article title, so it has to read like one: the previous form emitted the
+ * internal debug label `GEO — meubles t v (Sweet Deco)`.
+ */
 export function fallbackTopics(project: ProjectBrief, slots: { date: string; type: ContentType }[]) {
   const seeds = project.keywords.length ? project.keywords : [project.industry ?? project.name];
-  return slots.map((slot, i) => ({
-    ...slot,
-    topic: `${TYPE_META[slot.type].label} — ${seeds[i % seeds.length]} (${project.name})`,
-  }));
+  const fr = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr";
+  return slots.map((slot, i) => {
+    const seed = seeds[i % seeds.length] ?? project.name;
+    return {
+      ...slot,
+      topic: fr ? `${seed} : le guide complet` : `${seed}: the complete guide`,
+    };
+  });
 }
 
 export async function planTopics(
@@ -56,7 +99,7 @@ export async function planTopics(
       user: `${briefLine(project)}
 
 Create one editorial topic per slot below. Each topic must be a concrete, specific title idea (max 90 chars) matching the slot's content type, non-duplicated, in the project's language.
-When a slot has a target keyword, the topic must be built around that exact keyword and read naturally.
+When a slot has a target keyword, the topic must cover that keyword's search intent. Keyword data arrives in Google's normalised form, which is often agrammatical ("meubles t v", "canapés d angle") — write the correct, natural form of the phrase in the title, never the normalised spelling.
 Any year mentioned in a title must be ${year}. Never write ${year - 1}, ${year - 2} or older years.
 Topics must be about what this business sells and the problems its buyers search for — never about the internal operations of the industries its customers belong to.
 
@@ -86,6 +129,33 @@ export type LocalInfo = {
 
 const FAQ_TYPES = new Set<ContentType>(["aeo", "local_aeo"]);
 
+/**
+ * The canonical profile the AI built from the merchant's own site. It already
+ * gates keyword research, but never reached the writer — which only ever saw
+ * the coarse English `industry` label and had to guess what is actually sold.
+ */
+export type CanonicalProfileFacts = {
+  description?: string | null;
+  sales_model?: string | null;
+  products?: string[] | null;
+  services?: string[] | null;
+  locations?: string[] | null;
+};
+
+function profileFactsBlock(profile: CanonicalProfileFacts | null | undefined) {
+  if (!profile) return "";
+  const facts = [
+    profile.description ? `What the business does: ${profile.description}` : null,
+    profile.sales_model ? `Sales model: ${profile.sales_model}` : null,
+    profile.products?.length ? `Products sold: ${profile.products.slice(0, 15).join(", ")}` : null,
+    profile.services?.length ? `Services: ${profile.services.slice(0, 10).join(", ")}` : null,
+    profile.locations?.length ? `Serves: ${profile.locations.slice(0, 10).join(", ")}` : null,
+  ].filter(Boolean);
+  return facts.length
+    ? `\n\nVerified facts about this business, taken from its own website — write for this business, not for the generic industry:\n${facts.join("\n")}`
+    : "";
+}
+
 export async function writeArticle(
   project: ProjectBrief,
   item: { content_type: ContentType; topic: string | null },
@@ -93,6 +163,8 @@ export async function writeArticle(
     products?: { title: string; price: string | null; url: string | null; description: string | null }[];
     links?: { title: string; url: string }[];
     localInfo?: LocalInfo | undefined;
+    profile?: CanonicalProfileFacts | null;
+    competitors?: { domain: string; positioning: string; headings: string[] }[];
   },
 ) {
   const products = extras?.products ?? [];
@@ -107,6 +179,17 @@ export async function writeArticle(
     shopping:
       "Shopping assistant format: comparison table in markdown, buying criteria, price ranges, pros/cons, and a clear recommendation.",
   };
+
+  // What the pages already ranking (and already cited by the AI answer) for
+  // these queries actually put on the page. Given as ground to beat, never as
+  // material to copy.
+  const rivals = extras?.competitors ?? [];
+  const rivalsBlock = rivals.length
+    ? `\n\nPages currently winning these queries, read from their own landing pages:\n${rivals
+        .slice(0, 5)
+        .map((r) => `${r.domain} — ${r.positioning.slice(0, 180)}${r.headings.length ? ` | sections: ${r.headings.slice(0, 6).join(", ")}` : ""}`)
+        .join("\n")}\n\nCover what they cover, then go further: add the specifics they leave out. Never reuse their wording, their claims or their numbers.`
+    : "";
 
   const catalogBlock = products.length
     ? `\n\nReal product catalogue of this business (use ONLY these products, with their exact names, prices and links; never invent products):\n${products
@@ -153,7 +236,7 @@ export async function writeArticle(
 Content type: ${TYPE_META[item.content_type].label}
 Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
-${guidance[item.content_type]}${catalogBlock}${linksBlock}${localBlock}
+${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock}${catalogBlock}${linksBlock}${localBlock}
 
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
@@ -177,7 +260,8 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
 
   let body_md = freshenYears(parsed.body_md);
   if (faq.length) {
-    body_md += `\n\n## Frequently asked questions\n\n${faq
+    const heading = FAQ_HEADING[(project.locale ?? "fr").slice(0, 2).toLowerCase()] ?? FAQ_HEADING["en"];
+    body_md += `\n\n## ${heading}\n\n${faq
       .map((f) => `### ${f.question}\n\n${f.answer}`)
       .join("\n\n")}`;
   }

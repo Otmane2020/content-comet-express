@@ -20,7 +20,20 @@ export type RotationProject = {
   keywords: string[] | null;
 };
 
-export type PickedKeyword = { id: string; keyword: string };
+export type PickedKeyword = { id: string; keyword: string; intent?: string | null };
+
+/**
+ * Which search intents suit each content format. Used to pair a keyword with a
+ * day whose format fits it, rather than to change the format itself — the
+ * five-way rotation is what keeps the calendar varied.
+ */
+const INTENT_FIT: Record<ContentType, string[]> = {
+  shopping: ["transactional", "commercial"],
+  seo: ["commercial", "informational"],
+  aeo: ["informational"],
+  geo: ["informational", "navigational"],
+  local_aeo: ["navigational", "informational"],
+};
 
 /** Unused keywords for this project, most business-relevant first. */
 export async function pickKeywords(
@@ -30,7 +43,7 @@ export async function pickKeywords(
 ): Promise<PickedKeyword[]> {
   const { data } = await supabase
     .from("keyword_research")
-    .select("id, keyword, relevance_score, search_volume")
+    .select("id, keyword, intent, relevance_score, search_volume")
     .eq("project_id", projectId)
     .eq("used", false)
     .gte("relevance_score", 60)
@@ -88,15 +101,32 @@ export async function ensureWindow(
     keywords: picked.length ? picked.map((k) => k.keyword) : (project.keywords ?? []),
   };
 
-  // One keyword per day. When there are fewer keywords than days, the list
-  // rotates so the calendar still covers the whole set evenly.
-  const keywordFor = (i: number) =>
-    picked.length ? (picked[i % picked.length]?.keyword ?? null) : (brief.keywords[i % Math.max(1, brief.keywords.length)] ?? null);
+  // One keyword per day, and never the same one twice in a window. The list
+  // used to rotate modulo-style when there were fewer keywords than days,
+  // which planned several near-identical articles on the same term — and marked
+  // it `used` only once. Days past the end are planned from the brief instead.
+  //
+  // Within that, each day takes the best-fitting unused keyword for its format
+  // (a transactional term on a Shopping day, a question on an AEO day). Falls
+  // back to plain order when the intent is unknown, which is the case for every
+  // keyword captured during onboarding.
+  const pool: { keyword: string; intent: string }[] = picked.length
+    ? picked.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase() }))
+    : brief.keywords.map((keyword) => ({ keyword, intent: "" }));
+  const claimed = new Set<number>();
+  const takeFor = (type: ContentType) => {
+    const fits = INTENT_FIT[type] ?? [];
+    let index = pool.findIndex((k, i) => !claimed.has(i) && k.intent && fits.includes(k.intent));
+    if (index < 0) index = pool.findIndex((_, i) => !claimed.has(i));
+    if (index < 0) return null;
+    claimed.add(index);
+    return pool[index]!.keyword;
+  };
 
-  const slots = missing.map((m, i) => ({
+  const slots = missing.map((m) => ({
     date: m.date,
     type: m.type as ContentType,
-    keyword: keywordFor(i),
+    keyword: takeFor(m.type as ContentType),
   }));
 
   const topics = await planTopics(brief, slots);
@@ -115,11 +145,13 @@ export async function ensureWindow(
   );
   if (error) throw new Error(error.message);
 
-  if (picked.length) {
-    await supabase
-      .from("keyword_research")
-      .update({ used: true })
-      .in("id", picked.slice(0, missing.length).map((k) => k.id));
+  // Mark exactly the keywords that were claimed above. Marking a prefix of the
+  // list was wrong once assignment stopped being sequential.
+  if (picked.length && claimed.size) {
+    const usedIds = [...claimed].map((i) => picked[i]?.id).filter((id): id is string => Boolean(id));
+    if (usedIds.length) {
+      await supabase.from("keyword_research").update({ used: true }).in("id", usedIds);
+    }
   }
 
   return { created: topics.length, keywords: picked.length, researched };

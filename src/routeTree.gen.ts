@@ -18,6 +18,7 @@ import { Route as LlmsDottxtRouteImport } from './routes/llms[.]txt'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as SitemapDotxmlRouteImport } from './routes/sitemap[.]xml'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TestRouteImport } from './routes/test'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
@@ -80,6 +81,11 @@ const SitemapDotxmlRoute = SitemapDotxmlRouteImport.update({
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
   path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TestRoute = TestRouteImport.update({
+  id: '/test',
+  path: '/test',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthCallbackRoute = AuthCallbackRouteImport.update({
@@ -189,6 +195,7 @@ export interface FileRoutesByFullPath {
   '/privacy': typeof PrivacyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/test': typeof TestRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/shopify/error': typeof ShopifyErrorRoute
@@ -217,6 +224,7 @@ export interface FileRoutesByTo {
   '/privacy': typeof PrivacyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/test': typeof TestRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/shopify/error': typeof ShopifyErrorRoute
@@ -247,6 +255,7 @@ export interface FileRoutesById {
   '/privacy': typeof PrivacyRoute
   '/sitemap.xml': typeof SitemapDotxmlRoute
   '/terms': typeof TermsRoute
+  '/test': typeof TestRoute
   '/auth_/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/shopify/error': typeof ShopifyErrorRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sitemap.xml'
     | '/terms'
+    | '/test'
     | '/auth/callback'
     | '/blog/$slug'
     | '/shopify/error'
@@ -306,6 +316,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sitemap.xml'
     | '/terms'
+    | '/test'
     | '/auth/callback'
     | '/blog/$slug'
     | '/shopify/error'
@@ -335,6 +346,7 @@ export interface FileRouteTypes {
     | '/privacy'
     | '/sitemap.xml'
     | '/terms'
+    | '/test'
     | '/auth_/callback'
     | '/blog/$slug'
     | '/shopify/error'
@@ -365,6 +377,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
+  TestRoute: typeof TestRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
   ShopifyErrorRoute: typeof ShopifyErrorRoute
   ShopifyPlanRoute: typeof ShopifyPlanRoute
@@ -446,6 +459,13 @@ declare module '@tanstack/react-router' {
       path: '/terms'
       fullPath: '/terms'
       preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/test': {
+      id: '/test'
+      path: '/test'
+      fullPath: '/test'
+      preLoaderRoute: typeof TestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/auth_/callback': {
@@ -599,6 +619,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
+  TestRoute: TestRoute,
   AuthCallbackRoute: AuthCallbackRoute,
   ShopifyErrorRoute: ShopifyErrorRoute,
   ShopifyPlanRoute: ShopifyPlanRoute,

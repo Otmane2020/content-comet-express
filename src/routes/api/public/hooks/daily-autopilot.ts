@@ -112,7 +112,7 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
               const article = await writeArticle(
                 target ? { ...brief, keywords: [target] } : brief,
                 { content_type: item.content_type as ContentType, topic: item.topic },
-                { products, links, localInfo },
+                { products, links, localInfo, profile: project.business_profile as never },
               );
               body = article.body_md;
               title = article.title;

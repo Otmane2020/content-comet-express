@@ -15,13 +15,6 @@ function localeFromDomain(website: string) {
   return null;
 }
 
-function matchesRequestedLanguage(keyword: string, locale: string) {
-  if (locale !== "fr") return true;
-  // DataForSEO occasionally returns an English phrase even when asked for
-  // French. Do not let that pollute a French publishing calendar.
-  return !/\b(and|with|for|the|best|cheap|sofa|sofas|chair|chairs|furniture|table set)\b/i.test(keyword);
-}
-
 export type BusinessDetection = {
   name: string | null;
   industry: string | null;
@@ -93,6 +86,8 @@ export const detectMarket = createServerFn({ method: "POST" })
       .extend({
         name: z.string().max(160).optional(),
         industry: z.string().max(160).optional(),
+        audience: z.string().max(300).optional(),
+        profile: z.record(z.unknown()).optional(),
         locale: z.string().max(8).optional(),
         seeds: z.array(z.string().min(1).max(120)).max(20).optional(),
         retry: z.boolean().optional(),
@@ -102,9 +97,9 @@ export const detectMarket = createServerFn({ method: "POST" })
   .handler(async ({ data }) => {
     const { normalizeUrl } = await import("./scrape.server");
     const { localeOpts, requireLiveDataForSeo, discoverCompetitorsFromSerp } = await import("./research.server");
-    const { competitorDomains, keywordSuggestions, keywordsForSite } = await import("./dataforseo.server");
-    const { QUOTA, dedupeKeywords } = await import("./quotas");
-    const { scoreRelevance, compositeScore, MIN_RELEVANCE, MIN_COMPETITOR_RELEVANCE, productSeeds, buildCanonicalProfile, scoreCompetitorDomains } = await import(
+    const { competitorDomains, keywordSuggestions, keywordsForSite, searchVolumeFor } = await import("./dataforseo.server");
+    const { QUOTA, dedupeKeywords, dedupeDomains, isRealCompetitor, matchesRequestedLanguage } = await import("./quotas");
+    const { scoreRelevance, compositeScore, MIN_RELEVANCE, MIN_COMPETITOR_RELEVANCE, productSeeds, candidateKeywords, buildCanonicalProfile, scoreCompetitorDomains } = await import(
       "./relevance.server"
     );
     const { scrapeSite } = await import("./scrape.server");
@@ -122,11 +117,27 @@ export const detectMarket = createServerFn({ method: "POST" })
     } catch {
       site = { url: website, title: data.name ?? null, description: null, lang: null, headings: [], text: "" };
     }
-    const canonical = await buildCanonicalProfile(site, {
-      name: data.name ?? null,
-      industry: data.industry ?? null,
-      website_url: website,
-    }).catch(() => null);
+    // Reuse step 1's profile when it is already reliable: rebuilding it here
+    // meant a second, independent classification of the same site — and the
+    // one that decides wholesale vs retail, which sets the entire audience.
+    const supplied = data.profile as import("./relevance.server").CanonicalBusinessProfile | undefined;
+    const bare = (u: string | null | undefined) =>
+      (u ?? "").trim().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/+$/, "").toLowerCase();
+    // Only reuse step 1's profile when it describes THIS site. Correcting the
+    // website URL — the usual fix when a Shopify install landed on the
+    // myshopify.com address instead of the real shop — must recompute
+    // everything downstream, not silently keep the profile of the old URL.
+    const canonical =
+      supplied?.reliable && bare(supplied.website_url) === bare(website)
+        ? supplied
+        : await buildCanonicalProfile(site, {
+          name: data.name ?? null,
+          industry: data.industry ?? null,
+          website_url: website,
+          // "Professional furniture resellers in France" is the difference
+          // between seeding "canapé" and seeding "fournisseur canapé".
+          audience: data.audience ?? null,
+        }).catch(() => null);
 
     // If the profile is not reliable, refuse to continue — generic seeds like
     // "meuble" or "fabricant" produce off-topic results (menuisier, tapissier…).
@@ -146,14 +157,24 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     // 2. DataForSEO's domain-competitor graph is the primary source. It uses
     // real shared rankings, so rivals are not guessed from generic queries.
-    let competitorRows = await competitorDomains(domain, opts, Math.max(12, QUOTA.competitors * 2)).catch(() => []);
+    // `competitors_domain` always returns the target itself as the top row — it
+    // intersects 100% with itself — and an AI asked whether a site competes
+    // with itself answers yes, so the relevance score cannot remove it. Strip
+    // self and the platform giants first, before scoring and before the count
+    // below decides whether the SERP fallback is needed.
+    // Only `.domain` is read below, and the SERP fallback contributes a
+    // differently-shaped row — declaring the narrow shape lets the two sources
+    // merge without the cast the union previously forced.
+    let competitorRows: { domain: string }[] = (
+      await competitorDomains(domain, opts, Math.max(12, QUOTA.competitors * 2)).catch(() => [])
+    ).filter((row) => isRealCompetitor(row.domain, domain));
     const competitorScores = await scoreCompetitorDomains(biz, competitorRows.map((row) => row.domain));
     competitorRows = competitorRows.filter((row) => (competitorScores[row.domain.toLowerCase()] ?? 0) >= MIN_COMPETITOR_RELEVANCE);
     if (competitorRows.length < 5) {
       // Only fall back to live SERPs when Labs has insufficient domain data.
       const serpRows = await discoverCompetitorsFromSerp(biz, data.locale ?? null, null, null, QUOTA.competitors);
       const known = new Set(competitorRows.map((row) => row.domain.toLowerCase()));
-      competitorRows = [...competitorRows, ...serpRows.filter((row) => !known.has(row.domain.toLowerCase()))].slice(0, Math.max(8, QUOTA.competitors));
+      competitorRows = [...competitorRows, ...serpRows.filter((row) => !known.has(row.domain.toLowerCase()) && isRealCompetitor(row.domain, domain))].slice(0, Math.max(8, QUOTA.competitors));
     }
 
     // 3. Site keywords from DataForSEO — what the domain actually ranks for.
@@ -165,14 +186,25 @@ export const detectMarket = createServerFn({ method: "POST" })
     }
 
     // 4. Generate seeds from the canonical profile — NOT from generic terms.
+    //    Seeds are phrase-matched below, so every child keyword inherits the
+    //    seed's exact form: a plural seed returns a whole page of plural
+    //    variants. Fold the spelling variants onto one seed per query.
     const categorySeeds = await productSeeds(biz, QUOTA.seeds);
-    const usedSeeds = Array.from(
-      new Set([
+    // What the domain already ranks for is a poor seed for a business selling
+    // to other businesses: a wholesaler with a public catalogue ranks for
+    // consumer product queries, and phrase-match would expand those into more
+    // of the same. Its own sourcing terms come from productSeeds instead.
+    const sellsToBusinesses = ["wholesale", "manufacturer"].includes(
+      (biz.sales_model ?? "").trim().toLowerCase(),
+    );
+    const usedSeeds = dedupeKeywords(
+      [
         ...categorySeeds,
-        ...siteRows.slice(0, 5).map((r) => r.keyword),
+        ...(sellsToBusinesses ? [] : siteRows.slice(0, 5).map((r) => r.keyword)),
         ...(data.seeds ?? []).filter(Boolean),
-      ]),
-    ).slice(0, QUOTA.seeds);
+      ].map((keyword) => ({ keyword })),
+      QUOTA.seeds,
+    ).map((s) => s.keyword);
 
     // 5. Phrase-match suggestions per seed: every result contains the seed,
     //    so the list can never drift to high-volume off-topic terms.
@@ -184,8 +216,28 @@ export const detectMarket = createServerFn({ method: "POST" })
     );
     const ideas = batches.flat();
 
+    // 6. The AI proposes the candidates from the landing page, DataForSEO
+    //    measures them. Anything it cannot measure never existed as a query
+    //    and is dropped — one batched request for the whole list.
+    const proposed = await candidateKeywords(biz, site.landing ?? null, QUOTA.keywords * 4);
+    const measured = proposed.length
+      ? await searchVolumeFor(proposed, opts).catch((e) => {
+          // Loud on purpose: a silent [] here looks identical to "the AI
+          // proposed nothing", and the scan would quietly fall back to the
+          // phrase-match sources this step exists to replace.
+          console.error("[detectMarket] search_volume lookup failed", e);
+          return [];
+        })
+      : [];
+    console.info("[detectMarket] AI candidates measured", {
+      proposed: proposed.length,
+      withVolume: measured.length,
+    });
+
     const merged = dedupeKeywords(
-      [...siteRows, ...ideas].filter((k) => k?.keyword && matchesRequestedLanguage(k.keyword, opts.languageCode ?? "fr")),
+      [...measured, ...siteRows, ...ideas].filter(
+        (k) => k?.keyword && matchesRequestedLanguage(k.keyword, opts.languageCode ?? "fr"),
+      ),
       QUOTA.keywords * 3,
     );
     const scores = await scoreRelevance(biz, merged.map((k) => k.keyword));
@@ -200,7 +252,9 @@ export const detectMarket = createServerFn({ method: "POST" })
     const result = {
       live: true,
       source: "dataforseo" as const,
-      competitors: competitorRows.map((c) => c.domain),
+      // Final normalisation: strips www/scheme, drops any late duplicate and
+      // re-applies the self/blocklist guard to whatever the fallback added.
+      competitors: dedupeDomains(competitorRows.map((c) => c.domain), domain, Math.max(8, QUOTA.competitors)),
       keywords: ranked.map(({ k }) => ({
         keyword: k.keyword,
         volume: k.search_volume ?? null,

@@ -47,6 +47,7 @@ export const generateArticle = createServerFn({ method: "POST" })
       tone: string | null;
       locale: string | null;
       keywords: string[] | null;
+      business_profile: unknown;
     };
 
     await supabase.from("content_items").update({ status: "generating" }).eq("id", data.itemId);
@@ -74,7 +75,7 @@ export const generateArticle = createServerFn({ method: "POST" })
       const article = await writeArticle(
         { ...project, keywords: target ? [target] : (project.keywords ?? []) },
         { content_type: item.content_type as ContentType, topic: item.topic },
-        { products, links, localInfo },
+        { products, links, localInfo, profile: project.business_profile as never },
       );
       // faq isn't in the generated Supabase types yet (migration only) — cast, same as target_keyword elsewhere.
       const { error: updateError } = await supabase
@@ -200,7 +201,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
         const { fetchShopifyLocalInfo } = await import("./shopifyProvision.server");
         localInfo = await fetchShopifyLocalInfo(supabase, data.projectId);
       }
-      const article = await writeArticle(ctx, { content_type: type, topic }, { links, localInfo });
+      const article = await writeArticle(ctx, { content_type: type, topic }, { links, localInfo, profile: project!.business_profile as never });
       await supabase
         .from("content_items")
         .update({
