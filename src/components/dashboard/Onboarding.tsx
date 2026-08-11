@@ -1175,21 +1175,28 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
                 {step === 3 && (
                   <div className="mt-6 space-y-5">
-                    <div className="grid gap-2 sm:grid-cols-5">
-                      {FORMATS.map((f, i) => (
-                        <motion.div
-                          key={f.code}
-                          initial={{ opacity: 0, y: 14 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: 0.05 * i }}
-                          className="rounded-xl border border-border bg-secondary/40 p-3"
-                        >
-                          <span className="rounded-md bg-deep px-2 py-0.5 text-[10.5px] font-bold text-background">
-                            {f.code}
-                          </span>
-                          <p className="mt-2 text-[11.5px] leading-snug text-muted-foreground">{f.desc}</p>
-                        </motion.div>
-                      ))}
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+                      {FORMATS.map((f, i) => {
+                        const styles = [
+                          { icon: Sparkles, tint: "bg-primary/10 text-primary", line: "bg-primary", badge: "bg-primary text-primary-foreground" },
+                          { icon: Globe2, tint: "bg-sky-500/10 text-sky-700", line: "bg-sky-500", badge: "bg-sky-600 text-white" },
+                          { icon: Bot, tint: "bg-gold/20 text-gold-foreground", line: "bg-gold", badge: "bg-gold text-gold-foreground" },
+                          { icon: Radar, tint: "bg-emerald-500/10 text-emerald-700", line: "bg-emerald-500", badge: "bg-emerald-600 text-white" },
+                          { icon: Package, tint: "bg-rose-500/10 text-rose-700", line: "bg-rose-500", badge: "bg-rose-600 text-white" },
+                        ][i]!;
+                        const Icon = styles.icon;
+                        return (
+                          <motion.div key={f.code} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.06 * i }} whileHover={{ y: -3 }} className="group relative overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-sm transition-shadow hover:shadow-md">
+                            <span aria-hidden className={`absolute inset-x-0 top-0 h-1 ${styles.line}`} />
+                            <div className="flex items-start justify-between gap-2">
+                              <span className={`flex size-9 items-center justify-center rounded-xl ${styles.tint}`}><Icon className="size-4" /></span>
+                              <span className={`rounded-md px-2 py-1 font-mono text-[10px] font-bold tracking-[0.08em] ${styles.badge}`}>{f.code}</span>
+                            </div>
+                            <p className="mt-4 text-[12px] font-semibold leading-snug text-foreground">{f.desc}</p>
+                            <p className="mt-1 text-[10.5px] text-muted-foreground">Included in your 30-day mix</p>
+                          </motion.div>
+                        );
+                      })}
                     </div>
 
                     <div className="relative overflow-hidden rounded-2xl bg-deep px-6 py-6 text-background">
