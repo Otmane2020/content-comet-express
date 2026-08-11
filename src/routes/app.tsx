@@ -13,7 +13,6 @@ import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { ShopifyWelcome } from "@/components/dashboard/ShopifyWelcome";
 import { exchangeShopifySession } from "@/lib/shopify.functions";
-import { SHOPIFY_CLIENT_ID } from "@/lib/shopify.constants";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
@@ -58,8 +57,6 @@ type Project = {
   keywords: string[] | null;
 };
 
-const APP_BRIDGE_SRC = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
-
 /** App Bridge attaches window.shopify asynchronously once its script loads. */
 async function waitForShopifyAppBridge(timeoutMs = 8000): Promise<Window["shopify"] | null> {
   const start = Date.now();
@@ -100,16 +97,6 @@ function Dashboard() {
   // we try to silently establish one from the App Bridge session token, so
   // the plain "no session -> /auth" redirect below doesn't fire too early.
   const [shopifyAuthChecked, setShopifyAuthChecked] = useState(!embedded);
-
-  useEffect(() => {
-    if (!embedded) return;
-    if (document.querySelector("script[data-shopify-app-bridge]")) return;
-    const script = document.createElement("script");
-    script.src = APP_BRIDGE_SRC;
-    script.dataset["apiKey"] = SHOPIFY_CLIENT_ID;
-    script.dataset["shopifyAppBridge"] = "1";
-    document.head.appendChild(script);
-  }, [embedded]);
 
   useEffect(() => {
     if (!embedded || loading || user || shopifyAuthChecked) return;
