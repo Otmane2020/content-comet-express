@@ -79,6 +79,19 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     return !!(params.get("shop") || params.get("shopify"));
   });
+  const [embedded] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).has("host");
+  });
+
+  useEffect(() => {
+    if (!embedded || document.querySelector('script[data-ranki-app-bridge]')) return;
+    const script = document.createElement("script");
+    script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
+    script.async = true;
+    script.dataset.rankiAppBridge = "true";
+    document.head.appendChild(script);
+  }, [embedded]);
 
   useEffect(() => {
     if (!user) return;
@@ -230,9 +243,9 @@ function Dashboard() {
   ];
 
   return (
-    <div className="flex min-h-screen bg-background">
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground md:flex">
-          <div className="px-1 pb-6">
+    <div className={`flex min-h-screen bg-background ${embedded ? "bg-muted/30" : ""}`}>
+      <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex ${embedded ? "w-[76px] px-2 py-4 xl:w-56 xl:px-4" : "w-60 px-4 py-5"}`}>
+          <div className={`px-1 ${embedded ? "pb-4 xl:pb-6" : "pb-6"}`}>
             <BrandLockup dark />
           </div>
           <nav className="space-y-1">
@@ -248,7 +261,7 @@ function Dashboard() {
                 }`}
               >
                 <entry.icon className="size-4" />
-                {entry.label}
+                <span className={embedded ? "hidden xl:inline" : ""}>{entry.label}</span>
               </button>
             ))}
           </nav>
