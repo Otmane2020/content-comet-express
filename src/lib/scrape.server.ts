@@ -170,6 +170,11 @@ export type LandingProfile = {
 const B2B_MARKERS =
   /grossiste?s?|demi[-\s]gros|en\s+gros|revendeurs?|wholesale[rs]?|bulk\s+(?:order|buy|purchas)|b2b|business[-\s]to[-\s]business|fournisseurs?|distributeurs?|mayorista|venta\s+al\s+por\s+mayor|gro[sß]handel|ingrosso|hurtown\w*|professionnels?|tarifs?\s+pro|prix\s+pro|compte\s+pro|trade\s+(?:account|price|customer)|reseller|dropshipp\w*/gi;
 
+// A consumer retailer can mention a "professional" programme. Only signals
+// explicitly describing wholesale, sourcing or distribution prove B2B.
+const STRONG_B2B_MARKERS =
+  /grossiste?s?|demi[-\s]gros|en\s+gros|revendeurs?|wholesale[rs]?|bulk\s+(?:order|buy|purchas)|b2b|business[-\s]to[-\s]business|fournisseurs?|distributeurs?|mayorista|venta\s+al\s+por\s+mayor|gro[sÃŸ]handel|ingrosso|hurtown\w*|tarifs?\s+pro|prix\s+pro|compte\s+pro|trade\s+(?:account|price|customer)|reseller|dropshipp\w*/gi;
+
 function metaContent(html: string, attr: "name" | "property", key: string) {
   const re = new RegExp(
     `<meta[^>]+${attr}=["']${key}["'][^>]*content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]*${attr}=["']${key}["']`,
@@ -268,6 +273,7 @@ export function extractLandingProfile(html: string, pageUrl: string): LandingPro
   const bodyHits = bodyText.match(B2B_MARKERS) ?? [];
   const b2bMentions = bodyHits.length;
   const b2bDistinct = new Set(bodyHits.map((m) => m.toLowerCase())).size;
+  const strongBodyHits = bodyText.match(STRONG_B2B_MARKERS) ?? [];
 
   // Match markers only against copy the merchant wrote about itself, never the
   // full page text: a single "professionnels" in a footer link would otherwise
@@ -276,6 +282,7 @@ export function extractLandingProfile(html: string, pageUrl: string): LandingPro
     .filter(Boolean)
     .join(" · ");
   const b2bMarkers = Array.from(new Set((selfDescription.match(B2B_MARKERS) ?? []).map((m) => m.toLowerCase())));
+  const strongB2bMarkers = selfDescription.match(STRONG_B2B_MARKERS) ?? [];
 
   return {
     url: pageUrl,
@@ -301,7 +308,7 @@ export function extractLandingProfile(html: string, pageUrl: string): LandingPro
     // and a variety floor: one word repeated by a menu template is not a
     // business model, whereas "grossiste" + "revendeurs" + "en gros" across
     // thirty mentions is unambiguous.
-    sellsToBusinesses: b2bMarkers.length > 0 || (b2bMentions >= 5 && b2bDistinct >= 2),
+    sellsToBusinesses: strongB2bMarkers.length > 0 || strongBodyHits.length >= 3,
     pageTitle: h1[0] ?? siteName ?? null,
     bodyExcerpt: bodyText.trim().slice(0, 4000),
     // og:site_name earns its place: sweet-deco.fr's is "Grossiste de Meubles en

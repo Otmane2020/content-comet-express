@@ -369,24 +369,22 @@ export async function serpWithAiSignals(
       url: i.url ?? null,
     }));
 
-  // When configured, SerpApi is an independent Google confirmation, not a
-  // replacement for DataForSEO: DataForSEO supplies AI Overview signals and
-  // keyword metrics, while SerpApi cross-checks the organic result set.
+  // SerpApi is the primary organic-Google source when configured. Its result
+  // is based on the exact buyer query derived from title, meta, categories and
+  // landing-page copy. DataForSEO still supplies keyword metrics and the AI
+  // Overview signal, but cannot inject broad organic candidates into a B2B
+  // competitor list.
   let organic = dataForSeoOrganic;
   const { hasSerpApi, serpApiGoogle } = await import("./serpapi.server");
   if (hasSerpApi()) {
     try {
       const serpApiOrganic = await serpApiGoogle(keyword, opts, depth);
-      const byUrl = new Map<string, SerpOrganicResult>();
-      for (const row of [...dataForSeoOrganic, ...serpApiOrganic]) {
-        const existing = byUrl.get(row.domain);
-        if (!existing || row.position < existing.position) byUrl.set(row.domain, row);
-      }
-      organic = Array.from(byUrl.values());
-      console.info("[serp] cross-checked Google results", {
+      organic = serpApiOrganic.length ? serpApiOrganic : dataForSeoOrganic;
+      console.info("[serp] selected organic Google source", {
         keyword,
         dataForSeo: dataForSeoOrganic.length,
         serpApi: serpApiOrganic.length,
+        source: serpApiOrganic.length ? "serpapi" : "dataforseo",
       });
     } catch (error) {
       console.warn("[serp] SerpApi cross-check failed; keeping DataForSEO results", { keyword, error });
