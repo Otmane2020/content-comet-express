@@ -4,6 +4,24 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const urlInput = z.object({ website: z.string().min(3).max(300) });
 
+function localeFromDomain(website: string) {
+  const host = website.replace(/^https?:\/\//i, "").split(/[/?#]/)[0]?.toLowerCase() ?? "";
+  if (host.endsWith(".fr")) return "fr";
+  if (host.endsWith(".es")) return "es";
+  if (host.endsWith(".de")) return "de";
+  if (host.endsWith(".it")) return "it";
+  if (host.endsWith(".nl")) return "nl";
+  if (host.endsWith(".pt")) return "pt";
+  return null;
+}
+
+function matchesRequestedLanguage(keyword: string, locale: string) {
+  if (locale !== "fr") return true;
+  // DataForSEO occasionally returns an English phrase even when asked for
+  // French. Do not let that pollute a French publishing calendar.
+  return !/\b(and|with|for|the|best|cheap|sofa|sofas|chair|chairs|furniture|table set)\b/i.test(keyword);
+}
+
 export type BusinessDetection = {
   name: string | null;
   industry: string | null;
@@ -43,9 +61,9 @@ export const detectBusiness = createServerFn({ method: "POST" })
     const tone = (["expert", "friendly", "premium", "direct"] as const).includes(p.tone as never)
       ? (p.tone as BusinessDetection["tone"])
       : "expert";
-    const locale = LANGUAGES.some((l) => l.code === p.locale)
+    const locale = localeFromDomain(data.website) ?? (LANGUAGES.some((l) => l.code === p.locale)
       ? (p.locale as string)
-      : (site.lang ?? "en").slice(0, 2).toLowerCase();
+      : (site.lang ?? "en").slice(0, 2).toLowerCase());
 
     // Build the canonical profile from the same scraped content. This is the
     // single source of truth for all subsequent keyword research.
@@ -86,7 +104,7 @@ export const detectMarket = createServerFn({ method: "POST" })
     const { localeOpts, requireLiveDataForSeo, discoverCompetitorsFromSerp } = await import("./research.server");
     const { competitorDomains, keywordSuggestions, keywordsForSite } = await import("./dataforseo.server");
     const { QUOTA, dedupeKeywords } = await import("./quotas");
-    const { scoreRelevance, compositeScore, MIN_RELEVANCE, productSeeds, buildCanonicalProfile } = await import(
+    const { scoreRelevance, compositeScore, MIN_RELEVANCE, MIN_COMPETITOR_RELEVANCE, productSeeds, buildCanonicalProfile, scoreCompetitorDomains } = await import(
       "./relevance.server"
     );
     const { scrapeSite } = await import("./scrape.server");
@@ -128,7 +146,9 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     // 2. DataForSEO's domain-competitor graph is the primary source. It uses
     // real shared rankings, so rivals are not guessed from generic queries.
-    let competitorRows = await competitorDomains(domain, opts, Math.max(8, QUOTA.competitors)).catch(() => []);
+    let competitorRows = await competitorDomains(domain, opts, Math.max(12, QUOTA.competitors * 2)).catch(() => []);
+    const competitorScores = await scoreCompetitorDomains(biz, competitorRows.map((row) => row.domain));
+    competitorRows = competitorRows.filter((row) => (competitorScores[row.domain.toLowerCase()] ?? 0) >= MIN_COMPETITOR_RELEVANCE);
     if (competitorRows.length < 5) {
       // Only fall back to live SERPs when Labs has insufficient domain data.
       const serpRows = await discoverCompetitorsFromSerp(biz, data.locale ?? null, null, null, QUOTA.competitors);
@@ -164,7 +184,10 @@ export const detectMarket = createServerFn({ method: "POST" })
     );
     const ideas = batches.flat();
 
-    const merged = dedupeKeywords([...siteRows, ...ideas].filter((k) => k?.keyword), QUOTA.keywords * 3);
+    const merged = dedupeKeywords(
+      [...siteRows, ...ideas].filter((k) => k?.keyword && matchesRequestedLanguage(k.keyword, opts.languageCode ?? "fr")),
+      QUOTA.keywords * 3,
+    );
     const scores = await scoreRelevance(biz, merged.map((k) => k.keyword));
 
     // Fail-closed: only keep keywords with a positive relevance score.

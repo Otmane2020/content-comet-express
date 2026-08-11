@@ -105,18 +105,30 @@ type ShopifyWelcomeReport = {
  * category — never sent to an AI model. Pairs with aiPreviewAnswer below to
  * show the format of a real AI-assistant answer without inventing one.
  */
+function previewCategory(industry: string, locale: string) {
+  const raw = (industry || "this").toLowerCase();
+  if (locale === "fr" && /home\s*&\s*furniture|furniture|home decor/.test(raw)) return "meubles et décoration";
+  return raw;
+}
+
 function aiPreviewQuestion(industry: string, locale: string): string {
-  const category = (industry || "this").toLowerCase();
+  const category = previewCategory(industry, locale);
   return locale === "fr" ? `Quel est le meilleur ${category} ?` : `What's the best ${category}?`;
 }
 
 /** Uses only real, already-discovered competitor domains — never invented. */
 function aiPreviewAnswer(industry: string, competitors: string[], locale: string): string {
-  const category = (industry || "this category").toLowerCase();
+  const category = previewCategory(industry || "this category", locale);
   const names = competitors.slice(0, 3).join(", ");
   return locale === "fr"
     ? `Pour ${category}, on cite souvent ${names}. Comparez leurs prix, délais de livraison et gamme de produits.`
     : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
+}
+
+function aiPreviewOutcome(name: string, locale: string) {
+  return locale === "fr"
+    ? `${name} n’apparaît pas encore dans cette réponse. C’est précisément ce que vos 30 prochains jours de contenu vont changer.`
+    : `${name} isn't in that answer yet. That's exactly what your next 30 days of content change.`;
 }
 
 export function Onboarding({ userId, onDone }: { userId: string | null; onDone: () => void }) {
@@ -367,13 +379,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     }
     setLastAnalysedWebsite(form.website_url.trim());
     setScanning(true);
-    // The live market scan builds its own canonical profile, so it can run
-    // alongside the step-1 website analysis instead of making the merchant wait.
-    const marketScan = !market && !scanningMarket ? autodetectMarket() : Promise.resolve(null);
     try {
       const d = await detectBiz({ data: { website: form.website_url } });
-      const marketResult = await marketScan;
-      const liveKeywords = marketResult?.keywords.slice(0, 15).map((keyword) => keyword.keyword) ?? [];
       const profileKeywords = (form.keywords || d.keywords.join(", "))
         .split(",")
         .map((keyword) => keyword.trim())
@@ -385,12 +392,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         audience: d.audience ?? form.audience,
         tone: d.tone,
         locale: d.locale,
-        competitors: form.competitors.trim() ? form.competitors : marketResult?.competitors.join("\n") ?? "",
-        keywords: Array.from(
-          new Map([...liveKeywords, ...profileKeywords].map((keyword) => [keyword.toLowerCase(), keyword])).values(),
-        )
-          .slice(0, 15)
-          .join(", "),
+        competitors: form.competitors,
+        keywords: profileKeywords.slice(0, 15).join(", "),
       };
       setForm(nextForm);
       setDetected(d.summary);
@@ -401,7 +404,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       setStep(1);
       return true;
     } catch (err) {
-      await marketScan;
       toast.error(err instanceof Error ? err.message : "Could not read that website");
       return false;
     } finally {
@@ -1140,10 +1142,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           <span className="ml-auto flex size-5 items-center justify-center rounded-md bg-background/10 text-background/60">↑</span>
                         </div>
                         <p className="relative mt-4 text-[12px] leading-relaxed text-background/70">
-                          <strong className="font-semibold text-gold">
-                            {form.name || "Your business"}
-                          </strong>{" "}
-                          isn't in that answer yet. That's exactly what your next 30 days of content change.
+                          <strong className="font-semibold text-gold">{aiPreviewOutcome(form.name || (form.locale === "fr" ? "Votre entreprise" : "Your business"), form.locale)}</strong>
                         </p>
                       </motion.div>
                     )}
