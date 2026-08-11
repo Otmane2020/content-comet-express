@@ -7,8 +7,9 @@ import { Button } from "@/components/ui/button";
 export const Route = createFileRoute("/shopify/plan")({ component: ShopifyPlan });
 
 const benefits = [
-  "30 articles a month, on a rolling calendar",
-  "GEO, SEO, AEO, Local & Shopping rotation",
+  "Get discovered in ChatGPT, Gemini, Perplexity and Google",
+  "30 GEO-optimized articles every month, always planned ahead",
+  "SEO, AEO, Local & Shopping content built to grow visibility",
   "Shopify publishing with natural product and page links",
   "Keywords, competitor monitoring and AI images included",
 ];
