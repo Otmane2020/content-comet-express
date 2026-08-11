@@ -35,7 +35,12 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     // fetch the small shop record needed to mark a development store as test;
     // the product/catalog import runs after Shopify confirms the subscription.
     if (!state) {
-      const info = mod.cleanShopifyValue(await step("fetchShopInfo", mod.fetchShopInfo(shop, access_token)));
+      const info = {
+        name: shop.replace(".myshopify.com", ""), email: null, domain: null, currency: null, timezone: null,
+        locale: null, country: null, description: null, shopId: null, myshopifyDomain: shop, primaryDomain: null,
+        countryCode: null, countryName: null, phone: null, city: null, address1: null, planName: null,
+        isTestStore: process.env["SHOPIFY_BILLING_TEST"] === "1",
+      };
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: known } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
       if (!known?.user_id) {
