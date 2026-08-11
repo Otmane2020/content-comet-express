@@ -135,8 +135,17 @@ export async function scoreRelevance(
   if (!list.length) return {};
   const batches: string[][] = [];
   for (let i = 0; i < list.length; i += 25) batches.push(list.slice(i, i + 25));
+  // Do NOT swallow batch failures into an empty score map: that used to turn
+  // a transient API error into a silent "0 relevant keywords" result
+  // indistinguishable from a real fail-closed verdict. Let it throw so the
+  // caller shows an actual error instead of a misleading empty list.
   const results = await Promise.all(
-    batches.map((b) => scoreBatch(profile, b).catch(() => ({}) as Record<string, number>)),
+    batches.map((b) =>
+      scoreBatch(profile, b).catch((e) => {
+        console.error("[relevance] keyword scoring batch failed", e);
+        throw e;
+      }),
+    ),
   );
   const merged = Object.assign({}, ...results) as Record<string, number>;
   // Fail-closed: unscored keywords get 0, never a passing default.
@@ -273,13 +282,16 @@ export async function scoreCompetitorDomains(
 ): Promise<Record<string, number>> {
   const list = Array.from(new Set(domains.map((d) => d.trim().toLowerCase()).filter(Boolean))).slice(0, 40);
   if (!list.length) return {};
-  try {
-    const raw = await callOpenRouter({
-      json: true,
-      maxTokens: 1200,
-      system:
-        "You judge whether a website is a real business competitor of another company. Strict JSON only.",
-      user: `${profileBlock(profile)}
+  // Swallowing a real API failure into {} used to silently zero out every
+  // domain's score (compScores[d] ?? 0), producing "0 competitors found"
+  // with no visible error. Let it throw instead — the caller already shows
+  // the real error message to the user.
+  const raw = await callOpenRouter({
+    json: true,
+    maxTokens: 1200,
+    system:
+      "You judge whether a website is a real business competitor of another company. Strict JSON only.",
+    user: `${profileBlock(profile)}
 
 For each domain, score 0-100 how much it is a REAL competitor: it sells a similar product to the same buyers,
 or its content targets the same buyers. Score 0-20 for news sites, forums, directories, review aggregators,
@@ -296,18 +308,18 @@ Domains:
 ${list.map((d) => `- ${d}`).join("\n")}
 
 Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
-    });
-    const parsed = parseJsonLoose<{ scores?: { domain: string; score: number }[] }>(raw);
-    const out: Record<string, number> = {};
-    for (const s of parsed.scores ?? []) {
-      if (!s?.domain) continue;
-      const n = Number(s.score);
-      if (Number.isFinite(n)) out[s.domain.trim().toLowerCase()] = Math.max(0, Math.min(100, n));
-    }
-    return out;
-  } catch {
-    return {};
+  }).catch((e) => {
+    console.error("[relevance] competitor domain scoring failed", e);
+    throw e;
+  });
+  const parsed = parseJsonLoose<{ scores?: { domain: string; score: number }[] }>(raw);
+  const out: Record<string, number> = {};
+  for (const s of parsed.scores ?? []) {
+    if (!s?.domain) continue;
+    const n = Number(s.score);
+    if (Number.isFinite(n)) out[s.domain.trim().toLowerCase()] = Math.max(0, Math.min(100, n));
   }
+  return out;
 }
 
 /**
