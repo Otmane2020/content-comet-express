@@ -11,7 +11,6 @@ import { notifySignup } from "@/lib/support.functions";
 import { startGoogleConnect } from "@/lib/google.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
-import { ShopifyWelcome } from "@/components/dashboard/ShopifyWelcome";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
@@ -191,15 +190,15 @@ function Dashboard() {
   }
   if (!user) return null;
 
-  // A merchant installed from the Shopify App Store: their project was
-  // provisioned server-side, so this welcome screen is the only place they
-  // ever see what we imported before landing in the dashboard.
+  // A Shopify merchant arrives with their project already provisioned. Keep
+  // them in the full Ranki onboarding wizard, prefilled from their store,
+  // rather than dropping them into a separate abbreviated welcome screen.
   if (showShopifyWelcome) {
     return (
-      <ShopifyWelcome
+      <Onboarding
         userId={user.id}
-        projectId={project.id}
-        onContinue={() => {
+        onDone={() => {
+          void qc.invalidateQueries({ queryKey: ["project", user.id] });
           setShowShopifyWelcome(false);
           window.history.replaceState(null, "", "/app");
         }}
