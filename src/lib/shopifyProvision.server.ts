@@ -139,7 +139,10 @@ export async function provisionShopifyMerchant(args: {
     .maybeSingle();
 
   let userId = known?.user_id ?? null;
-  const email = info.email ?? `${handle}@shopify-merchant.ranki.ai`;
+  // Shopify merchants receive a deterministic Ranki identity only once their
+  // native Shopify subscription is confirmed. It avoids depending on a store
+  // contact email and keeps one account per installed shop.
+  const email = `user1.${handle}@ranki.ai`;
 
   if (!userId) {
     const created = await supabaseAdmin.auth.admin.createUser({
