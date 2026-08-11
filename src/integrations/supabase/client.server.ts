@@ -9,6 +9,16 @@ function isNewSupabaseApiKey(value: string): boolean {
   return value.startsWith('sb_publishable_') || value.startsWith('sb_secret_');
 }
 
+/** Fetch only accepts ByteString header values. Fail before the first request
+ * with a useful deployment-configuration error instead of leaking the opaque
+ * browser/runtime ByteString exception into the Shopify installation flow. */
+function assertHeaderSafeEnvironmentValue(name: string, value: string) {
+  if (/[^\x20-\x7E]/.test(value)) {
+    throw new Error(`Supabase environment variable ${name} contains invalid characters. Reconnect Supabase to Vercel or replace that variable with a fresh value.`);
+  }
+  return value;
+}
+
 function createSupabaseFetch(supabaseKey: string): typeof fetch {
   return (input, init) => {
     const headers = new Headers(
@@ -46,6 +56,9 @@ function createSupabaseAdminClient() {
     console.error(`[Supabase] ${message}`);
     throw new Error(message);
   }
+
+  assertHeaderSafeEnvironmentValue('SUPABASE_URL', SUPABASE_URL);
+  assertHeaderSafeEnvironmentValue('SUPABASE_SERVICE_ROLE_KEY', SUPABASE_SERVICE_ROLE_KEY);
 
   return createClient<Database>(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
     global: {
