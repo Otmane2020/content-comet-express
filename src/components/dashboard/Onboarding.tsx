@@ -6,6 +6,7 @@ import { ArrowLeft, ArrowRight, BookOpen, Bot, Building2, CalendarDays, Check, F
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
+import { startShopifyBilling } from "@/lib/shopify.functions";
 import { detectBusiness, detectMarket } from "@/lib/detect.functions";
 import {
   completeOnboarding,
@@ -191,6 +192,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const detectBiz = useServerFn(detectBusiness);
   const detectMkt = useServerFn(detectMarket);
   const checkout = useServerFn(createCheckout);
+  const shopifyBilling = useServerFn(startShopifyBilling);
   const fetchSub = useServerFn(getSubscription);
   const syncSub = useServerFn(syncSubscription);
   const loadDraft = useServerFn(getOnboarding);
@@ -390,6 +392,19 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   async function startCheckout() {
     setBusy(true);
     try {
+      if (shopContext) {
+        const { url, alreadyActive } = await shopifyBilling({ data: { cycle, origin: window.location.origin } });
+        if (alreadyActive || !url) {
+          setSubActive(true);
+          setBusy(false);
+          return;
+        }
+        // Shopify's approval screen must be opened by the top Admin frame,
+        // never as a Stripe page or as a page inside the embedded iframe.
+        if (window.top !== window.self) window.open(url, "_top");
+        else window.location.assign(url);
+        return;
+      }
       localStorage.setItem(DRAFT_KEY, JSON.stringify(form));
       await saveDraft(3);
       const { url, alreadyActive } = await checkout({

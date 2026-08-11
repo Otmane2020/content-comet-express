@@ -82,7 +82,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const { error } = existing ? await supabaseAdmin.from("integrations").update(row).eq("id", existing.id) : await supabaseAdmin.from("integrations").insert(row); if (error) throw new Error(error.message);
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null); await provision.recordShopifySubscription(state.userId, email, active, state.plan ?? "monthly");
       if (active) return back(origin, { shopify: "connected" });
-      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ ...state, shop, flow: "dashboard", ts: Date.now() }))}`;
+      const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(mod.signState({ origin: "", shop, plan: state.plan ?? "monthly", flow: "dashboard", ts: Date.now() }))}`;
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, state.plan ?? "monthly", info.isTestStore); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
     const { data: existing } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
@@ -95,7 +95,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       }
       const pending = await import("@/lib/shopifyPendingInstall.server");
       await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
-      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, userId: existing.user_id, flow: "install", ts: Date.now() }))}`;
+      const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(mod.signState({ origin: "", shop, flow: "dashboard", ts: Date.now() }))}`;
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
       return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
@@ -123,7 +123,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     // Shopify caps `returnUrl` at 255 characters. Keep the shop in signed
     // state (so the return cannot be retargeted), but omit redundant origin,
     // plan and flow values: /billing already has safe defaults for those.
-    const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(
+    const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(
       mod.signState({ origin: "", shop, ts: Date.now() }),
     )}`;
     const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);

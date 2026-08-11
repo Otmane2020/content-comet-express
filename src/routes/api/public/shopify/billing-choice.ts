@@ -19,7 +19,7 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
           const pending = await pendingStore.getPendingShopifyInstall(shop);
           if (!pending) throw new Error("install_expired");
           await pendingStore.setPendingShopifyPlan(shop, plan);
-          const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin: "", shop, plan, ts: Date.now() }))}`;
+          const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(mod.signState({ origin: "", shop, plan, ts: Date.now() }))}`;
           const { confirmationUrl } = await mod.createAppSubscription(shop, pending.access_token, returnUrl, plan, pending.store_info.isTestStore);
           return redirect(confirmationUrl);
         } catch (error) {

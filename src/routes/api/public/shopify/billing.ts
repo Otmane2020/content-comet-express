@@ -1,5 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 const back = (origin: string, params: Record<string, string>) => new Response(null, { status: 302, headers: { location: `${origin}/app?${new URLSearchParams({ tab: "platforms", ...params })}` } });
+const embeddedApp = (shop: string) => `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}/apps/newai-seo-and-marketing-scale`;
 /** See callback.ts: a merchant coming back from the charge screen on an install
  * has no session yet, so /app would only offer them the sign-up wizard. */
 const installError = (origin: string, shop: string | null, message: string) =>
@@ -14,8 +15,8 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
   let flow: "install" | "dashboard" = "install";
   const fail = (message: string) => (flow === "dashboard" ? back(origin, { shopify: "error", message }) : installError(origin, shop, message));
   try {
-    shop = mod.normalizeShop(url.searchParams.get("shop"));
     const state = mod.verifyState(url.searchParams.get("state"));
+    shop = mod.normalizeShop(url.searchParams.get("shop") ?? state?.shop ?? null);
     flow = mod.stateFlow(state);
     if (!shop || !state || (state.shop && state.shop !== shop)) return fail("invalid_state");
 
@@ -69,7 +70,7 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
     await provision.recordShopifySubscription(merchant.userId, merchant.email, sub, state.plan ?? pending?.billing_plan ?? "monthly");
     if (pending) await pendingStore.markPendingShopifyInstall(shop, "active");
 
-    if (flow === "dashboard") return back(origin, { shopify: "connected" });
+    if (flow === "dashboard") return new Response(null, { status: 302, headers: { location: embeddedApp(shop) } });
     return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(merchant.email, `${publicOrigin()}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
   } catch (e) { console.error("[shopify billing] return failed", e); return fail((e instanceof Error ? e.message : "failed").slice(0, 160)); }
 } } } });

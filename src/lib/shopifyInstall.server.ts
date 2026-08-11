@@ -122,7 +122,7 @@ export async function claimPending(pendingToken: string, origin: string) {
   if (!existingSub) {
     // The billing callback independently verifies this subscription before it
     // creates the merchant account, project, or Shopify destination.
-    const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(row.shop)}&state=${encodeURIComponent(
+    const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(
       shopify.signState({ origin: "", shop: row.shop, plan: row.billing_plan, ts: Date.now() }),
     )}`;
     const { confirmationUrl } = await shopify.createAppSubscription(
