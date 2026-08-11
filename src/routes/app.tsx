@@ -397,7 +397,7 @@ function Dashboard() {
             >
               <LifeBuoy className="size-3.5" /> Help
             </button>
-            <button
+            {!embedded && <button
               type="button"
               onClick={async () => {
                 await supabase.auth.signOut();
@@ -406,7 +406,7 @@ function Dashboard() {
               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left transition-colors hover:bg-sidebar-accent/60 hover:text-sidebar-primary"
             >
               <LogOut className="size-3.5" /> Sign out
-            </button>
+            </button>}
           </div>
       </aside>
 

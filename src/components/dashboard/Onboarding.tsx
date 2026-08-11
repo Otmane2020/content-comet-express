@@ -757,9 +757,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
               <span className="flex items-center gap-1.5 text-primary"><Check className="size-3.5" /> Shopify payment</span>
               <span className="flex items-center gap-1.5"><span className="flex size-4 items-center justify-center rounded-full bg-deep text-[9px] text-background">3</span> Onboarding</span>
             </nav>
-            <Button type="button" variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); window.location.assign("/"); }} className="absolute right-0 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground hover:text-foreground">
-              <LogOut className="mr-1.5 size-3.5" /> Sign out
-            </Button>
           </div>
           <section className="surface mt-5 overflow-hidden">
             <div className="relative overflow-hidden bg-deep px-6 py-6 text-background sm:px-8 sm:py-7">
@@ -859,7 +856,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       <div className="mx-auto w-full max-w-5xl">
         <div className="sticky top-0 z-40 -mx-4 flex justify-center bg-background/92 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
           <BrandLockup />
-          <Button
+          {!shopContext && <Button
             type="button"
             variant="ghost"
             size="sm"
@@ -871,7 +868,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
             className="absolute right-0 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground hover:text-foreground"
           >
             <LogOut className="mr-1.5 size-3.5" /> Sign out
-          </Button>
+          </Button>}
         </div>
 
         <div className="surface mt-6 grid overflow-hidden lg:grid-cols-[330px_1fr]">
