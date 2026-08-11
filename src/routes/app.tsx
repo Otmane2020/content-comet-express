@@ -86,6 +86,7 @@ function Dashboard() {
     return new URLSearchParams(window.location.search).has("host");
   });
   const [appBridgeReady, setAppBridgeReady] = useState(false);
+  const [embeddedSessionError, setEmbeddedSessionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!embedded) return;
@@ -98,6 +99,7 @@ function Dashboard() {
     script.async = true;
     script.dataset.rankiAppBridge = "true";
     script.onload = () => setAppBridgeReady(true);
+    script.onerror = () => setEmbeddedSessionError("Shopify App Bridge could not load.");
     document.head.appendChild(script);
   }, [embedded]);
 
@@ -106,20 +108,23 @@ function Dashboard() {
     let cancelled = false;
     const start = async () => {
       const bridge = (window as Window & { shopify?: { idToken?: () => Promise<string> } }).shopify;
-      if (!bridge?.idToken) return;
+      if (!bridge?.idToken) {
+        setEmbeddedSessionError("Shopify session is not available yet.");
+        return;
+      }
       try {
         const token = await bridge.idToken();
         const res = await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
         const body = await res.json() as { token_hash?: string; type?: "magiclink"; error?: string };
         if (cancelled || !body.token_hash) {
-          if (body.error) toast.error("Could not open the embedded Shopify session.");
+          if (body.error) setEmbeddedSessionError("Your Shopify session could not be opened.");
           return;
         }
         const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "magiclink" });
         if (error) throw error;
       } catch (error) {
         console.error("[shopify embedded] session token exchange failed", error);
-        if (!cancelled) toast.error("Could not open the embedded Shopify session.");
+        if (!cancelled) setEmbeddedSessionError("Your Shopify session could not be opened.");
       }
     };
     void start();
@@ -230,6 +235,15 @@ function Dashboard() {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Loading your autopilot…
+      </div>
+    );
+  }
+  if (embedded && !user && embeddedSessionError) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+        <p className="font-display text-lg font-semibold">Unable to open Ranki</p>
+        <p className="max-w-sm text-sm text-muted-foreground">{embeddedSessionError}</p>
+        <Button onClick={() => window.location.reload()}>Try again</Button>
       </div>
     );
   }

@@ -31,6 +31,7 @@ import { Route as ApiPublicHooksStripeRouteImport } from './routes/api/public/ho
 import { Route as ApiPublicImgSplatRouteImport } from './routes/api/public/img/$'
 import { Route as ApiPublicShopifyBillingRouteImport } from './routes/api/public/shopify/billing'
 import { Route as ApiPublicShopifyCallbackRouteImport } from './routes/api/public/shopify/callback'
+import { Route as ApiPublicShopifyEmbeddedLoginRouteImport } from './routes/api/public/shopify/embedded-login'
 import { Route as ApiPublicShopifyInstallRouteImport } from './routes/api/public/shopify/install'
 import { Route as LovableEmailTransactionalPreviewRouteImport } from './routes/lovable/email/transactional/preview'
 
@@ -147,6 +148,12 @@ const ApiPublicShopifyCallbackRoute =
     path: '/api/public/shopify/callback',
     getParentRoute: () => rootRouteImport,
   } as any)
+const ApiPublicShopifyEmbeddedLoginRoute =
+  ApiPublicShopifyEmbeddedLoginRouteImport.update({
+    id: '/api/public/shopify/embedded-login',
+    path: '/api/public/shopify/embedded-login',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicShopifyInstallRoute = ApiPublicShopifyInstallRouteImport.update({
   id: '/api/public/shopify/install',
   path: '/api/public/shopify/install',
@@ -182,6 +189,7 @@ export interface FileRoutesByFullPath {
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
+  '/api/public/shopify/embedded-login': typeof ApiPublicShopifyEmbeddedLoginRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
@@ -207,6 +215,7 @@ export interface FileRoutesByTo {
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
+  '/api/public/shopify/embedded-login': typeof ApiPublicShopifyEmbeddedLoginRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
@@ -234,6 +243,7 @@ export interface FileRoutesById {
   '/api/public/img/$': typeof ApiPublicImgSplatRoute
   '/api/public/shopify/billing': typeof ApiPublicShopifyBillingRoute
   '/api/public/shopify/callback': typeof ApiPublicShopifyCallbackRoute
+  '/api/public/shopify/embedded-login': typeof ApiPublicShopifyEmbeddedLoginRoute
   '/api/public/shopify/install': typeof ApiPublicShopifyInstallRoute
   '/lovable/email/transactional/preview': typeof LovableEmailTransactionalPreviewRoute
 }
@@ -262,6 +272,7 @@ export interface FileRouteTypes {
     | '/api/public/img/$'
     | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
+    | '/api/public/shopify/embedded-login'
     | '/api/public/shopify/install'
     | '/lovable/email/transactional/preview'
   fileRoutesByTo: FileRoutesByTo
@@ -287,6 +298,7 @@ export interface FileRouteTypes {
     | '/api/public/img/$'
     | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
+    | '/api/public/shopify/embedded-login'
     | '/api/public/shopify/install'
     | '/lovable/email/transactional/preview'
   id:
@@ -313,6 +325,7 @@ export interface FileRouteTypes {
     | '/api/public/img/$'
     | '/api/public/shopify/billing'
     | '/api/public/shopify/callback'
+    | '/api/public/shopify/embedded-login'
     | '/api/public/shopify/install'
     | '/lovable/email/transactional/preview'
   fileRoutesById: FileRoutesById
@@ -338,6 +351,7 @@ export interface RootRouteChildren {
   ApiPublicImgSplatRoute: typeof ApiPublicImgSplatRoute
   ApiPublicShopifyBillingRoute: typeof ApiPublicShopifyBillingRoute
   ApiPublicShopifyCallbackRoute: typeof ApiPublicShopifyCallbackRoute
+  ApiPublicShopifyEmbeddedLoginRoute: typeof ApiPublicShopifyEmbeddedLoginRoute
   ApiPublicShopifyInstallRoute: typeof ApiPublicShopifyInstallRoute
   LovableEmailTransactionalPreviewRoute: typeof LovableEmailTransactionalPreviewRoute
 }
@@ -498,6 +512,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicShopifyCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/shopify/embedded-login': {
+      id: '/api/public/shopify/embedded-login'
+      path: '/api/public/shopify/embedded-login'
+      fullPath: '/api/public/shopify/embedded-login'
+      preLoaderRoute: typeof ApiPublicShopifyEmbeddedLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/shopify/install': {
       id: '/api/public/shopify/install'
       path: '/api/public/shopify/install'
@@ -548,6 +569,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicImgSplatRoute: ApiPublicImgSplatRoute,
   ApiPublicShopifyBillingRoute: ApiPublicShopifyBillingRoute,
   ApiPublicShopifyCallbackRoute: ApiPublicShopifyCallbackRoute,
+  ApiPublicShopifyEmbeddedLoginRoute: ApiPublicShopifyEmbeddedLoginRoute,
   ApiPublicShopifyInstallRoute: ApiPublicShopifyInstallRoute,
   LovableEmailTransactionalPreviewRoute: LovableEmailTransactionalPreviewRoute,
 }
