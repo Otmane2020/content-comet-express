@@ -125,7 +125,7 @@ function Dashboard() {
         setEmbeddedSessionError(null);
         const token = await waitForShopifyIdToken();
         const res = await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
-        const body = await res.json() as { token_hash?: string; type?: "magiclink"; error?: string };
+        const body = await res.json() as { token_hash?: string; type?: "email"; error?: string };
         if (cancelled || !body.token_hash) {
           if (body.error) {
             const message = body.error === "shop_not_installed"
@@ -137,7 +137,7 @@ function Dashboard() {
           }
           return;
         }
-        const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "magiclink" });
+        const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "email" });
         if (error) throw error;
       } catch (error) {
         console.error("[shopify embedded] session token exchange failed", error);

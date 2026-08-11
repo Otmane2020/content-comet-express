@@ -222,7 +222,10 @@ export async function shopifyEmbeddedSession(email: string) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email });
   if (error || !data.properties?.hashed_token) throw new Error(error?.message ?? "Could not create embedded session.");
-  return { token_hash: data.properties.hashed_token, type: data.properties.verification_type ?? "magiclink" };
+  // Supabase verifies a generated email-link token hash with the current
+  // `email` verification type. `magiclink` is legacy and rejects valid hashes
+  // on recent GoTrue versions.
+  return { token_hash: data.properties.hashed_token, type: "email" as const };
 }
 
 /** Mirror the Shopify-managed subscription into our own billing table. */
