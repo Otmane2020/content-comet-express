@@ -414,6 +414,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
   const canNext =
     step !== 0 || (form.name.trim().length > 1 && (!!userId || (email.trim().length > 3 && password.length >= 6)));
+  const waitingForMarketScan =
+    step === 2 && Boolean(form.website_url.trim()) && (!market || scanningMarket || Boolean(market.error));
 
   /** Step 1's Continue also doubles as sign-up for a brand-new visitor —
    * the account is created here, then the rest of the wizard runs signed in. */
@@ -1129,7 +1131,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                 {step === 2 && (
                   <div className="mt-6 space-y-5">
                     {scanningMarket && (
-                      <div className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background">
+                      <div className="relative overflow-hidden rounded-3xl bg-deep px-6 py-7 text-background shadow-xl shadow-deep/15 sm:px-8">
                         <motion.div
                           aria-hidden
                           className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-gold/30 to-transparent blur-xl"
@@ -1142,6 +1144,15 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           </span>
                           <div>
                             <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Live DataForSEO</p>
+                            <p className="mt-1 font-display text-xl font-bold tracking-tight">Mapping your real search market…</p>
+                            <p className="mt-1 text-sm leading-6 text-background/65">Please keep this page open while we prepare the inputs for your 30-day content plan.</p>
+                            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                              {["Searching competitors", "Finding buyer keywords", "Improving your visibility inputs"].map((label, index) => (
+                                <motion.div key={label} className="flex items-center gap-2 rounded-xl border border-background/10 bg-background/[0.07] px-3 py-2 text-[11.5px] font-medium text-background/85" animate={{ opacity: [0.45, 1, 0.45], y: [2, 0, 2] }} transition={{ duration: 2.8, delay: index * 0.55, repeat: Infinity, ease: "easeInOut" }}>
+                                  <Loader2 className="size-3.5 shrink-0 animate-spin text-gold" /> {label}
+                                </motion.div>
+                              ))}
+                            </div>
                             <p className="mt-0.5 text-[13px] font-semibold">Mapping your real search market…</p>
                           </div>
                           <Loader2 className="ml-auto size-4 animate-spin text-background/60" />
@@ -1432,12 +1443,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       return next;
                     });
                   }}
-                  disabled={!canNext || scanning || signingUp || (step === 1 && scanningMarket)}
+                  disabled={!canNext || scanning || signingUp || (step === 1 && scanningMarket) || waitingForMarketScan}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
                   {signingUp
                     ? "Creating your account…"
-                    : step === 1 && scanningMarket
+                    : (step === 1 && scanningMarket) || waitingForMarketScan
                       ? "Finishing your market scan…"
                       : step === 0
                       ? detected
