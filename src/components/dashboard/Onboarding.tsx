@@ -999,7 +999,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           id="url"
                           value={form.website_url}
                           onChange={set("website_url")}
-                          placeholder="sweet-deco.fr"
+                          placeholder="ranki.ai"
                           className="h-11 border-primary/20 bg-background pl-9 shadow-sm focus-visible:ring-gold/50"
                         />
                       </div>
