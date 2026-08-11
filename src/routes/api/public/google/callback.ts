@@ -26,7 +26,7 @@ export const Route = createFileRoute("/api/public/google/callback")({
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const email = emailFromIdToken(tokens.id_token);
           // A combined consent grants both scopes, so store one connection per service.
-          const services = payload.service === "all" ? (["gsc", "gmb"] as const) : ([payload.service] as const);
+          const services = payload.service === "all" ? (["gsc", "gmb", "ga4"] as const) : ([payload.service] as const);
 
           for (const service of services) {
             const { data: conn, error } = await supabaseAdmin

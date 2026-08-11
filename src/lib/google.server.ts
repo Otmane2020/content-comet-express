@@ -4,7 +4,7 @@ export const GOOGLE_SCOPES: Record<GoogleService, string> = {
   gmb: "openid email https://www.googleapis.com/auth/business.manage",
   gsc: "openid email https://www.googleapis.com/auth/webmasters.readonly",
   ga4: "openid email https://www.googleapis.com/auth/analytics.readonly",
-  all: "openid email https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/webmasters.readonly",
+  all: "openid email https://www.googleapis.com/auth/business.manage https://www.googleapis.com/auth/webmasters.readonly https://www.googleapis.com/auth/analytics.readonly",
 };
 
 export type GoogleService = "gmb" | "gsc" | "ga4" | "all";
@@ -40,8 +40,10 @@ export function verifyState(state: string): StatePayload | null {
 }
 
 export function googleClient() {
-  const clientId = process.env["GOOGLE_OAUTH_CLIENT_ID"];
-  const clientSecret = process.env["GOOGLE_OAUTH_CLIENT_SECRET"];
+  // Support the canonical names and the common server-only aliases used by
+  // hosting providers. Secrets remain server-side in every case.
+  const clientId = process.env["GOOGLE_OAUTH_CLIENT_ID"] || process.env["GOOGLE_CLIENT_ID"];
+  const clientSecret = process.env["GOOGLE_OAUTH_CLIENT_SECRET"] || process.env["GOOGLE_CLIENT_SECRET"];
   if (!clientId || !clientSecret) throw new Error("Google OAuth is not configured yet.");
   return { clientId, clientSecret };
 }
