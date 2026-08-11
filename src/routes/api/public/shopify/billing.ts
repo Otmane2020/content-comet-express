@@ -13,11 +13,12 @@ export const Route = createFileRoute("/api/public/shopify/billing")({
         const url = new URL(request.url);
         const origin = url.origin;
         const mod = await import("@/lib/shopify.server");
-        const shop = mod.normalizeShop(url.searchParams.get("shop"));
-        const state = mod.verifyState(url.searchParams.get("state"));
-        if (!shop || !state) return back(origin, { shopify: "error", message: "invalid_state" });
 
         try {
+          const shop = mod.normalizeShop(url.searchParams.get("shop"));
+          const state = mod.verifyState(url.searchParams.get("state"));
+          if (!shop || !state) return back(origin, { shopify: "error", message: "invalid_state" });
+
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { data: integration } = await supabaseAdmin
             .from("integrations")

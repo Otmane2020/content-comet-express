@@ -12,14 +12,15 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
         const url = new URL(request.url);
         const origin = url.origin;
         const mod = await import("@/lib/shopify.server");
-        const shop = mod.normalizeShop(url.searchParams.get("shop"));
-        const code = url.searchParams.get("code");
-        const state = mod.verifyState(url.searchParams.get("state"));
-
-        if (!shop || !code) return back(origin, { shopify: "error", message: "missing_params" });
-        if (!mod.verifyRequestHmac(url)) return back(origin, { shopify: "error", message: "bad_signature" });
 
         try {
+          const shop = mod.normalizeShop(url.searchParams.get("shop"));
+          const code = url.searchParams.get("code");
+          const state = mod.verifyState(url.searchParams.get("state"));
+
+          if (!shop || !code) return back(origin, { shopify: "error", message: "missing_params" });
+          if (!mod.verifyRequestHmac(url)) return back(origin, { shopify: "error", message: "bad_signature" });
+
           const { access_token } = await mod.exchangeCode(shop, code);
           const [blogId, info, snapshot, content] = await Promise.all([
             mod.resolveBlogId(shop, access_token),
