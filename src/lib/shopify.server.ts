@@ -23,6 +23,7 @@ export type ShopifyState = {
   origin: string;
   ts: number;
   shop?: string;
+  plan?: ShopifyPlanId;
 };
 
 export function signState(payload: ShopifyState) {
