@@ -109,7 +109,14 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     const shop = params.get("shop");
     if (shop) {
-      window.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+      const installUrl = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+      // Shopify's account and billing pages refuse to render inside the App
+      // Home iframe. Start OAuth at top level, then return to App Home later.
+      if (window.top !== window.self) {
+        window.top!.location.href = installUrl;
+      } else {
+        window.location.href = installUrl;
+      }
       return;
     }
     // An install that broke before we could identify the shop still lands here.
