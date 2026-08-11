@@ -210,7 +210,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
       await supabase.from("content_items").update({ content_type: "geo" }).eq("id", first.id);
     }
 
-    async function write(itemId: string, type: ContentType, topic: string | null) {
+    async function write(itemId: string, type: ContentType, topic: string | null, targetKeyword?: string | null) {
       const links = await internalLinkTargets(supabase, data.projectId);
       const competitors = await competitorWritingBrief(supabase, data.projectId);
       let localInfo: LocalInfoFacts | undefined;
@@ -218,7 +218,14 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
         const { fetchShopifyLocalInfo } = await import("./shopifyProvision.server");
         localInfo = await fetchShopifyLocalInfo(supabase, data.projectId);
       }
-      const article = await writeArticle(ctx, { content_type: type, topic }, { links, localInfo, profile: project!.business_profile as never, competitors });
+      // The calendar has already chosen and validated this buyer query. Give
+      // the writer that one query first instead of an unrelated project-wide
+      // list, so the first published article fulfils its planned intent.
+      const article = await writeArticle(
+        { ...ctx, keywords: targetKeyword ? [targetKeyword] : ctx.keywords },
+        { content_type: type, topic },
+        { links, localInfo, profile: project!.business_profile as never, competitors },
+      );
       await supabase
         .from("content_items")
         .update({
@@ -234,7 +241,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
       return article;
     }
 
-    const geo = await write(first.id, "geo", first.topic);
+    const geo = await write(first.id, "geo", first.topic, first.target_keyword);
 
     let coverUrl: string | null = null;
     try {
@@ -297,7 +304,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
         .single();
 
       if (localItem) {
-        const local = await write(localItem.id, "local_aeo", localItem.topic);
+        const local = await write(localItem.id, "local_aeo", localItem.topic, localItem.target_keyword);
         const summary = [local.title, local.excerpt ?? local.body_md.replace(/[#*`>]/g, "").slice(0, 900)]
           .filter(Boolean)
           .join("\n\n");

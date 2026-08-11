@@ -30,9 +30,11 @@ export type PickedKeyword = { id: string; keyword: string; intent?: string | nul
 const INTENT_FIT: Record<ContentType, string[]> = {
   shopping: ["transactional", "commercial"],
   seo: ["commercial", "informational"],
-  aeo: ["informational"],
-  geo: ["informational", "navigational"],
-  local_aeo: ["navigational", "informational"],
+  aeo: ["commercial", "transactional", "informational"],
+  // These are writing formats, not marketing topics. A commercial buyer
+  // query therefore remains the strongest fit for a GEO/AEO article.
+  geo: ["commercial", "transactional", "informational", "navigational"],
+  local_aeo: ["commercial", "transactional", "navigational", "informational"],
 };
 
 /** Unused keywords for this project, most business-relevant first. */
@@ -47,8 +49,8 @@ export async function pickKeywords(
     .eq("project_id", projectId)
     .eq("used", false)
     .gte("relevance_score", 60)
-    .order("relevance_score", { ascending: false, nullsFirst: false })
     .order("search_volume", { ascending: false, nullsFirst: false })
+    .order("relevance_score", { ascending: false, nullsFirst: false })
     .limit(limit);
   return (data ?? []) as PickedKeyword[];
 }

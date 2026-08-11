@@ -313,7 +313,7 @@ export async function candidateKeywords(
       // branch unnecessary, but it must never turn a rich landing page into
       // an empty candidate list.
       profile.positioning ?? "",
-      profile.canonical ?? "",
+      profile.description ?? "",
       landing?.title ?? "",
       landing?.pageTitle ?? "",
       landing?.metaDescription ?? "",
@@ -329,7 +329,7 @@ export async function candidateKeywords(
     const looksFrench =
       landing?.lang?.toLowerCase().startsWith("fr") ||
       /\b(grossiste|fournisseur|meuble|mobilier|professionnel|france)\b/i.test(
-        [landing?.title, landing?.metaDescription, profile.canonical, profile.description].filter(Boolean).join(" "),
+        [landing?.title, landing?.metaDescription, profile.positioning, profile.description].filter(Boolean).join(" "),
       );
     const candidates = terms.flatMap((term) => {
       if (sellsToBusinesses) {
@@ -543,12 +543,16 @@ Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
  */
 export function compositeScore(k: ScorableKeyword, relevance: number): number {
   if (relevance < MIN_RELEVANCE) return 0;
-  const volume = Math.min(100, Math.log10((k.search_volume ?? 0) + 1) * 25);
-  const intent = INTENT_WEIGHT[(k.intent ?? "").toLowerCase()] ?? 50;
-  const difficulty = 100 - Math.max(0, Math.min(100, k.difficulty ?? 50));
-  const cpc = Math.min(100, (k.cpc ?? 0) * 20);
+  // Null is unknown, not a neutral metric. Unmeasured terms may remain as
+  // discovery leads, but must not outrank a buyer query with live data.
+  const measuredFields = [k.search_volume, k.intent, k.difficulty, k.cpc].filter((value) => value != null).length;
+  const confidence = measuredFields / 4;
+  const volume = k.search_volume == null ? 0 : Math.min(100, Math.log10(k.search_volume + 1) * 25);
+  const intent = k.intent == null ? 0 : (INTENT_WEIGHT[k.intent.toLowerCase()] ?? 35);
+  const difficulty = k.difficulty == null ? 0 : 100 - Math.max(0, Math.min(100, k.difficulty));
+  const cpc = k.cpc == null ? 0 : Math.min(100, k.cpc * 20);
   const secondary = intent * 0.18 + volume * 0.1 + difficulty * 0.07 + cpc * 0.05;
-  return relevance * 0.6 + secondary * (relevance / 100);
+  return (relevance * 0.6 + secondary * (relevance / 100)) * (0.35 + confidence * 0.65);
 }
 
 /** Keywords below this relevance are dropped (competitor noise, wrong industry). */

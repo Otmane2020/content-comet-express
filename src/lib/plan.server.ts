@@ -12,6 +12,9 @@ export type ProjectBrief = {
   keywords: string[];
 };
 
+const META_MARKETING = /\b(?:geo|seo|aeo|chatgpt|gemini|perplexity|ai visibility|generative engines?|moteurs? g[ée]n[ée]ratifs?|optimis.{0,12}(?:ia|geo|chatgpt))\b/i;
+const MARKETING_QUERY = /\b(?:geo|seo|aeo|marketing|r[ée]f[ée]rencement|chatgpt|gemini|perplexity|visibilit[ée]\s+ia)\b/i;
+
 /**
  * English name of the project's writing language.
  *
@@ -70,9 +73,24 @@ export function fallbackTopics(project: ProjectBrief, slots: { date: string; typ
   const fr = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr";
   return slots.map((slot, i) => {
     const seed = seeds[i % seeds.length] ?? project.name;
+    const formats: Record<ContentType, string> = fr
+      ? {
+          geo: `Quel ${seed} choisir pour son activité ?`,
+          seo: `${seed} : guide pour les acheteurs professionnels`,
+          aeo: `Comment choisir ${seed} ?`,
+          local_aeo: `${seed} : comment trouver le bon fournisseur ?`,
+          shopping: `${seed} : modèles et critères pour professionnels`,
+        }
+      : {
+          geo: `Which ${seed} should your business choose?`,
+          seo: `${seed}: a guide for professional buyers`,
+          aeo: `How do you choose ${seed}?`,
+          local_aeo: `${seed}: how to find the right supplier`,
+          shopping: `${seed}: models and buying criteria for professionals`,
+        };
     return {
       ...slot,
-      topic: fr ? `${seed} : le guide complet` : `${seed}: the complete guide`,
+      topic: formats[slot.type],
     };
   });
 }
@@ -103,6 +121,12 @@ When a slot has a target keyword, the topic must cover that keyword's search int
 Any year mentioned in a title must be ${year}. Never write ${year - 1}, ${year - 2} or older years.
 Topics must be about what this business sells and the problems its buyers search for — never about the internal operations of the industries its customers belong to.
 
+CRITICAL AUDIENCE RULE: never turn the target business into the reader. If the company is a furniture wholesaler and the keyword is "grossiste meubles", write for a professional buyer looking for a furniture wholesaler, not for a wholesaler learning marketing.
+
+CONTENT TYPE RULE: GEO, SEO, AEO, Local AEO and Shopping describe HOW Ranki structures content. They are never the subject by themselves. Do not put GEO, SEO, AEO, AI visibility, ChatGPT, generative engines or "how to rank" in a title unless the target keyword is explicitly about marketing/search.
+
+For commercial or transactional keywords, choose supplier-selection questions, product/category offers, comparisons, buying guides or buyer FAQs. Shopping topics must use catalogue categories; Local topics need a real place or service-area signal.
+
 Slots:
 ${list}
 
@@ -111,10 +135,14 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
     const parsed = parseJsonLoose<{ topics?: { date: string; topic: string }[] }>(raw);
     const byDate = new Map((parsed.topics ?? []).map((t) => [t.date, t.topic]));
     const fallback = fallbackTopics(project, slots);
-    return slots.map((slot, i) => ({
-      ...slot,
-      topic: freshenYears(byDate.get(slot.date) ?? fallback[i]!.topic),
-    }));
+    return slots.map((slot, i) => {
+      const candidate = freshenYears(byDate.get(slot.date) ?? fallback[i]!.topic);
+      const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
+      return {
+        ...slot,
+        topic: !isMarketingKeyword && META_MARKETING.test(candidate) ? fallback[i]!.topic : candidate,
+      };
+    });
   } catch {
     return fallbackTopics(project, slots);
   }
@@ -171,7 +199,7 @@ export async function writeArticle(
   const links = extras?.links ?? [];
   const wantsFaq = FAQ_TYPES.has(item.content_type);
   const guidance: Record<ContentType, string> = {
-    geo: "Write so that generative engines (ChatGPT, Perplexity, Gemini, AI Overviews) can quote you: crisp factual claims, statistics, named entities, and a quotable summary paragraph near the top.",
+    geo: "GEO is an invisible writing method, never the subject: start with a direct buyer answer, use clear independently understandable sections, named entities and only verifiable business facts. Do not discuss GEO, AI visibility, ChatGPT or how the business should rank unless the topic explicitly asks about them.",
     seo: "Write a classic long-form SEO article: match search intent, open the first 100 words around the primary keyword, use an H2/H3 structure, and keep a keyword-rich but natural style.",
     aeo: "Answer-engine format: a direct 40-60 word answer first, then supporting sections. Do NOT write an FAQ section in the body — the FAQ is returned separately as structured data.",
     local_aeo:
@@ -239,6 +267,8 @@ Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock}${catalogBlock}${linksBlock}${localBlock}
 
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
+Audience safety: write for the person searching the target keyword. Never teach this business how to market, rank, use AI, GEO, SEO or advertising unless that is explicitly the search topic.
+Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
 
 Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${faqSchema}}`,
