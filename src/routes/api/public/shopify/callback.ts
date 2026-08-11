@@ -56,8 +56,12 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
           content: { products: [], collections: [], pages: [], policies: [], articles: [] },
             billing_plan: "monthly",
           });
+          // Do not interpose a Ranki-hosted pricing page between OAuth and
+          // Shopify's approval screen. A new install goes straight to the
+          // native Shopify charge confirmation; monthly is the default plan.
+          // The merchant can change to annual later from the embedded app.
           const setupState = mod.signState({ origin: "", shop, ts: Date.now() });
-          return new Response(null, { status: 302, headers: { location: `${origin}/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(setupState)}` } });
+          return new Response(null, { status: 302, headers: { location: `${origin}/api/public/shopify/billing-choice?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(setupState)}&plan=monthly` } });
         }
       }
     }
