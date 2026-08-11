@@ -49,37 +49,37 @@ function ShopifyPlan() {
   ];
 
   return (
-    <main className="min-h-screen bg-[#f6f6f7] px-4 py-8 text-[#202223] sm:px-8 sm:py-12">
-      <section className="mx-auto w-full max-w-6xl">
-        <header className="flex flex-col items-center gap-4 border-b border-[#dedede] pb-6 sm:flex-row sm:justify-between">
+    <main className="min-h-screen bg-[#f1f1f1] px-4 py-5 font-sans text-[#303030] sm:px-8 sm:py-7" style={{ fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" }}>
+      <section className="mx-auto w-full max-w-5xl">
+        <header className="flex flex-col items-center gap-3 border-b border-[#d2d2d2] pb-4 sm:flex-row sm:justify-between">
           <BrandLockup />
-          <div className="flex items-center gap-2 text-sm text-[#616161]"><ShieldCheck className="size-4" /> Secure Shopify billing</div>
+          <div className="flex items-center gap-1.5 text-[13px] text-[#616161]"><ShieldCheck className="size-3.5" /> Secure Shopify billing</div>
         </header>
 
-        <div className="mx-auto mt-10 max-w-2xl text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-[#6d7175]">Ranki + Shopify</p>
-          <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">Choose your Ranki plan</h1>
-          <p className="mt-3 text-base leading-6 text-[#616161]">Start with a 3-day free trial. Your selected plan is then approved securely by Shopify.</p>
+        <div className="mx-auto mt-7 max-w-xl text-center">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#6d7175]">Ranki + Shopify</p>
+          <h1 className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">Choose your Ranki plan</h1>
+          <p className="mt-2 text-sm leading-5 text-[#616161]">Start with a 3-day free trial. Shopify handles the approval securely.</p>
         </div>
 
-        <div className="mt-10 grid gap-5 lg:grid-cols-2">
+        <div className="mt-7 grid gap-4 lg:grid-cols-2">
           {plans.map((plan) => (
-            <article key={plan.id} className={`relative rounded-[26px] border-2 bg-white p-7 shadow-sm sm:p-10 ${plan.featured ? "border-[#d4af55] shadow-[0_12px_35px_rgba(32,34,35,0.08)]" : "border-[#d9d9d9]"}`}>
-              {plan.featured && <span className="absolute right-6 top-6 rounded-full bg-[#202223] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-white">Best value</span>}
-              <p className="font-mono text-[12px] tracking-[0.12em] text-[#475467]">{plan.eyebrow}</p>
-              <div className="mt-4 flex items-end gap-2">
-                <span className="text-5xl font-bold tracking-tight text-[#171b3d] sm:text-6xl">{plan.price}</span>
-                <span className="mb-2 text-sm text-[#475467]">{plan.unit}</span>
+            <article key={plan.id} className={`relative rounded-xl border bg-white p-5 shadow-sm sm:p-6 ${plan.featured ? "border-[#b98900] ring-1 ring-[#d9b66d]" : "border-[#d4d4d4]"}`}>
+              {plan.featured && <span className="absolute right-5 top-5 rounded bg-[#303030] px-2 py-1 text-[9px] font-semibold uppercase tracking-wide text-white">Best value</span>}
+              <p className="font-mono text-[10px] tracking-[0.1em] text-[#616161]">{plan.eyebrow}</p>
+              <div className="mt-3 flex items-end gap-1.5">
+                <span className="text-4xl font-semibold tracking-tight text-[#202223]">{plan.price}</span>
+                <span className="mb-1.5 text-[13px] text-[#616161]">{plan.unit}</span>
               </div>
-              <p className="mt-3 text-sm text-[#475467]">{plan.note}</p>
-              <p className="mt-5 flex items-center gap-2 text-sm font-medium text-[#202223]"><Sparkles className="size-4 text-[#b98900]" /> 3-day free trial through Shopify</p>
-              <ul className="mt-7 space-y-3 border-t border-[#e5e5e5] pt-6 text-[15px] leading-5 text-[#303030]">
-                {benefits.map((benefit) => <li key={benefit} className="flex gap-3"><Check className="mt-0.5 size-4 shrink-0 text-[#008060]" />{benefit}</li>)}
+              <p className="mt-2 text-[13px] text-[#616161]">{plan.note}</p>
+              <p className="mt-4 flex items-center gap-2 text-[13px] font-medium text-[#303030]"><Sparkles className="size-3.5 text-[#b98900]" /> 3-day free trial through Shopify</p>
+              <ul className="mt-5 space-y-2 border-t border-[#e5e5e5] pt-5 text-[13px] leading-5 text-[#303030]">
+                {benefits.map((benefit) => <li key={benefit} className="flex gap-2.5"><Check className="mt-0.5 size-3.5 shrink-0 text-[#008060]" />{benefit}</li>)}
               </ul>
-              <Button type="button" onClick={() => choose(plan.id)} className={`mt-9 h-12 w-full text-[15px] ${plan.featured ? "bg-[#20236a] text-white hover:bg-[#171b55]" : "bg-[#202223] text-white hover:bg-black"}`}>
+              <Button type="button" onClick={() => choose(plan.id)} className={`mt-6 h-10 w-full text-[13px] font-semibold ${plan.featured ? "bg-[#008060] text-white hover:bg-[#006e52]" : "bg-[#303030] text-white hover:bg-black"}`}>
                 {plan.cta}<ChevronRight className="ml-1.5 size-4" />
               </Button>
-              <p className="mt-4 text-center text-xs text-[#616161]">You will approve this plan on Shopify&apos;s secure payment page.</p>
+              <p className="mt-3 text-center text-[11px] text-[#616161]">You will approve this plan on Shopify&apos;s secure payment page.</p>
             </article>
           ))}
         </div>
