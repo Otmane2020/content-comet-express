@@ -52,8 +52,11 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
       return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
-    const pending = await import("@/lib/shopifyPendingInstall.server"); await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
-    const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, ts: Date.now() }))}`;
-    const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+    // Brand-new merchant, never seen this shop before: show what we imported
+    // on our own domain before creating an account or touching Shopify
+    // billing, instead of bouncing them straight into a charge screen.
+    const install = await import("@/lib/shopifyInstall.server");
+    const pendingToken = await install.createPendingConnection({ shop, accessToken: access_token, blogId, info, snapshot, content });
+    return new Response(null, { status: 302, headers: { location: `${origin}/shopify/setup?${new URLSearchParams({ shop, pending_token: pendingToken })}` } });
   } catch (e) { console.error("[shopify callback] installation failed", e); return back(origin, { shopify: "error", message: (e instanceof Error ? e.message : "failed").slice(0, 160) }); }
 } } } });

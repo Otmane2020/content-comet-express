@@ -21,6 +21,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as ShopifySetupRouteImport } from './routes/shopify.setup'
 import { Route as ApiPublicArticlesRouteImport } from './routes/api/public/articles'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google/callback'
 import { Route as ApiPublicHooksDailyAutopilotRouteImport } from './routes/api/public/hooks/daily-autopilot'
@@ -92,6 +93,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   path: '/$slug',
   getParentRoute: () => BlogRoute,
 } as any)
+const ShopifySetupRoute = ShopifySetupRouteImport.update({
+  id: '/shopify/setup',
+  path: '/shopify/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicArticlesRoute = ApiPublicArticlesRouteImport.update({
   id: '/api/public/articles',
   path: '/api/public/articles',
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/shopify/setup': typeof ShopifySetupRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
@@ -182,6 +189,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/shopify/setup': typeof ShopifySetupRoute
   '/blog': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
@@ -207,6 +215,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/auth_/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/shopify/setup': typeof ShopifySetupRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
   '/api/public/google/callback': typeof ApiPublicGoogleCallbackRoute
@@ -233,6 +242,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/auth/callback'
     | '/blog/$slug'
+    | '/shopify/setup'
     | '/blog/'
     | '/api/public/articles'
     | '/api/public/google/callback'
@@ -256,6 +266,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/auth/callback'
     | '/blog/$slug'
+    | '/shopify/setup'
     | '/blog'
     | '/api/public/articles'
     | '/api/public/google/callback'
@@ -280,6 +291,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/auth_/callback'
     | '/blog/$slug'
+    | '/shopify/setup'
     | '/blog/'
     | '/api/public/articles'
     | '/api/public/google/callback'
@@ -304,6 +316,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  ShopifySetupRoute: typeof ShopifySetupRoute
   ApiPublicArticlesRoute: typeof ApiPublicArticlesRoute
   ApiPublicGoogleCallbackRoute: typeof ApiPublicGoogleCallbackRoute
   ApiPublicHooksDailyAutopilotRoute: typeof ApiPublicHooksDailyAutopilotRoute
@@ -402,6 +415,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof BlogRoute
     }
+    '/shopify/setup': {
+      id: '/shopify/setup'
+      path: '/shopify/setup'
+      fullPath: '/shopify/setup'
+      preLoaderRoute: typeof ShopifySetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/articles': {
       id: '/api/public/articles'
       path: '/api/public/articles'
@@ -498,6 +518,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  ShopifySetupRoute: ShopifySetupRoute,
   ApiPublicArticlesRoute: ApiPublicArticlesRoute,
   ApiPublicGoogleCallbackRoute: ApiPublicGoogleCallbackRoute,
   ApiPublicHooksDailyAutopilotRoute: ApiPublicHooksDailyAutopilotRoute,
