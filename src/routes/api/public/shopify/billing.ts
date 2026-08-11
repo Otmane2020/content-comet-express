@@ -4,7 +4,9 @@ const back = (origin: string, params: Record<string, string>) => new Response(nu
  * has no session yet, so /app would only offer them the sign-up wizard. */
 const installError = (origin: string, shop: string | null, message: string) =>
   new Response(null, { status: 302, headers: { location: `${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}` } });
-const publicOrigin = () => (process.env["PUBLIC_SITE_URL"] || "https://www.ranki.ai").replace(/\/$/, "");
+// Shopify merchant sign-in must always return to the public product domain,
+// never to a preview/deployment URL supplied by Vercel configuration.
+const publicOrigin = () => "https://www.ranki.ai";
 
 export const Route = createFileRoute("/api/public/shopify/billing")({ server: { handlers: { GET: async ({ request }) => {
   const url = new URL(request.url); const origin = url.origin; const mod = await import("@/lib/shopify.server");
