@@ -219,8 +219,8 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     );
     domains = found.map((r) => r.domain);
     if (found.length) {
-      // Drop rivals stored by an earlier, unfiltered scan.
-      await supabase.from("competitors").delete().eq("project_id", projectId);
+      // Upsert only — a scan that finds fewer domains than last time (API
+      // hiccup, tighter query) must never wipe out previously-found ones.
       await supabase.from("competitors").upsert(
         found.map((r) => ({
           user_id: userId,

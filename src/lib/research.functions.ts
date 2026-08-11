@@ -60,8 +60,8 @@ export const discoverCompetitors = createServerFn({ method: "POST" })
       QUOTA.competitors,
     );
     if (rows.length) {
-      // Replace results from earlier scans that included platforms/aggregators.
-      await supabase.from("competitors").delete().eq("project_id", data.projectId);
+      // Upsert only — a scan that finds fewer domains than last time (API
+      // hiccup, tighter query) must never wipe out previously-found ones.
       await supabase.from("competitors").upsert(
         rows.map((r) => ({
           user_id: userId,
