@@ -150,7 +150,14 @@ function Dashboard() {
         const result = await exchangeSession({ data: { token, origin: window.location.origin } });
         if ("confirmationUrl" in result) {
           // The Shopify approval page must replace the top-level admin frame.
+          // Same dual-attempt as fail() below: window.open(_top) alone is
+          // known to silently no-op under some browser/iframe combinations.
           window.open(result.confirmationUrl, "_top");
+          try {
+            if (window.top) window.top.location.href = result.confirmationUrl;
+          } catch {
+            /* window.open above already attempted the navigation */
+          }
           return;
         }
         const { hashedToken } = result;
