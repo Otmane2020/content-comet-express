@@ -99,6 +99,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   const [cycle, setCycle] = useState<"monthly" | "annual">("monthly");
   const [scanning, setScanning] = useState(false);
   const [scanningMarket, setScanningMarket] = useState(false);
+  const [lastAnalysedWebsite, setLastAnalysedWebsite] = useState("");
   const [marketStage, setMarketStage] = useState(0);
   const [detected, setDetected] = useState<string | null>(null);
   const [market, setMarket] = useState<{
@@ -243,6 +244,18 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
 
+  // A website is enough to start: wait until the merchant finishes typing,
+  // then reveal the analysis state and continue through the wizard on its own.
+  useEffect(() => {
+    const website = form.website_url.trim();
+    const host = website.replace(/^https?:\/\//, "").split("/")[0];
+    if (step !== 0 || !website || !host.includes(".") || scanning || website === lastAnalysedWebsite) return;
+    const id = window.setTimeout(() => void autodetectBusiness(), 700);
+    return () => window.clearTimeout(id);
+    // autodetectBusiness is deliberately omitted: it is recreated each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, form.website_url, scanning, lastAnalysedWebsite]);
+
   async function startCheckout() {
     setBusy(true);
     try {
@@ -279,6 +292,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       toast.error("Add your website URL first.");
       return false;
     }
+    setLastAnalysedWebsite(form.website_url.trim());
     setScanning(true);
     try {
       const d = await detectBiz({ data: { website: form.website_url } });
@@ -293,6 +307,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
       }));
       setDetected(d.summary);
       toast.success("Website analysed — your profile is ready.");
+      void saveDraft(1);
+      setStep(1);
       return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not read that website");
@@ -300,17 +316,6 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     } finally {
       setScanning(false);
     }
-  }
-
-  async function analyseAndContinue() {
-    if (!form.website_url.trim()) {
-      toast.error("Add your website URL so we can analyse it.");
-      return;
-    }
-    const analysed = await autodetectBusiness();
-    if (!analysed) return;
-    void saveDraft(1);
-    setStep(1);
   }
 
   async function autodetectMarket() {
@@ -918,10 +923,6 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                 <Button
                   type="button"
                   onClick={() => {
-                    if (step === 0) {
-                      void analyseAndContinue();
-                      return;
-                    }
                     setStep((s) => {
                       const next = Math.min(2, s + 1);
                       void saveDraft(next);
@@ -931,7 +932,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   disabled={!canNext || scanning}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
-                  {step === 0 ? "Analyse & continue" : "Continue"} <ArrowRight className="ml-1.5 size-4" />
+                  {step === 0 ? "Continue without analysis" : "Continue"} <ArrowRight className="ml-1.5 size-4" />
                 </Button>
               ) : subActive === false ? (
                 <Button
