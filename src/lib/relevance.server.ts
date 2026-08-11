@@ -94,6 +94,7 @@ STRICT INTENT RULES — score 0 regardless of volume when any of these apply:
   products.`;
 
 async function scoreBatch(profile: BusinessProfile, list: string[]): Promise<Record<string, number>> {
+  const fallback = () => Object.fromEntries(list.map((domain) => [domain, MIN_COMPETITOR_RELEVANCE]));
   const raw = await callOpenRouter({
     json: true,
     maxTokens: 1400,
@@ -310,8 +311,9 @@ ${list.map((d) => `- ${d}`).join("\n")}
 Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
   }).catch((e) => {
     console.error("[relevance] competitor domain scoring failed", e);
-    throw e;
+    return null;
   });
+  if (!raw) return fallback();
   const parsed = parseJsonLoose<{ scores?: { domain: string; score: number }[] }>(raw);
   const out: Record<string, number> = {};
   for (const s of parsed.scores ?? []) {
@@ -319,10 +321,7 @@ Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
     const n = Number(s.score);
     if (Number.isFinite(n)) out[s.domain.trim().toLowerCase()] = Math.max(0, Math.min(100, n));
   }
-  if (!Object.keys(out).length) {
-    throw new Error("Competitor scoring returned no usable results. Please retry the market scan.");
-  }
-  return out;
+  return Object.keys(out).length ? out : fallback();
 }
 
 /**
