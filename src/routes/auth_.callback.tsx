@@ -5,6 +5,17 @@ import { supabase } from "@/integrations/supabase/client";
 import { createCheckout } from "@/lib/billing.functions";
 import { takeCheckoutIntent } from "@/lib/checkoutIntent";
 
+// Shopify opens embedded apps through this canonical Admin URL. Returning to
+// `/app` after the post-billing magic link loses that frame and makes the
+// merchant land in the regular web dashboard instead.
+const SHOPIFY_APP_HANDLE = "newai-seo-and-marketing-scale";
+
+function embeddedShopifyAppUrl(shop: string | null) {
+  const handle = shop?.replace(/\.myshopify\.com$/i, "").trim().toLowerCase();
+  if (!handle || !/^[a-z0-9][a-z0-9-]*$/.test(handle)) return null;
+  return `https://admin.shopify.com/store/${encodeURIComponent(handle)}/apps/${SHOPIFY_APP_HANDLE}`;
+}
+
 /**
  * Public landing route for OAuth / email-confirmation redirects.
  * Waits for the Supabase session to hydrate, then sends the user to the app.
@@ -36,7 +47,10 @@ function AuthCallback() {
       const params = new URLSearchParams(window.location.search);
       const fromShopify = params.get("shopify") === "connected";
       if (fromShopify) {
-        window.location.replace("/app?shopify=connected");
+        // Re-enter via Shopify Admin so the app gets its signed host parameter
+        // and renders inside Shopify instead of as a standalone Ranki tab.
+        const embeddedUrl = embeddedShopifyAppUrl(params.get("shop"));
+        window.location.replace(embeddedUrl ?? "/app?shopify=connected");
         return;
       }
       // A "Start now" click on the marketing page (e.g. via Google sign-in)
