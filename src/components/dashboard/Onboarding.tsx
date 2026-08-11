@@ -100,6 +100,12 @@ type ShopifyWelcomeReport = {
   blogConnected: boolean;
 };
 
+type FirstPostResult = {
+  title: string;
+  coverUrl: string | null;
+  shopify: { published: boolean; url: string | null; error: string | null } | null;
+};
+
 /**
  * Illustrative-only mockup of a buyer question, built from the detected
  * category — never sent to an AI model. Pairs with aiPreviewAnswer below to
@@ -149,6 +155,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const [shopifyWelcome, setShopifyWelcome] = useState(false);
   const [shopifyReport, setShopifyReport] = useState<ShopifyWelcomeReport | null>(null);
   const [launching, setLaunching] = useState(false);
+  const [firstPost, setFirstPost] = useState<FirstPostResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
   const [email, setEmail] = useState("");
@@ -472,25 +479,33 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       return;
     }
     setBusy(true);
+    let completion: FirstPostResult | null = null;
     try {
-      const { data, error } = await supabase
-        .from("projects")
-        .insert({
-          user_id: userId,
-          name: form.name,
-          website_url: form.website_url || null,
-          industry: form.industry || null,
-          audience: form.audience || null,
-          tone: form.tone,
-          locale: form.locale,
-          keywords: form.keywords
-            .split(",")
-            .map((k) => k.trim())
-            .filter(Boolean),
-          business_profile: (market?.business_profile ?? null) as never,
-        })
-        .select()
-        .single();
+      const projectPayload = {
+        user_id: userId,
+        name: form.name,
+        website_url: form.website_url || null,
+        industry: form.industry || null,
+        audience: form.audience || null,
+        tone: form.tone,
+        locale: form.locale,
+        keywords: form.keywords.split(",").map((k) => k.trim()).filter(Boolean),
+        business_profile: (market?.business_profile ?? null) as never,
+      };
+      // Shopify creates the project at payment approval. Reuse it here so the
+      // completed store connection and its publishing destination are retained.
+      const { data: existingProject } = shopContext
+        ? await supabase
+            .from("projects")
+            .select("id")
+            .eq("user_id", userId)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle()
+        : { data: null };
+      const { data, error } = existingProject
+        ? await supabase.from("projects").update(projectPayload).eq("id", existingProject.id).select().single()
+        : await supabase.from("projects").insert(projectPayload).select().single();
       if (error) throw error;
 
       const rivals = form.competitors
@@ -534,6 +549,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         const first = await kickstart({
           data: { projectId: data.id, origin: window.location.origin },
         });
+        completion = { title: first.title, coverUrl: first.coverUrl, shopify: first.shopify };
+        setFirstPost(completion);
         if (first.gmb?.posted) {
           toast.success(`Day 1 ready + Local post published to Google Business Profile.`);
         } else if (first.gmb) {
@@ -550,7 +567,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       await markComplete({ data: { projectId: data.id } }).catch(() => undefined);
       setLaunching(true);
       await new Promise((resolve) => window.setTimeout(resolve, 2200));
-      onDone();
+      setLaunching(false);
+      // Keep the merchant in the completion moment; the dashboard only opens
+      // once they have seen the real publication result below.
+      if (!completion) {
+        onDone();
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Setup failed");
     } finally {
@@ -639,6 +661,33 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                 <h2 className="mt-3 font-display text-3xl font-bold tracking-tight">Your 30-day GEO engine is live.</h2>
                 <p className="mx-auto mt-4 max-w-md text-sm leading-6 text-background/70">We’re generating optimized content designed to be discovered in AI Search, ChatGPT, Gemini and Google — with your products and pages linked naturally.</p>
                 <div className="mt-7 flex flex-wrap justify-center gap-2">{["AI Search", "ChatGPT", "Gemini", "Google"].map((channel) => <span key={channel} className="rounded-full border border-background/15 bg-background/10 px-3 py-1.5 text-xs font-semibold">{channel}</span>)}</div>
+              </div>
+            </motion.section>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {firstPost && !launching && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center bg-deep/75 px-4 backdrop-blur-md">
+            <motion.section initial={{ y: 22, scale: 0.96 }} animate={{ y: 0, scale: 1 }} exit={{ y: 12, scale: 0.98 }} className="relative w-full max-w-lg overflow-hidden rounded-3xl border border-background/20 bg-background p-6 shadow-2xl sm:p-8">
+              <div aria-hidden className="absolute -right-12 -top-16 size-52 rounded-full bg-gold/25 blur-3xl" />
+              <div className="relative">
+                <div className="flex size-14 items-center justify-center rounded-2xl bg-gold text-gold-foreground shadow-lg shadow-gold/30"><Check className="size-7" /></div>
+                <p className="mt-6 font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-primary">Your GEO autopilot is live</p>
+                <h2 className="mt-2 font-display text-3xl font-bold tracking-tight">Congratulations — your first post is ready.</h2>
+                <div className="mt-5 overflow-hidden rounded-2xl border border-border bg-muted/30">
+                  {firstPost.coverUrl && <img src={firstPost.coverUrl} alt="" className="h-36 w-full object-cover" />}
+                  <div className="p-4"><p className="text-xs font-semibold uppercase tracking-wide text-primary">First GEO article</p><p className="mt-1 text-base font-bold leading-snug">{firstPost.title}</p></div>
+                </div>
+                {firstPost.shopify?.published ? (
+                  <p className="mt-5 text-sm leading-6 text-muted-foreground">It has been published directly to your Shopify blog, with your store pages and products ready for natural internal linking.</p>
+                ) : (
+                  <p className="mt-5 text-sm leading-6 text-muted-foreground">Your first GEO article is ready. {firstPost.shopify?.error ? "Shopify will retry publishing it automatically from the calendar." : "Connect a Shopify blog to publish it automatically."}</p>
+                )}
+                <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                  {firstPost.shopify?.published && firstPost.shopify.url && <Button asChild variant="outline"><a href={firstPost.shopify.url} target="_blank" rel="noreferrer">View on Shopify</a></Button>}
+                  <Button onClick={() => { setFirstPost(null); onDone(); }} className="bg-deep text-background hover:bg-deep/90">Open my dashboard <ArrowRight className="ml-2 size-4" /></Button>
+                </div>
               </div>
             </motion.section>
           </motion.div>

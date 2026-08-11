@@ -230,14 +230,29 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
     // One image per article: the cover only.
     // Publish day 1 immediately to every connected destination (Supabase, WordPress, Shopify…).
     let published = 0;
+    let shopify: { published: boolean; url: string | null; error: string | null } | null = null;
     try {
       const { runPublish } = await import("./publish.server");
       const result = (await runPublish(supabase as never, userId, { itemId: first.id })) as {
-        results?: unknown[];
+        results?: { platform: string; success: boolean; url: string | null; message: string }[];
       };
-      published = Array.isArray(result?.results) ? result.results.length : 0;
-    } catch {
+      const results = Array.isArray(result?.results) ? result.results : [];
+      published = results.filter((entry) => entry.success).length;
+      const shopifyResult = results.find((entry) => entry.platform === "shopify");
+      if (shopifyResult) {
+        shopify = {
+          published: shopifyResult.success,
+          url: shopifyResult.url,
+          error: shopifyResult.success ? null : shopifyResult.message,
+        };
+      }
+    } catch (error) {
       // no destination connected yet, or one refused — the article stays as a draft
+      shopify = {
+        published: false,
+        url: null,
+        error: error instanceof Error ? error.message : "Shopify publication could not start",
+      };
     }
 
     // Google Business Profile: add the Local piece and post it.
@@ -289,5 +304,5 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
       }
     }
 
-    return { itemId: first.id, title: geo.title, coverUrl, gmb, published };
+    return { itemId: first.id, title: geo.title, coverUrl, gmb, published, shopify };
   });
