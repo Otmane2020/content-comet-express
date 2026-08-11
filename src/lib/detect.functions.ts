@@ -89,6 +89,7 @@ export const detectMarket = createServerFn({ method: "POST" })
         audience: z.string().max(300).optional(),
         profile: z.record(z.unknown()).optional(),
         locale: z.string().max(8).optional(),
+        targetCountry: z.string().max(80).optional(),
         seeds: z.array(z.string().min(1).max(120)).max(20).optional(),
         retry: z.boolean().optional(),
       })
@@ -106,7 +107,7 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     const website = normalizeUrl(data.website);
     const domain = website.replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
-    const opts = localeOpts(data.locale ?? null);
+    const opts = localeOpts(data.locale ?? null, data.targetCountry ?? null);
     await requireLiveDataForSeo();
 
     // 1. Build canonical profile FIRST — before any keyword research.

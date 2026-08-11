@@ -30,6 +30,28 @@ const TONES = [
   { id: "direct", label: "Direct", hint: "Short, action-driven" },
 ];
 
+const MARKET_COUNTRIES = [
+  { value: "France", flag: "fr" },
+  { value: "United States", flag: "us" },
+  { value: "United Kingdom", flag: "gb" },
+  { value: "Canada", flag: "ca" },
+  { value: "Belgium", flag: "be" },
+  { value: "Switzerland", flag: "ch" },
+  { value: "Spain", flag: "es" },
+  { value: "Germany", flag: "de" },
+  { value: "Italy", flag: "it" },
+  { value: "Netherlands", flag: "nl" },
+  { value: "Portugal", flag: "pt" },
+];
+
+function normalizeMarketCountry(country: string | null | undefined) {
+  const raw = country?.trim() ?? "";
+  if (!raw) return "";
+  const code = raw.toLowerCase();
+  const fromCode: Record<string, string> = { fr: "France", us: "United States", gb: "United Kingdom", uk: "United Kingdom", ca: "Canada", be: "Belgium", ch: "Switzerland", es: "Spain", de: "Germany", it: "Italy", nl: "Netherlands", pt: "Portugal" };
+  return fromCode[code] ?? raw;
+}
+
 const STEPS = [
   {
     id: 0,
@@ -94,6 +116,7 @@ type ShopifyWelcomeReport = {
   shop: string;
   business_name: string | null;
   website_url: string | null;
+  country?: string | null;
   productCount: number;
   collectionTitles: string[];
   pages: { title: string | null; url: string | null }[];
@@ -256,6 +279,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     audience: "",
     tone: "expert",
     locale: "en",
+    country: "",
     keywords: "",
     competitors: "",
   });
@@ -276,6 +300,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           business_name: values.name,
           industry: values.industry,
           target_market: values.audience,
+          country: values.country || undefined,
           tone: values.tone,
           language: values.locale,
           keywords: asList(values.keywords),
@@ -324,6 +349,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           audience: draft.target_market || f.audience,
           tone: draft.tone || f.tone,
           locale: draft.language || f.locale,
+          country: draft.country || f.country,
           keywords: (draft.keywords as string[] | null)?.join(", ") || f.keywords,
           competitors: (draft.competitors as string[] | null)?.join("\n") || f.competitors,
         }));
@@ -344,6 +370,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           website_url: f.website_url || (s.website_url ? `https://${s.website_url.replace(/^https?:\/\//, "")}` : ""),
           industry: f.industry || s.industry || "",
           locale: s.language || f.locale,
+          country: f.country || normalizeMarketCountry(s.country),
         }));
         setDetected(
           (d) =>
@@ -543,6 +570,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         audience: form.audience || undefined,
         profile: bizProfile ?? undefined,
         locale: form.locale,
+        targetCountry: form.country || undefined,
         seeds: form.keywords
           .split(",")
           .map((k) => k.trim())
@@ -601,6 +629,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         audience: form.audience || null,
         tone: form.tone,
         locale: form.locale,
+        target_country: form.country || null,
         keywords: form.keywords.split(",").map((k) => k.trim()).filter(Boolean),
         business_profile: (market?.business_profile ?? null) as never,
       };
@@ -1227,6 +1256,17 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                             <Plus className={`size-4 transition-transform ${showMoreLanguages ? "rotate-45" : ""}`} />
                           </button>
                         </div>
+                      </div>
+                      <div className="border-t border-border pt-5 sm:col-span-2">
+                        <Label htmlFor="profile-country" className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Target country</Label>
+                        <div className="mt-1.5 flex items-center gap-2">
+                          {form.country && <img src={`https://flagcdn.com/24x18/${MARKET_COUNTRIES.find((country) => country.value === form.country)?.flag ?? "un"}.png`} alt="" width={16} height={12} className="h-3 w-4 rounded-[2px] object-cover" />}
+                          <select id="profile-country" value={form.country} onChange={set("country")} className="h-10 min-w-0 flex-1 rounded-md border border-input bg-background px-3 text-sm">
+                            <option value="">Match the content language</option>
+                            {MARKET_COUNTRIES.map((country) => <option key={country.value} value={country.value}>{country.value}</option>)}
+                          </select>
+                        </div>
+                        <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">Used for Google results, DataForSEO and Google Business Profile local visibility. It can differ from your content language.</p>
                       </div>
                       <div className="border-t border-border pt-5 sm:col-span-2">
                         <Label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Editorial tone</Label>
