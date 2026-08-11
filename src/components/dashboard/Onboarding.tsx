@@ -674,6 +674,73 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
   const active = STEPS[step]!;
 
+  // A Shopify connection only proves that the store authorised the app. It is
+  // deliberately not enough to unlock the onboarding: Shopify must confirm
+  // the recurring-app charge first. Without this gate an installed store could
+  // reach the welcome screen and appear to have skipped billing.
+  if (shopifyWelcome && shopifyReport && subActive !== true) {
+    const checkingSubscription = subActive === null;
+    return (
+      <div className="paper-grid min-h-screen px-4 py-10">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="sticky top-0 z-40 -mx-4 flex justify-center bg-background/92 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
+            <BrandLockup />
+            <nav className="absolute left-0 top-1/2 hidden -translate-y-1/2 items-center gap-5 text-[11px] font-semibold text-muted-foreground lg:flex" aria-label="Shopify setup progress">
+              <span className="flex items-center gap-1.5 text-primary"><Check className="size-3.5" /> Store synced</span>
+              <span className="flex items-center gap-1.5"><span className="flex size-4 items-center justify-center rounded-full bg-deep text-[9px] text-background">2</span> Shopify payment</span>
+              <span className="flex items-center gap-1.5"><span className="flex size-4 items-center justify-center rounded-full border border-border text-[9px]">3</span> Onboarding</span>
+            </nav>
+          </div>
+
+          <section className="surface mt-10 overflow-hidden">
+            <div className="relative overflow-hidden bg-deep px-7 py-10 text-background sm:px-10 sm:py-12">
+              <motion.div aria-hidden className="absolute -right-12 -top-20 size-72 rounded-full bg-gold/25 blur-3xl" animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.7, 0.35] }} transition={{ duration: 5, repeat: Infinity }} />
+              <div className="relative max-w-xl">
+                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Ranki + Shopify</p>
+                <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                  {checkingSubscription ? "Checking your Shopify plan…" : "Approve your Ranki plan in Shopify"}
+                </h1>
+                <p className="mt-3 text-sm leading-6 text-background/70">
+                  {checkingSubscription
+                    ? "We are confirming whether this store already has an active Ranki subscription."
+                    : `Your store is synced. Approve the plan in Shopify to start the 3-day free trial, then we will open your pre-filled onboarding.`}
+                </p>
+              </div>
+            </div>
+
+            <div className="p-6 sm:p-8">
+              {checkingSubscription ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-border bg-muted/30 p-5 text-sm text-muted-foreground">
+                  <Loader2 className="size-5 animate-spin text-primary" /> Verifying subscription status securely…
+                </div>
+              ) : (
+                <>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {([
+                      { id: "monthly", title: "$9.99 / month", note: "3-day free trial · billed by Shopify" },
+                      { id: "annual", title: "$99 / year", note: "3-day free trial · billed by Shopify" },
+                    ] as const).map((plan) => (
+                      <button key={plan.id} type="button" onClick={() => setCycle(plan.id)} className={`rounded-2xl border p-5 text-left transition ${cycle === plan.id ? "border-gold bg-gold-soft/30 shadow-sm" : "border-border bg-muted/20 hover:border-gold/50"}`}>
+                        <p className="font-display text-lg font-bold">{plan.title}</p>
+                        <p className="mt-1 text-xs text-muted-foreground">{plan.note}</p>
+                      </button>
+                    ))}
+                  </div>
+                  <div className="mt-6 flex flex-col justify-between gap-4 border-t border-border pt-6 sm:flex-row sm:items-center">
+                    <p className="max-w-md text-sm leading-6 text-muted-foreground">Payment is handled by Shopify. Ranki does not open Stripe or create your onboarding until Shopify approves the subscription.</p>
+                    <Button type="button" size="lg" onClick={() => void startCheckout()} disabled={busy} className="bg-deep text-background hover:bg-deep/90">
+                      {busy ? "Opening Shopify checkout…" : "Approve in Shopify"} <ArrowRight className="ml-2 size-4" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+        </div>
+      </div>
+    );
+  }
+
   if (shopifyWelcome && shopifyReport) {
     const previews = [
       ...shopifyReport.products.slice(0, 3).map((item) => ({ ...item, kind: "Product", icon: Package })),
