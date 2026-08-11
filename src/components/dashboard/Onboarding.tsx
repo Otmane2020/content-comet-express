@@ -755,35 +755,35 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                   <motion.div
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative mt-6 overflow-hidden rounded-2xl bg-deep px-6 py-8 text-background"
+                    className="relative mt-6 overflow-hidden rounded-3xl border border-primary/15 bg-[#f7f6ff] px-6 py-8 shadow-[0_20px_60px_-30px_rgba(35,35,105,0.4)] sm:px-9 sm:py-10"
                   >
                     <motion.div
                       aria-hidden
-                      className="pointer-events-none absolute -right-14 -top-14 size-64 rounded-full bg-gold/30 blur-3xl"
-                      animate={{ scale: [1, 1.16, 1], opacity: [0.45, 0.85, 0.45] }}
+                      className="pointer-events-none absolute -right-14 -top-14 size-64 rounded-full bg-primary/15 blur-3xl"
+                      animate={{ scale: [1, 1.16, 1], opacity: [0.3, 0.75, 0.3] }}
                       transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                     />
                     <div className="relative mx-auto max-w-md text-center">
-                      <span className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-background/10 text-gold">
-                        <Loader2 className="size-6 animate-spin" />
+                      <span className="mx-auto flex size-16 items-center justify-center rounded-[22px] bg-deep text-gold shadow-lg shadow-primary/25">
+                        <Sparkles className="size-6 animate-pulse" />
                       </span>
                       <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.18em] text-gold">AI analysis in progress</p>
                       <h2 className="mt-2 font-display text-2xl font-bold">We’re analysing your business…</h2>
-                      <p className="mt-2 text-[13px] leading-relaxed text-background/70">
+                      <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
                         We’re turning what makes {form.name || "your brand"} unique into a content plan made for your audience.
                       </p>
-                      <div className="mt-7 space-y-2 text-left">
+                      <div className="mt-7 rounded-2xl border border-primary/10 bg-background/80 p-2 text-left shadow-sm">
                         {BUSINESS_ANALYSIS_STAGES.map((item, index) => (
                           <motion.div
                             key={item.label}
                             initial={{ opacity: 0, x: -8 }}
-                            animate={{ opacity: [0.5, 1, 0.5], x: 0 }}
-                            transition={{ duration: 2.4, repeat: Infinity, delay: index * 0.45 }}
-                            className="flex items-center gap-3 rounded-xl bg-background/10 px-3.5 py-3 text-[12.5px] font-medium"
+                            animate={{ opacity: [0.5, 1, 0.7], x: 0 }}
+                            transition={{ duration: 2.8, repeat: Infinity, delay: index * 0.45 }}
+                            className="flex items-center gap-3 rounded-xl px-3.5 py-3 text-[12.5px] font-medium text-foreground"
                           >
-                            <item.icon className="size-4 text-gold" />
+                            <span className="flex size-7 items-center justify-center rounded-lg bg-primary/10 text-primary"><item.icon className="size-3.5" /></span>
                             {item.label}
-                            <Loader2 className="ml-auto size-3.5 animate-spin text-background/50" />
+                            <span className="ml-auto flex gap-0.5"><i className="size-1 rounded-full bg-gold animate-pulse" /><i className="size-1 rounded-full bg-gold animate-pulse [animation-delay:150ms]" /><i className="size-1 rounded-full bg-gold animate-pulse [animation-delay:300ms]" /></span>
                           </motion.div>
                         ))}
                       </div>
