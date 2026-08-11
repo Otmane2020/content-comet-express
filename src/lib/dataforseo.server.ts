@@ -85,27 +85,27 @@ export async function searchVolumeFor(
     new Set(keywords.map((k) => k.trim().toLowerCase()).filter((k) => k.length > 1 && k.length <= 80)),
   ).slice(0, 700);
   if (!batch.length) return [];
+  // Google Ads Search Volume differs from Labs endpoints: `result` itself is
+  // the array of keyword rows. It has no `result[0].items` wrapper.
   const result = await post<
     {
-      items?: {
-        keyword?: string;
-        search_volume?: number | null;
-        cpc?: number | null;
-        competition?: number | null;
-        competition_index?: number | null;
-      }[];
+      keyword?: string;
+      search_volume?: number | null;
+      cpc?: number | null;
+      competition?: string | null;
+      competition_index?: number | null;
     }[]
   >("/keywords_data/google_ads/search_volume/live", {
     keywords: batch,
     ...loc(opts),
   });
-  return (result[0]?.items ?? [])
+  return result
     .filter((i) => i.keyword && (i.search_volume ?? 0) > 0)
     .map((i) => ({
       keyword: i.keyword!,
       search_volume: i.search_volume ?? null,
       cpc: i.cpc ?? null,
-      competition: i.competition ?? null,
+      competition: i.competition_index ?? null,
       // This endpoint carries Ads metrics only; difficulty and intent come from
       // Labs, and stay null rather than being guessed here.
       difficulty: null,
