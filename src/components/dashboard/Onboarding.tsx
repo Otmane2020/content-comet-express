@@ -1353,6 +1353,23 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       </div>
                     )}
 
+                    <details className="group rounded-xl border border-primary/25 bg-primary/[0.025]">
+                      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[12.5px] font-semibold text-primary marker:hidden">
+                        Edit competitors & keywords
+                        <ArrowRight className="size-3.5 transition group-open:rotate-90" />
+                      </summary>
+                      <div className="space-y-4 border-t border-primary/15 bg-background p-4">
+                        <div>
+                          <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
+                          <Textarea id="competitors" value={form.competitors} onChange={set("competitors")} className="mt-1.5" rows={3} placeholder={"competitor1.com\ncompetitor2.com"} />
+                        </div>
+                        <div>
+                          <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
+                          <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
+                        </div>
+                      </div>
+                    </details>
+
                     {market && market.competitors.length > 0 && (
                       <motion.div
                         initial={{ opacity: 0, y: 12 }}
@@ -1396,29 +1413,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       </motion.div>
                     )}
 
-                    <details className="group rounded-xl border border-border">
-                      <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-[12.5px] font-semibold text-foreground marker:hidden">
-                        Edit the list by hand
-                        <ArrowRight className="size-3.5 transition group-open:rotate-90" />
-                      </summary>
-                      <div className="space-y-4 border-t border-border p-4">
-                        <div>
-                          <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
-                          <Textarea
-                            id="competitors"
-                            value={form.competitors}
-                            onChange={set("competitors")}
-                            className="mt-1.5"
-                            rows={3}
-                            placeholder={"competitor1.com\ncompetitor2.com"}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
-                          <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
-                        </div>
-                      </div>
-                    </details>
                   </div>
                 )}
 
