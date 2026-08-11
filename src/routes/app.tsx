@@ -340,7 +340,7 @@ function Dashboard() {
 
   return (
     <div className={`flex min-h-screen bg-background ${embedded ? "bg-muted/30" : ""}`}>
-      <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar text-sidebar-foreground md:flex ${embedded ? "w-[76px] px-2 py-4 xl:w-56 xl:px-4" : "w-60 px-4 py-5"}`}>
+      <aside className={`sticky top-0 hidden h-screen shrink-0 flex-col bg-sidebar text-sidebar-foreground ${embedded ? "" : "md:flex w-60 px-4 py-5"}`}>
           <div className={`px-1 ${embedded ? "pb-4 xl:pb-6" : "pb-6"}`}>
             <BrandLockup dark />
           </div>
@@ -401,7 +401,7 @@ function Dashboard() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div className="flex gap-1 md:hidden">
+            <div className={`${embedded ? "hidden" : "flex gap-1 md:hidden"}`}>
               {nav.map((entry) => (
                 <Button
                   key={entry.id}
@@ -456,6 +456,26 @@ function Dashboard() {
             </DropdownMenu>
           </div>
         </header>
+
+        {embedded && (
+          <nav aria-label="Ranki navigation" className="flex gap-1 overflow-x-auto border-b border-border/60 bg-background/95 px-3 py-2 shadow-sm">
+            {nav.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                onClick={() => setTab(entry.id)}
+                className={`flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-colors ${
+                  tab === entry.id
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                }`}
+              >
+                <entry.icon className="size-3.5" />
+                {entry.label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         <div className="p-5">
           {tab === "calendar" && <Calendar projectId={project.id} />}
