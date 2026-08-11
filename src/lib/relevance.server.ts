@@ -209,6 +209,8 @@ Page text (truncated): ${site.text?.slice(0, 3000) ?? ""}
 Hints — name: ${hints?.name ?? ""}, industry: ${hints?.industry ?? ""}, website: ${hints?.website_url ?? ""}
 ${hints?.audience ? `Known audience (already confirmed for this business, trust it over your own reading of the page): ${hints.audience}\nIf that audience is resellers, retailers, professionals or other businesses, "sales_model" MUST be "wholesale" or "manufacturer" — never "retail".` : ""}
 
+Write every human-readable JSON value (especially "description", "audience" and "canonical") in the website's own language: ${landing?.lang ?? site.lang ?? "the language used by the website"}. Do not translate it to English.
+
 Return JSON:
 {
   "name": "company name",

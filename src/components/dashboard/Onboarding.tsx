@@ -150,12 +150,12 @@ function aiPreviewAnswer(category: string, competitors: string[], locale: string
 
 function audienceFieldCopy(locale: string) {
   const copies: Record<string, { label: string; placeholder: string }> = {
-    fr: { label: "Pour qui écrivons-nous ?", placeholder: "Propriétaires à Lyon, 35–60 ans" },
-    es: { label: "¿Para quién escribimos?", placeholder: "Propietarios en Madrid, 35–60 años" },
-    de: { label: "Für wen schreiben wir?", placeholder: "Hausbesitzer in Berlin, 35–60 Jahre" },
-    it: { label: "Per chi scriviamo?", placeholder: "Proprietari a Milano, 35–60 anni" },
-    nl: { label: "Voor wie schrijven we?", placeholder: "Huiseigenaren in Amsterdam, 35–60 jaar" },
-    pt: { label: "Para quem escrevemos?", placeholder: "Proprietários em Lisboa, 35–60 anos" },
+    fr: { label: "Who are we writing for?", placeholder: "Revendeurs et professionnels du meuble en France" },
+    es: { label: "Who are we writing for?", placeholder: "Distribuidores y profesionales del mueble en España" },
+    de: { label: "Who are we writing for?", placeholder: "Möbelhändler und Fachleute in Deutschland" },
+    it: { label: "Who are we writing for?", placeholder: "Rivenditori e professionisti dell'arredamento in Italia" },
+    nl: { label: "Who are we writing for?", placeholder: "Meubelhandelaren en professionals in Nederland" },
+    pt: { label: "Who are we writing for?", placeholder: "Revendedores e profissionais de mobiliário em Portugal" },
     en: { label: "Who are we writing for?", placeholder: "Homeowners in London, 35–60" },
   };
   return copies[locale] ?? copies.en;
