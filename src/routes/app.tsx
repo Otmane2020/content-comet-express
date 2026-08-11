@@ -120,15 +120,6 @@ function Dashboard() {
         setShopifyAuthChecked(true);
       };
       try {
-            if (window.top) window.top.location.href = url;
-          } catch {
-            /* window.open above already attempted the navigation */
-          }
-          return;
-        }
-        setShopifyAuthChecked(true);
-      };
-      try {
         const shopify = await waitForShopifyAppBridge();
         if (cancelled) return;
         if (!shopify) {
