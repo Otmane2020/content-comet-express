@@ -319,6 +319,9 @@ Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
     const n = Number(s.score);
     if (Number.isFinite(n)) out[s.domain.trim().toLowerCase()] = Math.max(0, Math.min(100, n));
   }
+  if (!Object.keys(out).length) {
+    throw new Error("Competitor scoring returned no usable results. Please retry the market scan.");
+  }
   return out;
 }
 

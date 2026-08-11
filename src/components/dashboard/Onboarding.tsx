@@ -658,6 +658,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         </motion.p>
                       )}
                     </div>
+                    {false && <>
                     <div>
                       <Label htmlFor="industry" className="text-[12.5px]">Industry</Label>
                       <select
@@ -730,6 +731,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       <Label htmlFor="audience" className="text-[12.5px]">Who are we writing for?</Label>
                       <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder="Homeowners in Lyon, 35-60" />
                     </div>
+                    </>}
                   </div>
                 )}
 
