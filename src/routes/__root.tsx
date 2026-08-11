@@ -12,6 +12,7 @@ import { useEffect, type ReactNode } from "react";
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { Toaster } from "@/components/ui/sonner";
+import { SHOPIFY_CLIENT_ID } from "@/lib/shopify.constants";
 
 function NotFoundComponent() {
   return (
@@ -78,6 +79,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
+      // Shopify App Bridge reads this public client id from the document head.
+      { name: "shopify-api-key", content: SHOPIFY_CLIENT_ID },
       { title: "Ranki.ai — AI SEO Content on Autopilot" },
       {
         name: "description",
@@ -120,6 +123,7 @@ function RootShell({ children }: { children: ReactNode }) {
     <html lang="en">
       <head>
         <HeadContent />
+        <script src="https://cdn.shopify.com/shopifycloud/app-bridge.js" />
       </head>
       <body>
         {children}
