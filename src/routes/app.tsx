@@ -97,9 +97,12 @@ function Dashboard() {
   // we try to silently establish one from the App Bridge session token, so
   // the plain "no session -> /auth" redirect below doesn't fire too early.
   const [shopifyAuthChecked, setShopifyAuthChecked] = useState(!embedded);
+  const [shopifyPlan, setShopifyPlan] = useState<"monthly" | "annual" | null>(null);
+  const [choosingShopifyPlan, setChoosingShopifyPlan] = useState(false);
+  const [shopifyEmbedError, setShopifyEmbedError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!embedded || loading || user || shopifyAuthChecked) return;
+    if (!embedded || loading || user || shopifyAuthChecked || choosingShopifyPlan || shopifyEmbedError) return;
     let cancelled = false;
     void (async () => {
       // Only ever flip this on a confirmed, unrecoverable failure: on
@@ -108,29 +111,15 @@ function Dashboard() {
       // shopifyAuthChecked — setting it eagerly here raced ahead of that
       // update and sent a freshly authenticated merchant to the signup
       // screen anyway.
-      const fail = () => {
+      const fail = (reason = "We couldn't connect this Shopify session.") => {
         if (cancelled) return;
-        // A fresh install has no Supabase session yet — nothing to sign
-        // into silently, because OAuth+billing never ran. The generic
-        // /auth signup form is a dead end here (the merchant already gets
-        // provisioned through Shopify, they shouldn't type a password).
-        // Start the real OAuth flow instead, breaking out of the iframe —
-        // Shopify requires top-level navigation for both OAuth and billing
-        // approval. This is also a safe retry for an already-connected
-        // shop: Shopify skips re-prompting for granted scopes/active
-        // billing and the callback just signs the same account back in.
-        const shop = new URLSearchParams(window.location.search).get("shop");
-        if (shop) {
-          const url = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
-          // Neither top-level navigation method is reliable on its own: Safari
-          // 18.6+ silently no-ops window.open(url, "_top") from inside the
-          // admin iframe, while writing window.top.location can throw a
-          // SecurityError under stricter cross-origin iframe policies. Firing
-          // both means whichever one the browser actually allows wins — if
-          // the first succeeds the page is already navigating away and the
-          // second call is harmless.
-          window.open(url, "_top");
-          try {
+        // Embedded merchants must never be sent into Ranki's normal
+        // email/password or legacy OAuth flows. Keep them in Shopify with a
+        // clear retry state instead.
+        setShopifyEmbedError(reason);
+        setShopifyAuthChecked(true);
+      };
+      try {
             if (window.top) window.top.location.href = url;
           } catch {
             /* window.open above already attempted the navigation */
@@ -147,7 +136,11 @@ function Dashboard() {
           return fail();
         }
         const token = await shopify.idToken();
-        const result = await exchangeSession({ data: { token, origin: window.location.origin } });
+        const result = await exchangeSession({ data: { token, origin: window.location.origin, plan: shopifyPlan ?? undefined } });
+        if ("requiresPlanChoice" in result) {
+          setChoosingShopifyPlan(true);
+          return;
+        }
         if ("confirmationUrl" in result) {
           // The Shopify approval page must replace the top-level admin frame.
           // Same dual-attempt as fail() below: window.open(_top) alone is
@@ -176,19 +169,19 @@ function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [embedded, loading, user, shopifyAuthChecked, exchangeSession]);
+  }, [embedded, loading, user, shopifyAuthChecked, choosingShopifyPlan, shopifyEmbedError, shopifyPlan, exchangeSession]);
 
   // Safety net: if the silent sign-in above succeeded but useAuth's session
   // state is somehow still lagging past a generous window, stop blocking the
   // UI on it instead of spinning forever.
   useEffect(() => {
-    if (!embedded || user || shopifyAuthChecked) return;
+    if (!embedded || user || shopifyAuthChecked || choosingShopifyPlan || shopifyEmbedError) return;
     const timer = setTimeout(() => setShopifyAuthChecked(true), 12000);
     return () => clearTimeout(timer);
-  }, [embedded, user, shopifyAuthChecked]);
+  }, [embedded, user, shopifyAuthChecked, choosingShopifyPlan, shopifyEmbedError]);
 
   useEffect(() => {
-    if (!loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
+    if (!embedded && !loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
   }, [loading, user, shopifyAuthChecked, navigate]);
 
   useEffect(() => {
@@ -239,6 +232,44 @@ function Dashboard() {
       cancelled = true;
     };
   }, [user, project, startGoogle]);
+
+  if (embedded && !user && choosingShopifyPlan) {
+    const choosePlan = (plan: "monthly" | "annual") => {
+      setShopifyPlan(plan);
+      setChoosingShopifyPlan(false);
+      setShopifyEmbedError(null);
+    };
+    return (
+      <div className="paper-grid flex min-h-screen items-center justify-center p-5">
+        <div className="surface w-full max-w-lg p-7 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Ranki-full-access</p>
+          <h1 className="mt-2 font-display text-2xl font-bold">Start your 3-day trial</h1>
+          <p className="mt-2 text-sm text-muted-foreground">Choose your billing cycle. Shopify will show the final approval page.</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <Button variant="outline" className="h-auto flex-col gap-1 py-5" onClick={() => choosePlan("monthly")}>
+              <span className="font-semibold">Monthly</span><span className="text-muted-foreground">$9.99 / month</span>
+            </Button>
+            <Button className="h-auto flex-col gap-1 bg-deep py-5 text-background hover:bg-deep/90" onClick={() => choosePlan("annual")}>
+              <span className="font-semibold">Annual</span><span className="text-background/75">$99 / year</span>
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (embedded && !user && shopifyEmbedError) {
+    return (
+      <div className="paper-grid flex min-h-screen items-center justify-center p-5">
+        <div className="surface w-full max-w-md p-7 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-destructive">Shopify connection</p>
+          <h1 className="mt-2 font-display text-2xl font-bold">We couldn't finish the connection</h1>
+          <p className="mt-2 text-sm text-muted-foreground">{shopifyEmbedError}</p>
+          <Button className="mt-6 bg-deep text-background hover:bg-deep/90" onClick={() => window.location.reload()}>Try again</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (loading || (user && projectLoading) || (embedded && !user && !shopifyAuthChecked)) {
     return (
