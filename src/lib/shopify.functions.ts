@@ -92,6 +92,7 @@ export const exchangeShopifySession = createServerFn({ method: "POST" })
     await provision.recordShopifySubscription(userId, email, active);
 
     if (!active) {
+      console.info(`[shopify-embed] ${claims.shop}: subscription inactive; plan=${data.plan ?? "not-selected"}`);
       if (!data.plan) return { requiresPlanChoice: true as const };
       const state = mod.signState({
         userId,
@@ -106,6 +107,7 @@ export const exchangeShopifySession = createServerFn({ method: "POST" })
       return { confirmationUrl };
     }
 
+    console.info(`[shopify-embed] ${claims.shop}: subscription active; issuing merchant session`);
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email,
