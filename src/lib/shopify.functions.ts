@@ -34,66 +34,75 @@ export const startShopifyInstall = createServerFn({ method: "POST" })
  * Deliberately has no requireSupabaseAuth: there is no session yet.
  */
 export const exchangeShopifySession = createServerFn({ method: "POST" })
-  .inputValidator((raw: unknown) => z.object({ token: z.string().min(10), origin: z.string().url() }).parse(raw))
+  .inputValidator((raw: unknown) =>
+    z.object({
+      token: z.string().min(10),
+      origin: z.string().url(),
+      plan: z.enum(["monthly", "annual"]).optional(),
+    }).parse(raw),
+  )
   .handler(async ({ data }) => {
     const mod = await import("./shopify.server");
     const claims = mod.verifyShopifySessionToken(data.token);
-    if (!claims) {
-      console.error("[shopify-embed] session token failed verification");
-      throw new Error("Invalid Shopify session token");
-    }
+    if (!claims) throw new Error("Invalid Shopify session token");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: integration } = await supabaseAdmin
+    const { data: existing } = await supabaseAdmin
       .from("integrations")
-      .select("user_id")
+      .select("user_id, project_id, config")
       .eq("platform", "shopify")
       .eq("config->>shop", claims.shop)
       .limit(1)
       .maybeSingle();
-    let userId = integration?.user_id;
-    if (!userId) {
-      // Fresh App Store install: use Shopify's supported token exchange from
-      // the App Bridge ID token, without bouncing back through legacy OAuth.
-      const { access_token } = await mod.exchangeSessionToken(claims.shop, data.token);
+
+    let userId = existing?.user_id ?? null;
+    let projectId = existing?.project_id ?? null;
+    let accessToken = (existing?.config as { access_token?: string } | null)?.access_token;
+    let email: string | null = null;
+
+    if (!userId || !projectId || !accessToken) {
+      const exchanged = await mod.exchangeSessionToken(claims.shop, data.token);
+      accessToken = exchanged.access_token;
       const [blogId, info, snapshot, content] = await Promise.all([
-        mod.resolveBlogId(claims.shop, access_token),
-        mod.fetchShopInfo(claims.shop, access_token),
-        mod.fetchProductSnapshot(claims.shop, access_token),
-        mod.fetchStoreContent(claims.shop, access_token),
+        mod.resolveBlogId(claims.shop, accessToken),
+        mod.fetchShopInfo(claims.shop, accessToken),
+        mod.fetchProductSnapshot(claims.shop, accessToken),
+        mod.fetchStoreContent(claims.shop, accessToken),
       ]);
       const provision = await import("./shopifyProvision.server");
       const created = await provision.provisionShopifyMerchant({
         shop: claims.shop,
-        accessToken: access_token,
+        accessToken,
         blogId,
         info,
         snapshot,
         content,
       });
       userId = created.userId;
-
-      const existingSub = await mod.activeAppSubscription(claims.shop, access_token).catch(() => null);
-      await provision.recordShopifySubscription(created.userId, created.email, existingSub);
-      if (!existingSub) {
-        const state = mod.signState({
-          userId,
-          projectId: created.projectId,
-          origin: data.origin,
-          shop: claims.shop,
-          ts: Date.now(),
-        });
-        const returnUrl = `${data.origin}/api/public/shopify/billing?shop=${encodeURIComponent(claims.shop)}&state=${encodeURIComponent(state)}`;
-        const { confirmationUrl } = await mod.createAppSubscription(claims.shop, access_token, returnUrl);
-        return { confirmationUrl };
-      }
+      projectId = created.projectId;
+      email = created.email;
     }
 
-    const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
-    const email = user.user?.email;
+    const provision = await import("./shopifyProvision.server");
+    const active = await mod.activeAppSubscription(claims.shop, accessToken).catch(() => null);
     if (!email) {
-      console.error(`[shopify-embed] user ${userId} has no email`);
-      throw new Error("Could not resolve the merchant account.");
+      const { data: user } = await supabaseAdmin.auth.admin.getUserById(userId);
+      email = user.user?.email ?? `${claims.shop}@shopify-merchant.ranki.ai`;
+    }
+    await provision.recordShopifySubscription(userId, email, active);
+
+    if (!active) {
+      if (!data.plan) return { requiresPlanChoice: true as const };
+      const state = mod.signState({
+        userId,
+        projectId,
+        origin: data.origin,
+        shop: claims.shop,
+        ts: Date.now(),
+      });
+      const returnUrl = `${data.origin}/api/public/shopify/billing?shop=${encodeURIComponent(claims.shop)}&state=${encodeURIComponent(state)}`;
+      const { confirmationUrl } = await mod.createAppSubscription(claims.shop, accessToken, returnUrl, data.plan);
+      return { confirmationUrl };
     }
 
     const { data: link, error } = await supabaseAdmin.auth.admin.generateLink({
@@ -101,8 +110,8 @@ export const exchangeShopifySession = createServerFn({ method: "POST" })
       email,
     });
     if (error || !link.properties?.hashed_token) {
-      console.error(`[shopify-embed] generateLink failed: ${error?.message}`);
       throw new Error(error?.message ?? "Could not start a session.");
     }
     return { email, hashedToken: link.properties.hashed_token };
   });
+
