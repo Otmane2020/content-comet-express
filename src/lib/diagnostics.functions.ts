@@ -13,7 +13,7 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 const siteInput = z.object({ website: z.string().min(3).max(300) });
 
 export type PipelineDiagnosticStage = {
-  id: "landing" | "profile" | "keywords" | "serp" | "rivals";
+  id: "landing" | "profile" | "keywords" | "serp" | "rivals" | "calendar" | "article";
   ok: boolean;
   ms: number;
   summary: string;
@@ -97,9 +97,51 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
     (value) => `${value.length} buyer-matched competitors from Google, DataForSEO and SerpApi`);
     if (!competitors?.length) return { stages };
 
-    await take("rivals", () => analyseCompetitorLandings(competitors.map((row) => row.domain), 5), (value) =>
+    const rivals = await take("rivals", () => analyseCompetitorLandings(competitors.map((row) => row.domain), 5), (value) =>
       `${value.length} rival landing pages read for article-generation context`,
     );
+    if (!rivals?.length) return { stages };
+
+    // Preview only: plan the next 30 days from the validated market output.
+    // No project, content item, article or external destination is written.
+    const { planWindow } = await import("./geo");
+    const { planTopics, writeArticle } = await import("./plan.server");
+    const calendar = await take("calendar", async () => {
+      const slots = planWindow(new Date(), 30).map((slot, index) => ({
+        ...slot,
+        keyword: keywordStage.qualified[index % keywordStage.qualified.length]?.keyword ?? null,
+      }));
+      return planTopics(
+        {
+          name: profile.name ?? new URL(data.website).hostname,
+          website_url: data.website,
+          industry: profile.industry ?? null,
+          audience: profile.audience ?? null,
+          tone: "expert",
+          locale: site.landing?.lang ?? "en",
+          keywords: keywordStage.qualified.map((row) => row.keyword),
+        },
+        slots,
+      );
+    }, (value) => `${value.length} planned topics derived from validated buyer keywords`);
+    if (!calendar?.length) return { stages };
+
+    await take("article", async () => {
+      const first = calendar[0]!;
+      return writeArticle(
+        {
+          name: profile.name ?? new URL(data.website).hostname,
+          website_url: data.website,
+          industry: profile.industry ?? null,
+          audience: profile.audience ?? null,
+          tone: "expert",
+          locale: site.landing?.lang ?? "en",
+          keywords: [keywordStage.qualified[0]!.keyword],
+        },
+        { content_type: first.type, topic: first.topic },
+        { profile, competitors: rivals },
+      );
+    }, (value) => `Article preview generated: ${value.title}`);
     return { stages };
   });
 

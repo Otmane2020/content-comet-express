@@ -142,6 +142,8 @@ function TestPage() {
   const [s3, setS3] = useState<StageState>(IDLE);
   const [s4, setS4] = useState<StageState>(IDLE);
   const [s5, setS5] = useState<StageState>(IDLE);
+  const [s6, setS6] = useState<StageState>(IDLE);
+  const [s7, setS7] = useState<StageState>(IDLE);
 
   const runLanding = useServerFn(probeLanding);
   const runProfile = useServerFn(probeProfile);
@@ -152,11 +154,11 @@ function TestPage() {
 
   async function runCompleteDiagnostic() {
     const running: StageState = { status: "running", checks: [] };
-    setS1(running); setS2(running); setS3(running); setS4(running); setS5(running);
+    setS1(running); setS2(running); setS3(running); setS4(running); setS5(running); setS6(running); setS7(running);
     try {
       const result = await runFullDiagnostic({ data: { website } });
       const byId = new Map(result.stages.map((stage) => [stage.id, stage]));
-      const stateFor = (id: "landing" | "profile" | "keywords" | "serp" | "rivals"): StageState => {
+      const stateFor = (id: "landing" | "profile" | "keywords" | "serp" | "rivals" | "calendar" | "article"): StageState => {
         const stage = byId.get(id);
         if (!stage) return { status: "error", checks: [], error: "Blocked by an earlier pipeline stage." };
         return {
@@ -172,9 +174,11 @@ function TestPage() {
       setS3(stateFor("keywords"));
       setS4(stateFor("serp"));
       setS5(stateFor("rivals"));
+      setS6(stateFor("calendar"));
+      setS7(stateFor("article"));
     } catch (error) {
       const failed = { status: "error" as const, checks: [], error: error instanceof Error ? error.message : String(error) };
-      setS1(failed); setS2(failed); setS3(failed); setS4(failed); setS5(failed);
+      setS1(failed); setS2(failed); setS3(failed); setS4(failed); setS5(failed); setS6(failed); setS7(failed);
     }
   }
 
@@ -432,6 +436,22 @@ function TestPage() {
             };
           })
         }
+      />
+
+      <Stage
+        n={6}
+        title="30-day calendar — topics selected from the validated keywords"
+        cost="billed"
+        state={s6}
+        onRun={() => void runCompleteDiagnostic()}
+      />
+
+      <Stage
+        n={7}
+        title="First article preview — generated from the calendar, profile and rivals"
+        cost="billed"
+        state={s7}
+        onRun={() => void runCompleteDiagnostic()}
       />
     </main>
   );
