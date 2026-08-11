@@ -79,6 +79,25 @@ const BUSINESS_ANALYSIS_STAGES = [
   { icon: Sparkles, label: "Preparing your content strategy" },
 ];
 
+/**
+ * Illustrative-only mockup of a buyer question, built from the detected
+ * category — never sent to an AI model. Pairs with aiPreviewAnswer below to
+ * show the format of a real AI-assistant answer without inventing one.
+ */
+function aiPreviewQuestion(industry: string, locale: string): string {
+  const category = (industry || "this").toLowerCase();
+  return locale === "fr" ? `Quel est le meilleur ${category} ?` : `What's the best ${category}?`;
+}
+
+/** Uses only real, already-discovered competitor domains — never invented. */
+function aiPreviewAnswer(industry: string, competitors: string[], locale: string): string {
+  const category = (industry || "this category").toLowerCase();
+  const names = competitors.slice(0, 3).join(", ");
+  return locale === "fr"
+    ? `Pour ${category}, on cite souvent ${names}. Comparez leurs prix, délais de livraison et gamme de produits.`
+    : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
+}
+
 export function Onboarding({ userId, onDone }: { userId: string; onDone: () => void }) {
   const build = useServerFn(buildPlan);
   const kickstart = useServerFn(kickstartFirstDay);
@@ -814,6 +833,41 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                           </div>
                         </div>
                       </div>
+                    )}
+
+                    {market && market.competitors.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 12 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="relative overflow-hidden rounded-2xl bg-deep px-6 py-6 text-background"
+                      >
+                        <motion.div
+                          aria-hidden
+                          className="pointer-events-none absolute -right-12 -top-12 size-56 rounded-full bg-gold/25 blur-3xl"
+                          animate={{ scale: [1, 1.15, 1] }}
+                          transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
+                        />
+                        <p className="relative text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
+                          This is what buyers see today
+                        </p>
+                        <p className="relative mt-1 text-[12px] text-background/60">
+                          Illustrative example, built from your own market scan — not a live AI query.
+                        </p>
+                        <div className="relative mt-4 space-y-2.5">
+                          <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-background/10 px-3.5 py-2.5 text-[12.5px]">
+                            {aiPreviewQuestion(form.industry, form.locale)}
+                          </div>
+                          <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-background/95 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-deep">
+                            {aiPreviewAnswer(form.industry, market.competitors, form.locale)}
+                          </div>
+                        </div>
+                        <p className="relative mt-4 text-[12px] leading-relaxed text-background/70">
+                          <strong className="font-semibold text-gold">
+                            {form.name || "Your business"}
+                          </strong>{" "}
+                          isn't in that answer yet. That's exactly what your next 30 days of content change.
+                        </p>
+                      </motion.div>
                     )}
 
                     <details className="group rounded-xl border border-border">
