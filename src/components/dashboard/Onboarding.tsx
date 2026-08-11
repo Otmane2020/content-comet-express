@@ -85,6 +85,7 @@ const FORMATS = [
 const BUSINESS_ANALYSIS_STAGES = [
   { icon: Wand2, label: "Reading your website" },
   { icon: Building2, label: "Understanding your positioning" },
+  { icon: Radar, label: "Mapping competitors and keywords" },
   { icon: Sparkles, label: "Preparing your content strategy" },
 ];
 
@@ -131,7 +132,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const [scanning, setScanning] = useState(false);
   const [scanningMarket, setScanningMarket] = useState(false);
   const [lastAnalysedWebsite, setLastAnalysedWebsite] = useState("");
-  const [marketStage, setMarketStage] = useState(0);
   const [detected, setDetected] = useState<string | null>(null);
   const [market, setMarket] = useState<{
     source: "dataforseo" | "ai";
@@ -263,16 +263,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       cancelled = true;
     };
   }, [userId]);
-
-  // Advance the animated stage indicator while the live market scan runs.
-  useEffect(() => {
-    if (!scanningMarket) return;
-    setMarketStage(0);
-    const id = setInterval(() => {
-      setMarketStage((s) => Math.min(s + 1, MARKET_STAGES.length - 1));
-    }, 1400);
-    return () => clearInterval(id);
-  }, [scanningMarket]);
 
   // Run the competitor/keyword scan the moment the merchant reaches step 2 —
   // no button to press, it just happens while they read.
@@ -888,7 +878,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
                 {step === 2 && (
                   <div className="mt-6 space-y-5">
-                    {scanningMarket && (
+                    {false && scanningMarket && (
                       <div className="grid gap-3 sm:grid-cols-3">
                         {MARKET_STAGES.map((s, i) => {
                           const done = i < marketStage;
@@ -926,7 +916,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       </div>
                     )}
 
-                    {scanningMarket && (
+                    {false && scanningMarket && (
                       <div className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background">
                         <motion.div
                           aria-hidden
@@ -1203,12 +1193,14 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       return next;
                     });
                   }}
-                  disabled={!canNext || scanning || signingUp}
+                  disabled={!canNext || scanning || signingUp || (step === 1 && scanningMarket)}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
                   {signingUp
                     ? "Creating your account…"
-                    : step === 0
+                    : step === 1 && scanningMarket
+                      ? "Finishing your market scan…"
+                      : step === 0
                       ? detected
                         ? "Continue"
                         : "Continue without analysis"
