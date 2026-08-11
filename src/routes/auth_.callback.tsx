@@ -9,6 +9,11 @@ import { takeCheckoutIntent } from "@/lib/checkoutIntent";
 // `/app` after the post-billing magic link loses that frame and makes the
 // merchant land in the regular web dashboard instead.
 const SHOPIFY_APP_HANDLE = "newai-seo-and-marketing-scale";
+const SHOPIFY_SETUP_STEPS = [
+  "Securing your Shopify connection",
+  "Setting up your GEO foundation",
+  "Preparing your AI content workspace",
+];
 
 function embeddedShopifyAppUrl(shop: string | null) {
   const handle = shop?.replace(/\.myshopify\.com$/i, "").trim().toLowerCase();
@@ -37,7 +42,17 @@ export const Route = createFileRoute("/auth_/callback")({
 function AuthCallback() {
   const navigate = useNavigate();
   const startCheckout = useServerFn(createCheckout);
+  const [shopifyReturn] = useState(() => new URLSearchParams(window.location.search).get("shopify") === "connected");
+  const [setupStage, setSetupStage] = useState(0);
   const [message, setMessage] = useState("Finishing sign-in…");
+
+  useEffect(() => {
+    if (!shopifyReturn) return;
+    const timer = window.setInterval(() => {
+      setSetupStage((stage) => Math.min(stage + 1, SHOPIFY_SETUP_STEPS.length - 1));
+    }, 1400);
+    return () => window.clearInterval(timer);
+  }, [shopifyReturn]);
 
   useEffect(() => {
     let done = false;
@@ -100,8 +115,35 @@ function AuthCallback() {
   }, [navigate, startCheckout]);
 
   return (
-    <div className="paper-grid flex min-h-screen items-center justify-center px-4">
-      <p className="text-sm text-muted-foreground">{message}</p>
+    <div className="paper-grid flex min-h-screen items-center justify-center px-4 py-8">
+      {shopifyReturn ? (
+        <section className="w-full max-w-md rounded-3xl border border-border/70 bg-card/95 p-8 shadow-2xl shadow-primary/10 backdrop-blur sm:p-10">
+          <div className="mb-8 flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary text-lg font-bold text-primary-foreground shadow-lg shadow-primary/25">R</div>
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-primary">Generative search</p>
+              <p className="text-lg font-bold leading-none">Ranki.ai + Shopify</p>
+            </div>
+          </div>
+          <div className="mb-6 flex h-14 w-14 items-center justify-center rounded-full border-2 border-primary/15">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight">We’re setting up your GEO autopilot</h1>
+          <p className="mt-2 text-sm leading-6 text-muted-foreground">Your subscription is confirmed. Ranki is preparing your workspace before opening it in Shopify.</p>
+          <div className="mt-8 space-y-3">
+            {SHOPIFY_SETUP_STEPS.map((step, index) => (
+              <div key={step} className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition-all ${index === setupStage ? "bg-primary/10 text-foreground" : index < setupStage ? "text-muted-foreground" : "text-muted-foreground/55"}`}>
+                <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${index < setupStage ? "bg-primary text-primary-foreground" : index === setupStage ? "border-2 border-primary" : "border border-border"}`}>
+                  {index < setupStage ? "✓" : index + 1}
+                </span>
+                <span className="text-sm font-medium">{step}</span>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : (
+        <p className="text-sm text-muted-foreground">{message}</p>
+      )}
     </div>
   );
 }
