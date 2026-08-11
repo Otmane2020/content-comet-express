@@ -1,7 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import type { KwRow } from "./research.server";
 
 const projectInput = z.object({ projectId: z.string().uuid() });
 
@@ -13,78 +12,37 @@ export const dataSourceStatus = createServerFn({ method: "GET" })
     return dfsPing();
   });
 
-/** Find competitor domains for the project's own website. */
+/**
+ * Find competitor domains for the project's own website.
+ *
+ * Delegates to the `discover-competitors` Supabase Edge Function, which
+ * combines two live, non-manual signals — DataForSEO Labs domain overlap
+ * (real shared-keyword rivals, queried straight from the site's URL) and a
+ * live Google SERP pass for the business's category — instead of the old
+ * category-guess-only SERP pipeline. Everything is AI/DataForSEO-sourced,
+ * nothing typed. Results are upserted (never a destructive delete), so an
+ * onboarding-time scan survives later dashboard visits.
+ */
 export const discoverCompetitors = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => projectInput.parse(input))
   .handler(async ({ data, context }) => {
-    const { discoverCompetitorsFromSerp, requireLiveDataForSeo } = await import("./research.server");
-    const { QUOTA, isFresh } = await import("./quotas");
-    const { supabase, userId } = context;
-    const { data: project } = await supabase
-      .from("projects")
-      .select("id, name, industry, audience, website_url, locale, target_country, business_profile")
-      .eq("id", data.projectId)
-      .single();
-    if (!project?.website_url) throw new Error("Add your website URL in Settings first.");
-
-    // Cache guard: don't re-bill DataForSEO for a list scanned this week.
-    const { data: cached } = await supabase
-      .from("competitors")
-      .select("domain, last_checked_at")
-      .eq("project_id", data.projectId)
-      .order("last_checked_at", { ascending: false })
-      .limit(QUOTA.competitors);
-    const cachedRows = (cached ?? []) as { last_checked_at: string | null }[];
-    if (cachedRows.length >= QUOTA.competitors && isFresh(cachedRows[0]?.last_checked_at)) {
-      return { found: cachedRows.length, cached: true };
-    }
-
-    await requireLiveDataForSeo();
-
-    // Use the stored business profile if available; fall back to basic fields.
-    const biz =
-      (project.business_profile as Record<string, any> | null) ?? {
-        name: project.name,
-        website_url: project.website_url,
-        industry: project.industry,
-        audience: project.audience,
-      };
-
-    // Real Google SERP results only — no AI-invented rivals.
-    const rows = await discoverCompetitorsFromSerp(
-      biz,
-      project.locale ?? null,
-      project.target_country ?? null,
-      null,
-      QUOTA.competitors,
-    );
-    if (rows.length) {
-      // Replace results from earlier scans that included platforms/aggregators.
-      await supabase.from("competitors").delete().eq("project_id", data.projectId);
-      await supabase.from("competitors").upsert(
-        rows.map((r) => ({
-          user_id: userId,
-          project_id: data.projectId,
-          domain: r.domain,
-          title: r.title,
-          snippet: r.snippet,
-          appearances: r.appearances,
-          best_position: r.bestPosition,
-          metrics: { appearances: r.appearances, bestPosition: r.bestPosition, relevance: r.relevance },
-          last_checked_at: new Date().toISOString(),
-        })),
-        { onConflict: "project_id,domain" },
-      );
-    }
-    return { found: rows.length, cached: false };
+    const { data: result, error } = await context.supabase.functions.invoke("discover-competitors", {
+      body: { project_id: data.projectId },
+    });
+    if (error) throw new Error(error.message ?? "Competitor discovery failed");
+    return { found: result?.found ?? 0, competitors: result?.competitors ?? [], cached: false };
   });
 
 /**
- * Pull keyword suggestions from the project's seed keywords.
- * Uses phrase-match suggestions (every result contains the seed) instead of
- * broad keyword ideas, so the list can never drift to off-topic high-volume
- * terms. Requires a canonical business profile for relevance scoring.
+ * Pull keyword ideas for the project.
+ *
+ * Delegates to the `discover-keywords` Supabase Edge Function, which combines
+ * the site's own ranking keywords, phrase-match seed expansion, and whatever
+ * competitors are already tracked — all live DataForSEO data, no manual
+ * seed list required (the `seeds` input is accepted for backward
+ * compatibility with the UI but the edge function derives its own seeds
+ * from the site and stored project keywords).
  */
 export const researchKeywords = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
@@ -92,48 +50,19 @@ export const researchKeywords = createServerFn({ method: "POST" })
     projectInput.extend({ seeds: z.array(z.string().min(1).max(120)).min(1).max(20) }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { keywordSuggestions } = await import("./dataforseo.server");
-    const { localeOpts, saveKeywords, requireLiveDataForSeo } = await import("./research.server");
-    const { QUOTA, dedupeKeywords } = await import("./quotas");
-    const { productSeeds, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
-    const { supabase, userId } = context;
-    const { data: project } = await supabase
-      .from("projects")
-      .select("name, industry, audience, locale, target_country, website_url, business_profile")
-      .eq("id", data.projectId)
-      .single();
-    await requireLiveDataForSeo();
-
-    const opts = localeOpts(project?.locale ?? null, project?.target_country ?? null);
-    const biz =
-      (project?.business_profile as Record<string, any> | null) ?? {
-        name: project?.name,
-        website_url: project?.website_url,
-        industry: project?.industry,
-        audience: project?.audience,
-      };
-
-    // Validate user-provided seeds against the canonical profile.
-    const userSeeds = data.seeds.slice(0, QUOTA.seeds).map((s) => s.trim().toLowerCase()).filter(Boolean);
-    const seedScores = await scoreRelevance(biz, userSeeds);
-    const validSeeds = userSeeds.filter((s) => (seedScores[s] ?? 0) >= MIN_RELEVANCE);
-
-    // Fill remaining seed slots with profile-derived category seeds.
-    const categorySeeds = await productSeeds(biz, QUOTA.seeds);
-    const usedSeeds = Array.from(new Set([...validSeeds, ...categorySeeds])).slice(0, QUOTA.seeds);
-
-    // Phrase-match per seed: every result contains the seed.
-    const perSeed = Math.max(10, Math.ceil((QUOTA.keywords * 2) / Math.max(1, usedSeeds.length)));
-    const batches = await Promise.all(
-      usedSeeds.map((s) => keywordSuggestions(s, opts, perSeed).catch(() => [] as KwRow[])),
-    );
-    const rows: KwRow[] = dedupeKeywords(batches.flat(), QUOTA.keywords * 2);
-
-    const found = await saveKeywords(supabase, userId, data.projectId, rows.map((r) => ({ ...r, origin: "seed" as const })), biz);
-    return { found };
+    const { data: result, error } = await context.supabase.functions.invoke("discover-keywords", {
+      body: { project_id: data.projectId },
+    });
+    if (error) throw new Error(error.message ?? "Keyword research failed");
+    return { found: result?.found ?? 0, keywords: result?.keywords ?? [] };
   });
 
-/** Pull the keywords a competitor domain ranks for. */
+/**
+ * Pull the keywords a single, explicitly-named competitor domain ranks for.
+ * Kept as a direct DataForSEO call: this is the manual "look up one rival"
+ * tool in the Research tab, not part of the automatic onboarding/dashboard
+ * discovery flow, so it stays outside the edge functions above.
+ */
 export const analyzeCompetitor = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => projectInput.extend({ domain: z.string().min(3).max(200) }).parse(input))
@@ -144,25 +73,18 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
     const { supabase, userId } = context;
     const { data: project } = await supabase
       .from("projects")
-      .select("name, industry, audience, locale, target_country, website_url, business_profile")
+      .select("name, industry, audience, locale, target_country, website_url")
       .eq("id", data.projectId)
       .single();
     const clean = data.domain.replace(/^https?:\/\//, "").replace(/\/.*$/, "");
     await requireLiveDataForSeo();
-    const biz =
-      (project?.business_profile as Record<string, any> | null) ?? {
-        name: project?.name,
-        website_url: project?.website_url,
-        industry: project?.industry,
-        audience: project?.audience,
-      };
-    const rows: KwRow[] = dedupeKeywords(
+    const rows = dedupeKeywords(
       await competitorKeywords(
         data.domain,
         localeOpts(project?.locale ?? null, project?.target_country ?? null),
         QUOTA.keywordsPerCompetitor,
       ),
-      QUOTA.keywordsPerCompetitor * 2,
+      QUOTA.keywordsPerCompetitor,
     );
     await supabase.from("competitors").upsert(
       {
@@ -179,20 +101,43 @@ export const analyzeCompetitor = createServerFn({ method: "POST" })
       userId,
       data.projectId,
       rows.map((r) => ({ ...r, origin: "competitor" as const })),
-      biz,
     );
     return { found };
   });
 
 /**
- * Hands-free research: expands the project's own keywords, discovers
- * competitors and pulls their keywords. Safe to call on every dashboard load —
- * it exits immediately when the project already has tracked keywords.
+ * Hands-free research: runs the competitor and keyword edge functions back
+ * to back. Safe to call on every dashboard load — it exits immediately when
+ * the project already has tracked keywords (unless `force` is set).
  */
 export const autoResearch = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => projectInput.extend({ force: z.boolean().optional() }).parse(input))
   .handler(async ({ data, context }) => {
-    const { runResearch } = await import("./research.server");
-    return runResearch(context.supabase, context.userId, data.projectId, data.force ?? false);
+    const { supabase } = context;
+
+    if (!data.force) {
+      const { count } = await supabase
+        .from("keyword_research")
+        .select("id", { count: "exact", head: true })
+        .eq("project_id", data.projectId);
+      if ((count ?? 0) > 0) return { found: 0, skipped: true, live: true };
+    }
+
+    const { data: comp, error: compErr } = await supabase.functions.invoke("discover-competitors", {
+      body: { project_id: data.projectId },
+    });
+    if (compErr) throw new Error(compErr.message ?? "Competitor discovery failed");
+
+    const { data: kw, error: kwErr } = await supabase.functions.invoke("discover-keywords", {
+      body: { project_id: data.projectId },
+    });
+    if (kwErr) throw new Error(kwErr.message ?? "Keyword research failed");
+
+    return {
+      found: kw?.found ?? 0,
+      skipped: false,
+      live: true,
+      competitorsFound: comp?.found ?? 0,
+    };
   });
