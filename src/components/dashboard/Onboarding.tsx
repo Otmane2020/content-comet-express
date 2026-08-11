@@ -148,6 +148,19 @@ function aiPreviewAnswer(category: string, competitors: string[], locale: string
     : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
 }
 
+function audienceFieldCopy(locale: string) {
+  const copies: Record<string, { label: string; placeholder: string }> = {
+    fr: { label: "Pour qui écrivons-nous ?", placeholder: "Propriétaires à Lyon, 35–60 ans" },
+    es: { label: "¿Para quién escribimos?", placeholder: "Propietarios en Madrid, 35–60 años" },
+    de: { label: "Für wen schreiben wir?", placeholder: "Hausbesitzer in Berlin, 35–60 Jahre" },
+    it: { label: "Per chi scriviamo?", placeholder: "Proprietari a Milano, 35–60 anni" },
+    nl: { label: "Voor wie schrijven we?", placeholder: "Huiseigenaren in Amsterdam, 35–60 jaar" },
+    pt: { label: "Para quem escrevemos?", placeholder: "Proprietários em Lisboa, 35–60 anos" },
+    en: { label: "Who are we writing for?", placeholder: "Homeowners in London, 35–60" },
+  };
+  return copies[locale] ?? copies.en;
+}
+
 const bareDomain = (value: string) =>
   value.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
 
@@ -240,6 +253,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     keywords: "",
     competitors: "",
   });
+  const audienceCopy = audienceFieldCopy(form.locale);
 
   const DRAFT_KEY = "apgeo_onboarding_draft";
 
@@ -1153,8 +1167,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       </div>
                     </div>
                     <div className="sm:col-span-2">
-                      <Label htmlFor="audience" className="text-[12.5px]">Who are we writing for?</Label>
-                      <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder="Homeowners in Lyon, 35-60" />
+                      <Label htmlFor="audience" className="text-[12.5px]">{audienceCopy.label}</Label>
+                      <Textarea id="audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={2} placeholder={audienceCopy.placeholder} />
                     </div>
                     </>}
                   </div>
@@ -1220,8 +1234,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                         </div>
                       </div>
                       <div className="sm:col-span-2">
-                        <Label htmlFor="profile-audience" className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Who are we writing for?</Label>
-                        <Textarea id="profile-audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={3} placeholder="Businesses seeking AI-powered automation and data insights." />
+                        <Label htmlFor="profile-audience" className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{audienceCopy.label}</Label>
+                        <Textarea id="profile-audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={3} placeholder={audienceCopy.placeholder} />
                       </div>
                     </div>
                   </div>
