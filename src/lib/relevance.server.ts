@@ -290,6 +290,39 @@ export async function candidateKeywords(
   const sellsToBusinesses = ["wholesale", "manufacturer"].includes(
     (profile.sales_model ?? "").trim().toLowerCase(),
   );
+  // A model response is useful enrichment, not a single point of failure. The
+  // canonical profile is already derived from the site's own title, copy and
+  // taxonomy, so it can safely provide a small, auditable set of candidates
+  // when the model returns malformed/empty JSON.
+  const deterministicFallback = () => {
+    const rawTerms = [
+      ...(profile.products ?? []),
+      ...(profile.services ?? []),
+      ...(landing?.categoryLinks ?? []),
+    ];
+    const terms = Array.from(
+      new Set(
+        rawTerms
+          .map((term) => String(term).replace(/\s+/g, " ").trim().toLowerCase())
+          .filter((term) => term.length > 2 && term.length <= 60 && term.split(/\s+/).length <= 6)
+          .filter((term) => !/^(home|accueil|blog|contact|shop|products?|collections?)$/i.test(term)),
+      ),
+    ).slice(0, 8);
+    const looksFrench =
+      landing?.lang?.toLowerCase().startsWith("fr") ||
+      /\b(grossiste|fournisseur|meuble|mobilier|professionnel|france)\b/i.test(
+        [landing?.title, landing?.metaDescription, profile.canonical, profile.description].filter(Boolean).join(" "),
+      );
+    const candidates = terms.flatMap((term) => {
+      if (sellsToBusinesses) {
+        return looksFrench
+          ? [`grossiste ${term}`, `fournisseur ${term}`, `${term} professionnel`]
+          : [`${term} wholesale`, `${term} supplier`, `${term} for professionals`];
+      }
+      return looksFrench ? [term, `acheter ${term}`, `${term} prix`] : [term, `buy ${term}`, `${term} price`];
+    });
+    return Array.from(new Set(candidates)).slice(0, max);
+  };
   // The page itself, not a paraphrase of it. The SEO <title> and the visible
   // page title are given separately because they are frequently written for
   // different readers, and the SEO one is where the business model shows up.
@@ -340,15 +373,16 @@ ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.j
 Return JSON: {"keywords":["...","..."]}`,
     });
     const parsed = parseJsonLoose<{ keywords?: string[] }>(raw);
-    return Array.from(
+    const aiCandidates = Array.from(
       new Set(
         (parsed.keywords ?? [])
           .map((k) => String(k).trim().toLowerCase())
           .filter((k) => k.length > 2 && k.split(/\s+/).length <= 8),
       ),
     ).slice(0, max);
+    return aiCandidates.length ? aiCandidates : deterministicFallback();
   } catch {
-    return [];
+    return deterministicFallback();
   }
 }
 
