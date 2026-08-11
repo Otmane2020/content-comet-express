@@ -1270,40 +1270,40 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       <motion.div
                         initial={{ opacity: 0, y: 12 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="relative overflow-hidden rounded-2xl bg-deep px-6 py-6 text-background"
+                        className="relative overflow-hidden rounded-3xl border border-border bg-card px-0 py-0 text-foreground shadow-[0_20px_55px_-38px_rgba(15,23,42,0.35)]"
                       >
                         <motion.div
                           aria-hidden
-                          className="pointer-events-none absolute -right-12 -top-12 size-56 rounded-full bg-gold/25 blur-3xl"
+                          className="pointer-events-none absolute -right-12 -top-12 size-56 rounded-full bg-emerald-200/45 blur-3xl"
                           animate={{ scale: [1, 1.15, 1] }}
                           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                         />
-                        <div className="relative flex items-center justify-between gap-3">
+                        <div className="relative flex items-center justify-between gap-3 border-b border-border px-6 py-5 sm:px-8">
                           <div className="flex items-center gap-2.5">
                             <span className="flex size-8 items-center justify-center rounded-full bg-white text-[#10a37f] shadow-sm"><Bot className="size-4" /></span>
-                            <div><p className="text-[13px] font-semibold text-white">ChatGPT</p><p className="text-[10px] text-background/55">{previewCopy(form.locale).kicker}</p></div>
+                            <div><p className="text-[15px] font-semibold text-foreground">ChatGPT</p><p className="text-[11px] text-muted-foreground">{previewCopy(form.locale).kicker}</p></div>
                           </div>
-                          <span className="rounded-full border border-gold/30 bg-gold/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gold">{previewCopy(form.locale).badge}</span>
+                          <span className="rounded-full border border-primary/15 bg-primary/5 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-primary">{previewCopy(form.locale).badge}</span>
                         </div>
-                        <p className="relative mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
+                        <p className="relative mx-6 mt-6 text-[12px] font-bold uppercase tracking-[0.16em] text-foreground sm:mx-8">
                           {previewCopy(form.locale).headline}
                         </p>
-                        <p className="relative mt-1 text-[12px] text-background/60">
+                        <p className="relative mx-6 mt-2 max-w-2xl text-[13px] leading-relaxed text-muted-foreground sm:mx-8">
                           {previewCopy(form.locale).disclaimer}
                         </p>
-                        <div className="relative mt-4 space-y-2.5">
-                          <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-background/10 px-3.5 py-2.5 text-[12.5px]">
+                        <div className="relative mx-6 mt-7 space-y-5 sm:mx-8">
+                          <div className="ml-auto max-w-[85%] rounded-3xl rounded-tr-sm border border-emerald-900/10 bg-[#eff8f4] px-4 py-3 text-[13px] shadow-sm">
                             {aiPreviewQuestion(previewCategory(form.industry, form.locale, market.business_profile), form.locale)}
                           </div>
-                          <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-background/95 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-deep">
+                          <div className="max-w-[90%] rounded-3xl rounded-tl-sm border border-border bg-background px-4 py-3 text-[13px] leading-relaxed text-foreground shadow-sm">
                             {aiPreviewAnswer(previewCategory(form.industry, form.locale, market.business_profile), market.competitors, form.locale)}
                           </div>
                         </div>
-                        <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-background/15 bg-background/5 px-3 py-2 text-[11.5px] text-background/45">
+                        <div className="relative mx-6 mt-6 flex items-center gap-2 rounded-2xl border border-border bg-muted/25 px-4 py-3 text-[12px] text-muted-foreground sm:mx-8">
                           <Bot className="size-3.5 text-[#74d7bb]" /> {previewCopy(form.locale).placeholder}
                           <span className="ml-auto flex size-5 items-center justify-center rounded-md bg-background/10 text-background/60">↑</span>
                         </div>
-                        <p className="relative mt-4 text-[12px] leading-relaxed text-background/70">
+                        <p className="relative mx-6 mb-6 mt-5 rounded-2xl border border-gold/20 bg-gold-soft/35 px-4 py-3 text-[12.5px] leading-relaxed text-foreground sm:mx-8 sm:mb-8">
                           <strong className="font-semibold text-gold">{aiPreviewOutcome(form.name || (form.locale === "fr" ? "Votre entreprise" : "Your business"), form.website_url, market.competitors, form.locale)}</strong>
                         </p>
                       </motion.div>
