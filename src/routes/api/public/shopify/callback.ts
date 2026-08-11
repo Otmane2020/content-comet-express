@@ -94,7 +94,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({
 
           const link = await provision.shopifyLoginLink(
             email,
-            `${origin}/auth/callback?shopify=connected`,
+            `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`,
           );
           return new Response(null, { status: 302, headers: { location: link } });
         } catch (e) {

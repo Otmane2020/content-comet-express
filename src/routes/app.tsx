@@ -121,11 +121,20 @@ function Dashboard() {
         // billing and the callback just signs the same account back in.
         const shop = new URLSearchParams(window.location.search).get("shop");
         if (shop) {
-          // App Home is cross-origin from the Shopify admin. Writing through
-          // window.top.location can therefore be rejected by the browser and
-          // leaves a new merchant on the embedded sign-in screen. App Bridge
-          // supports top-level navigation through the native window API.
-          window.open(`/api/public/shopify/install?shop=${encodeURIComponent(shop)}`, "_top");
+          const url = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+          // Neither top-level navigation method is reliable on its own: Safari
+          // 18.6+ silently no-ops window.open(url, "_top") from inside the
+          // admin iframe, while writing window.top.location can throw a
+          // SecurityError under stricter cross-origin iframe policies. Firing
+          // both means whichever one the browser actually allows wins — if
+          // the first succeeds the page is already navigating away and the
+          // second call is harmless.
+          window.open(url, "_top");
+          try {
+            if (window.top) window.top.location.href = url;
+          } catch {
+            /* window.open above already attempted the navigation */
+          }
           return;
         }
         setShopifyAuthChecked(true);

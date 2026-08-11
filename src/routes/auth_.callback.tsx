@@ -63,6 +63,18 @@ function AuthCallback() {
 
     const timeout = setTimeout(() => {
       if (done) return;
+      // A Shopify merchant never set a password — the generic /auth signup
+      // form is a dead end for them. Retry the Shopify entry point instead,
+      // which issues a fresh magic link, rather than stranding them here.
+      const params = new URLSearchParams(window.location.search);
+      const shop = params.get("shopify") === "connected" ? params.get("shop") : null;
+      if (shop) {
+        setMessage("We couldn't confirm your session. Retrying…");
+        setTimeout(() => {
+          window.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+        }, 1200);
+        return;
+      }
       setMessage("We couldn't confirm your session. Redirecting to sign in…");
       setTimeout(() => navigate({ to: "/auth", replace: true }), 1200);
     }, 6000);
