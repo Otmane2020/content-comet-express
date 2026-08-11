@@ -352,9 +352,15 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     setScanning(true);
     // The live market scan builds its own canonical profile, so it can run
     // alongside the step-1 website analysis instead of making the merchant wait.
-    if (!market && !scanningMarket) void autodetectMarket();
+    const marketScan = !market && !scanningMarket ? autodetectMarket() : Promise.resolve(null);
     try {
       const d = await detectBiz({ data: { website: form.website_url } });
+      const marketResult = await marketScan;
+      const liveKeywords = marketResult?.keywords.slice(0, 15).map((keyword) => keyword.keyword) ?? [];
+      const profileKeywords = (form.keywords || d.keywords.join(", "))
+        .split(",")
+        .map((keyword) => keyword.trim())
+        .filter(Boolean);
       const nextForm = {
         ...form,
         name: form.name || (d.name ?? ""),
@@ -362,7 +368,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         audience: d.audience ?? form.audience,
         tone: d.tone,
         locale: d.locale,
-        keywords: form.keywords || d.keywords.join(", "),
+        competitors: form.competitors.trim() ? form.competitors : marketResult?.competitors.join("\n") ?? "",
+        keywords: Array.from(
+          new Map([...liveKeywords, ...profileKeywords].map((keyword) => [keyword.toLowerCase(), keyword])).values(),
+        )
+          .slice(0, 15)
+          .join(", "),
       };
       setForm(nextForm);
       setDetected(d.summary);
@@ -373,6 +384,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       setStep(1);
       return true;
     } catch (err) {
+      await marketScan;
       toast.error(err instanceof Error ? err.message : "Could not read that website");
       return false;
     } finally {
@@ -383,7 +395,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   async function autodetectMarket() {
     if (!form.website_url.trim()) {
       toast.error("Add your website URL in step 1 first.");
-      return;
+      return null;
     }
     setScanningMarket(true);
     try {
@@ -417,8 +429,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         };
       });
       toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
+      return r;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Market scan failed");
+      return null;
     } finally {
       setScanningMarket(false);
     }
