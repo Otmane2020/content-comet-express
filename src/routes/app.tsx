@@ -80,6 +80,18 @@ function Dashboard() {
     void announceSignup({ data: undefined }).catch(() => undefined);
   }, [user, announceSignup]);
 
+  // Shopify opens the app from the admin's app tile (or the Partner
+  // Dashboard's "App URL") by sending the merchant's browser straight here
+  // with a signed shop/hmac/host launch — not through our own
+  // /api/public/shopify/install entry point. A signed-out visitor here has
+  // no Ranki session, so route them into the real OAuth install flow
+  // instead of showing an empty sign-up wizard with no context.
+  useEffect(() => {
+    if (loading || user) return;
+    const shop = new URLSearchParams(window.location.search).get("shop");
+    if (shop) window.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+  }, [loading, user]);
+
   // A merchant can hit a Shopify install error before they have an account
   // (e.g. the very first install attempt) — Platforms.tsx only shows this
   // toast once signed in, so also surface it here, unconditionally.
