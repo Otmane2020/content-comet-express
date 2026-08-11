@@ -1266,7 +1266,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                             {MARKET_COUNTRIES.map((country) => <option key={country.value} value={country.value}>{country.value}</option>)}
                           </select>
                         </div>
-                        <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">Used for Google results, DataForSEO and Google Business Profile local visibility. It can differ from your content language.</p>
+                        <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">Used for Google results and Google Business Profile local visibility. It can differ from your content language.</p>
                       </div>
                       <div className="border-t border-border pt-5 sm:col-span-2">
                         <Label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Editorial tone</Label>
@@ -1302,7 +1302,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                             <Radar className="size-4 animate-pulse" />
                           </span>
                           <div>
-                            <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Live DataForSEO</p>
+                            <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Market analysis</p>
                             <p className="mt-1 font-display text-xl font-bold tracking-tight">Mapping your real search market…</p>
                             <p className="mt-1 text-sm leading-6 text-muted-foreground">Please keep this page open while we prepare the inputs for your 30-day content plan.</p>
                             <div className="mt-4 grid gap-2 sm:grid-cols-3">
@@ -1320,7 +1320,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           <div className="h-1.5 overflow-hidden rounded-full bg-primary/10">
                             <motion.div className="h-full rounded-full bg-gradient-to-r from-primary via-gold to-primary" animate={{ x: ["-55%", "105%"] }} transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }} style={{ width: "58%" }} />
                           </div>
-                          <p className="mt-2 text-[11px] font-medium text-muted-foreground">DataForSEO is checking live results. Please wait.</p>
+                          <p className="mt-2 text-[11px] font-medium text-muted-foreground">Checking live search and local market signals. Please wait.</p>
                         </div>
                       </div>
                     )}
@@ -1386,7 +1386,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                                   : "bg-gold-soft text-foreground/70"
                               }`}
                             >
-                              {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
+                              {market.source === "dataforseo" ? "Market data" : "AI estimate"}
                             </span>
                           </p>
                           <div className="mt-3 divide-y divide-border border-t border-border">

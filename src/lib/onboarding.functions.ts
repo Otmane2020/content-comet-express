@@ -147,6 +147,20 @@ export const saveMarketResearch = createServerFn({ method: "POST" })
       );
       if (error) throw new Error(error.message);
     }
+    // This server action is shared by Shopify and Stripe onboarding. The
+    // Maps branch reuses validated buyer terms and never changes billing.
+    const { data: project } = await supabase.from("projects").select("locale, target_country, business_profile").eq("id", data.projectId).single();
+    if (project?.target_country && data.keywords.length) {
+      try {
+        const { researchLocalMarket } = await import("./local-market.server");
+        const local = await researchLocalMarket({ business: (project.business_profile ?? {}) as never, locale: project.locale, targetCountry: project.target_country, buyerKeywords: data.keywords.map((keyword) => keyword.keyword) });
+        if (local.competitors.length) await supabase.from("local_competitors" as never).upsert(local.competitors.map((competitor) => ({ user_id: userId, project_id: data.projectId, identity: competitor.identity, name: competitor.name, domain: competitor.domain, place_id: competitor.placeId, country: competitor.country, city: competitor.city, category: competitor.category, rating: competitor.rating, review_count: competitor.reviewCount, queries_found_for: competitor.queriesFoundFor, local_pack_positions: competitor.localPackPositions, recurrence_score: competitor.recurrenceScore, last_checked_at: new Date().toISOString() })), { onConflict: "project_id,identity" });
+        if (local.opportunities.length) {
+          const { saveKeywords } = await import("./research.server");
+          await saveKeywords(supabase as never, userId, data.projectId, local.opportunities, project.business_profile as never);
+        }
+      } catch (error) { console.warn("[onboarding] local market research skipped", error); }
+    }
     return { ok: true };
   });
 

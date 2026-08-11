@@ -178,7 +178,7 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
         <div className="flex items-start gap-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
           <Sparkles className="mt-0.5 size-4 shrink-0 text-destructive" />
           <p className="text-[12.5px] leading-relaxed text-destructive">
-            <span className="font-semibold">Live SEO data is not connected.</span>{" "}
+            <span className="font-semibold">Market analysis is not connected.</span>{" "}
             {source.reason === "unauthorized"
               ? "DataForSEO rejected the credentials — use the API login and API password from your DataForSEO account (API access page), not your website login."
               : "Add your DataForSEO API login and API password to pull keywords and competitors."}{" "}
