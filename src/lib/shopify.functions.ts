@@ -98,6 +98,7 @@ export const exchangeShopifySession = createServerFn({ method: "POST" })
         projectId,
         origin: data.origin,
         shop: claims.shop,
+        plan: data.plan,
         ts: Date.now(),
       });
       const returnUrl = `${data.origin}/api/public/shopify/billing?shop=${encodeURIComponent(claims.shop)}&state=${encodeURIComponent(state)}`;
