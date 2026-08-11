@@ -46,7 +46,7 @@ function createSupabaseAdminClient() {
   // would fail with confusing authorization errors instead of the clear
   // "missing env var" message below.
   const SUPABASE_SERVICE_ROLE_KEY =
-    process.env['SUPABASE_SERVICE_ROLE_KEY'] || process.env['SUPABASE_SECRET_KEY'];
+    process.env['SUPABASE_SECRET_KEY'] || process.env['SUPABASE_SERVICE_ROLE_KEY'];
 
   if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
     const missing = [
