@@ -12,6 +12,7 @@ export type ProjectBrief = {
 };
 
 export function briefLine(project: ProjectBrief) {
+  const language = ({ fr: "French", es: "Spanish", de: "German", it: "Italian", nl: "Dutch", pt: "Portuguese" } as Record<string, string>)[project.locale ?? "fr"] ?? "English";
   return [
     `Business: ${project.name}`,
     project.website_url ? `Website: ${project.website_url}` : null,
@@ -19,7 +20,7 @@ export function briefLine(project: ProjectBrief) {
     project.audience ? `Audience: ${project.audience}` : null,
     project.keywords.length ? `Target keywords: ${project.keywords.join(", ")}` : null,
     `Tone: ${project.tone ?? "expert"}`,
-    `Language: ${project.locale ?? "fr"}`,
+    `Language: ${project.locale ?? "fr"}. Write every title, excerpt and article exclusively in ${language}; never fall back to English.`,
   ]
     .filter(Boolean)
     .join("\n");
