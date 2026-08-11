@@ -359,7 +359,7 @@ export async function discoverCompetitorsFromSerp(
   city?: string | null,
   limit = 5,
 ): Promise<SerpCompetitor[]> {
-  const { serpOrganicSearch } = await import("./dataforseo.server");
+  const { serpOrganicSearch, competitorDomains } = await import("./dataforseo.server");
   const { dedupeDomains, isRealCompetitor } = await import("./quotas");
   const { scoreCompetitorDomains, MIN_COMPETITOR_RELEVANCE } = await import("./relevance.server");
 
@@ -391,13 +391,22 @@ export async function discoverCompetitorsFromSerp(
     ),
   ).slice(0, 9);
 
-  const batches = await Promise.all(queries.map((q) => serpOrganicSearch(q, opts, 20)));
+  const selfDomain = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
+
+  // Two independent real-Google signals, cross-referenced: which domains rank
+  // for the buyer queries we constructed (works even for a brand-new site),
+  // and which domains DataForSEO's own index already treats as competing on
+  // organic keyword overlap with this site (only useful once the site has
+  // some ranking history — silently empty otherwise, never blocking).
+  const [batches, overlapDomains] = await Promise.all([
+    Promise.all(queries.map((q) => serpOrganicSearch(q, opts, 20))),
+    selfDomain ? competitorDomains(selfDomain, opts, 15).catch(() => []) : Promise.resolve([]),
+  ]);
   const allResults = batches.flat();
-  if (!allResults.length) {
+  if (!allResults.length && !overlapDomains.length) {
     throw new Error("DataForSEO returned no organic SERP results for these queries.");
   }
 
-  const selfDomain = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
   const byDomain = new Map<string, { title: string | null; snippet: string | null; appearances: number; bestPosition: number }>();
   for (const r of allResults) {
     if (!isRealCompetitor(r.domain, selfDomain)) continue;
@@ -412,6 +421,19 @@ export async function discoverCompetitorsFromSerp(
         appearances: 1,
         bestPosition: r.position,
       });
+    }
+  }
+  // A domain found by both signals is the strongest possible evidence — bump
+  // its appearance count so it naturally sorts higher. One found only via
+  // keyword overlap still gets added: DataForSEO's own competitor index can
+  // surface real rivals that our 9 constructed queries never happen to hit.
+  for (const d of overlapDomains) {
+    if (!isRealCompetitor(d.domain, selfDomain)) continue;
+    const existing = byDomain.get(d.domain);
+    if (existing) {
+      existing.appearances += 1;
+    } else {
+      byDomain.set(d.domain, { title: null, snippet: null, appearances: 1, bestPosition: 999 });
     }
   }
 
