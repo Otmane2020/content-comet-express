@@ -169,6 +169,7 @@ export const getShopifyPrefill = createServerFn({ method: "GET" })
     // nonexistent `products` key silently produced 0 products every time.
     const productsSample = Array.isArray(cfg["products_sample"]) ? cfg["products_sample"] : [];
     const collections = Array.isArray(cfg["collections"]) ? cfg["collections"] : [];
+    const pages = Array.isArray(cfg["pages"]) ? cfg["pages"] : [];
     const productTypes = Array.isArray(cfg["product_types"]) ? cfg["product_types"] : [];
     const types = productTypes.length
       ? productTypes.slice(0, 5)
@@ -185,5 +186,17 @@ export const getShopifyPrefill = createServerFn({ method: "GET" })
       language: ((cfg["locale"] as string | undefined)?.slice(0, 2) ?? null) as string | null,
       productCount: (typeof cfg["products_count"] === "number" ? cfg["products_count"] : productsSample.length) as number,
       collectionTitles: collections.map((c: any) => c?.title).filter(Boolean).slice(0, 10) as string[],
+      products: productsSample
+        .slice(0, 6)
+        .map((p: Record<string, unknown>) => ({
+          title: (p?.["title"] ?? null) as string | null,
+          url: (p?.["url"] ?? null) as string | null,
+          image: (Array.isArray(p?.["images"]) ? (p["images"] as unknown[])[0] : null) as string | null,
+        }))
+        .filter((p) => p.title),
+      pages: pages
+        .map((p: Record<string, unknown>) => ({ title: (p?.["title"] ?? null) as string | null, url: (p?.["url"] ?? null) as string | null }))
+        .filter((p) => p.title)
+        .slice(0, 8),
     };
   });

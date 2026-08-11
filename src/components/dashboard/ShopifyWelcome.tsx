@@ -175,6 +175,53 @@ export function ShopifyWelcome({
                     ))}
                   </div>
                 )}
+                {!!data?.connected && data.products.length > 0 && (
+                  <div className="mt-5">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Products imported
+                    </p>
+                    <div className="grid grid-cols-3 gap-2.5 sm:grid-cols-6">
+                      {data.products.map((p) => (
+                        <a
+                          key={p.url ?? p.title}
+                          href={p.url ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group overflow-hidden rounded-lg border border-border bg-secondary/30"
+                          title={p.title ?? undefined}
+                        >
+                          {p.image ? (
+                            <img src={p.image} alt={p.title ?? ""} className="aspect-square w-full object-cover transition-transform group-hover:scale-105" />
+                          ) : (
+                            <div className="flex aspect-square w-full items-center justify-center text-[10px] text-muted-foreground">
+                              No image
+                            </div>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!!data?.connected && data.pages.length > 0 && (
+                  <div className="mt-5">
+                    <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                      Landing pages found
+                    </p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {data.pages.map((p) => (
+                        <a
+                          key={p.url ?? p.title}
+                          href={p.url ?? undefined}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-border px-2 py-1 text-[11.5px] hover:bg-secondary/60"
+                        >
+                          {p.title}
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 
