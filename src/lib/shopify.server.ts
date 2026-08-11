@@ -117,6 +117,28 @@ export async function exchangeCode(shop: string, code: string) {
   return (await res.json()) as { access_token: string; scope?: string };
 }
 
+/**
+ * Embedded public apps receive an App Bridge ID token. Exchange it for the
+ * store's offline Admin API token instead of first bouncing the merchant
+ * through the legacy authorization-code flow.
+ */
+export async function exchangeSessionToken(shop: string, subjectToken: string) {
+  const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      client_id: SHOPIFY_CLIENT_ID,
+      client_secret: shopifySecret(),
+      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
+      subject_token: subjectToken,
+      subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
+      requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
+    }),
+  });
+  if (!res.ok) throw new Error(`Shopify token exchange failed (${res.status})`);
+  return (await res.json()) as { access_token: string; scope?: string };
+}
+
 /** The blog we publish into — first one found, created on the fly if none exists. */
 export async function resolveBlogId(shop: string, token: string) {
   const headers = { "X-Shopify-Access-Token": token, "content-type": "application/json" };
