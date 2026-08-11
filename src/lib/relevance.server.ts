@@ -323,6 +323,17 @@ export async function candidateKeywords(
     });
     return Array.from(new Set(candidates)).slice(0, max);
   };
+  const normaliseCandidates = (raw: string) => {
+    const parsed = parseJsonLoose<{ keywords?: unknown }>(raw);
+    const values = Array.isArray(parsed.keywords) ? parsed.keywords : [];
+    return Array.from(
+      new Set(
+        values
+          .map((k) => String(k).trim().toLowerCase())
+          .filter((k) => k.length > 2 && k.split(/\s+/).length <= 8),
+      ),
+    ).slice(0, max);
+  };
   // The page itself, not a paraphrase of it. The SEO <title> and the visible
   // page title are given separately because they are frequently written for
   // different readers, and the SEO one is where the business model shows up.
@@ -370,16 +381,21 @@ Cover the range: category queries, buying-intent queries, and questions a buyer 
 a supplier. Use ONLY the products and services confirmed above — invent no new product category.
 ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.join(", ")}.` : "No city or region names."}
 
-Return JSON: {"keywords":["...","..."]}`,
+Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least 12 grounded buyer queries; never return an empty array.`,
     });
-    const parsed = parseJsonLoose<{ keywords?: string[] }>(raw);
-    const aiCandidates = Array.from(
-      new Set(
-        (parsed.keywords ?? [])
-          .map((k) => String(k).trim().toLowerCase())
-          .filter((k) => k.length > 2 && k.split(/\s+/).length <= 8),
-      ),
-    ).slice(0, max);
+    let aiCandidates = normaliseCandidates(raw);
+    if (!aiCandidates.length) {
+      // Ask the model to repair its own empty/mis-shaped answer, with the same
+      // verbatim SEO evidence. This is still AI-led research, not a hidden
+      // keyword-suggestion fallback.
+      const retry = await callOpenRouter({
+        json: true,
+        maxTokens: 1600,
+        system: "Return strict JSON only. You must derive buyer search queries from the supplied SEO title, page title, categories and landing-page copy.",
+        user: `${profileBlock(profile)}\n${landingBlock}\n\nReturn at least 12 specific buyer queries in the site language. They must use the evidence above. Return exactly {"keywords":["..."]}.`,
+      });
+      aiCandidates = normaliseCandidates(retry);
+    }
     return aiCandidates.length ? aiCandidates : deterministicFallback();
   } catch {
     return deterministicFallback();

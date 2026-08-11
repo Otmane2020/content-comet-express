@@ -92,5 +92,33 @@ export function parseJsonLoose<T>(raw: string): T {
   const from =
     start === -1 ? arrStart : arrStart === -1 ? start : Math.min(start, arrStart);
   const slice = from > 0 ? fenced.slice(from) : fenced;
-  return JSON.parse(slice) as T;
+  try {
+    return JSON.parse(slice) as T;
+  } catch {
+    // Some providers add one explanatory sentence after an otherwise valid
+    // JSON object. Extract the first balanced JSON value instead of treating a
+    // useful AI answer as an empty result.
+    const opening = slice[0];
+    const closing = opening === "[" ? "]" : "}";
+    let depth = 0;
+    let quoted = false;
+    let escaped = false;
+    for (let index = 0; index < slice.length; index += 1) {
+      const char = slice[index];
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (char === "\\") escaped = true;
+        else if (char === '"') quoted = false;
+        continue;
+      }
+      if (char === '"') {
+        quoted = true;
+      } else if (char === opening) {
+        depth += 1;
+      } else if (char === closing && --depth === 0) {
+        return JSON.parse(slice.slice(0, index + 1)) as T;
+      }
+    }
+    throw new Error("AI response did not contain a complete JSON value");
+  }
 }
