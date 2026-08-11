@@ -50,11 +50,23 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
       summary: (value: T) => string,
     ): Promise<T | null> => {
       const started = Date.now();
+      console.info("[pipeline-diagnostic] stage started", { id, website: data.website });
       try {
         const value = await work();
-        stages.push({ id, ok: true, ms: Date.now() - started, summary: summary(value), error: null, data: value });
+        // Server-function transport accepts JSON values only. Keep the runtime
+        // diagnostic payload deliberately serializable so a rich provider
+        // result can never turn a useful stage error into an opaque HTTP 500.
+        const safeData = JSON.parse(JSON.stringify(value)) as unknown;
+        stages.push({ id, ok: true, ms: Date.now() - started, summary: summary(value), error: null, data: safeData });
+        console.info("[pipeline-diagnostic] stage completed", { id, ms: Date.now() - started });
         return value;
       } catch (error) {
+        console.error("[pipeline-diagnostic] stage failed", {
+          id,
+          website: data.website,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
         stages.push({
           id,
           ok: false,
@@ -112,7 +124,10 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
         null,
         null,
         8,
-        keywordStage.qualified.slice(0, 8).map((row) => row.keyword),
+        // /test is an interactive diagnostic, not the production batch. Four
+        // high-confidence queries give enough SERP evidence without making
+        // one browser click fan out into 8 DataForSEO + SerpApi calls.
+        keywordStage.qualified.slice(0, 4).map((row) => row.keyword),
       ),
     (value) => `${value.length} buyer-matched competitors from Google, DataForSEO and SerpApi`);
     if (!competitors?.length) return { stages };
