@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
@@ -204,6 +204,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const [shopifyReport, setShopifyReport] = useState<ShopifyWelcomeReport | null>(null);
   const [launching, setLaunching] = useState(false);
   const [firstPost, setFirstPost] = useState<FirstPostResult | null>(null);
+  const wizardTopRef = useRef<HTMLDivElement | null>(null);
   const [busy, setBusy] = useState(false);
   const [signingUp, setSigningUp] = useState(false);
   const [email, setEmail] = useState("");
@@ -357,6 +358,18 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [step]);
+
+  // The wizard can advance itself after an analysis finishes. Scroll both the
+  // document and the visible onboarding anchor: this also works inside the
+  // Shopify Admin iframe, where the scroll container is not always `window`.
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => {
+      wizardTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      document.scrollingElement?.scrollTo({ top: 0, behavior: "smooth" });
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [step, shopifyWelcome]);
 
   // A website is enough to start: wait until the merchant finishes typing,
   // then reveal the analysis state and continue through the wizard on its own.
@@ -701,7 +714,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   }
 
   return (
-    <div className="paper-grid min-h-screen px-4 py-10">
+    <div ref={wizardTopRef} className="paper-grid min-h-screen px-4 py-10">
       <AnimatePresence>
         {launching && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center bg-deep/95 px-4 text-background backdrop-blur-md">
