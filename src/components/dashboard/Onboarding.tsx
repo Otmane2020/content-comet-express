@@ -735,21 +735,23 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
                 {step === 1 && (
                   <div className="mt-6 space-y-5">
-                    <div className="rounded-2xl border border-primary/20 bg-primary/[0.03] p-5">
-                      <div className="flex items-center gap-2">
-                        <span className="flex size-8 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+                    <div className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background">
+                      <div aria-hidden className="pointer-events-none absolute -right-10 -top-12 size-44 rounded-full bg-gold/25 blur-3xl" />
+                      <div className="relative flex items-center gap-3">
+                        <span className="flex size-10 items-center justify-center rounded-[11px] bg-gold/20 text-gold">
                           <Sparkles className="size-4" />
                         </span>
                         <div>
-                          <p className="text-[13px] font-semibold">Your AI writing brief</p>
-                          <p className="text-[12px] text-muted-foreground">Fine-tune what Ranki learned before the live SEO scan.</p>
+                          <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Writing brief</p>
+                          <p className="mt-1 font-display text-lg font-semibold">Your AI writing brief</p>
+                          <p className="mt-1 text-[12.5px] text-background/65">Fine-tune what Ranki learned before the live SEO scan.</p>
                         </div>
                       </div>
                     </div>
 
-                    <div className="grid gap-4 sm:grid-cols-2">
-                      <div>
-                        <Label htmlFor="profile-industry" className="text-[12.5px]">Industry</Label>
+                    <div className="surface grid gap-5 p-5 sm:grid-cols-2">
+                      <div className="border-l-2 border-gold pl-3">
+                        <Label htmlFor="profile-industry" className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Industry</Label>
                         <select id="profile-industry" value={form.industry} onChange={set("industry")} className="mt-1.5 h-10 w-full rounded-md border border-input bg-background px-3 text-sm">
                           <option value="">Select an industry…</option>
                           {INDUSTRY_GROUPS.map((g) => (
@@ -759,8 +761,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <Label className="text-[12.5px]">Content language</Label>
+                      <div className="border-l-2 border-primary pl-3">
+                        <Label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Content language</Label>
                         <div className="mt-1.5 flex flex-wrap gap-1.5">
                           {LANGUAGES.map((l) => (
                             <button key={l.code} type="button" onClick={() => setForm((f) => ({ ...f, locale: l.code }))} className={`rounded-lg border px-2.5 py-2 text-[12px] font-medium transition ${form.locale === l.code ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border bg-background hover:border-primary/40"}`}>
@@ -769,8 +771,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                           ))}
                         </div>
                       </div>
-                      <div className="sm:col-span-2">
-                        <Label className="text-[12.5px]">Editorial tone</Label>
+                      <div className="border-t border-border pt-5 sm:col-span-2">
+                        <Label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Editorial tone</Label>
                         <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
                           {TONES.map((t) => (
                             <button key={t.id} type="button" onClick={() => setForm((f) => ({ ...f, tone: t.id }))} className={`rounded-xl border px-3 py-2.5 text-left transition ${form.tone === t.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-primary/40"}`}>
@@ -781,7 +783,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         </div>
                       </div>
                       <div className="sm:col-span-2">
-                        <Label htmlFor="profile-audience" className="text-[12.5px]">Who are we writing for?</Label>
+                        <Label htmlFor="profile-audience" className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Who are we writing for?</Label>
                         <Textarea id="profile-audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={3} placeholder="Businesses seeking AI-powered automation and data insights." />
                       </div>
                     </div>
@@ -801,14 +803,15 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                               initial={{ opacity: 0, y: 12 }}
                               animate={{ opacity: 1, y: 0 }}
                               transition={{ delay: 0.06 * i }}
-                              className={`rounded-xl border p-3.5 transition ${
+                              className={`surface relative overflow-hidden p-4 pl-5 transition ${
                                 current
                                   ? "border-primary/40 bg-primary/5"
                                   : done
                                     ? "border-primary/20 bg-primary/5"
-                                    : "border-border bg-secondary/40"
+                                  : "border-border bg-card"
                               }`}
                             >
+                              <span aria-hidden className={`absolute inset-y-3 left-0 w-1 rounded-r-full ${current ? "bg-primary" : done ? "bg-gold" : "bg-border"}`} />
                               <span
                                 className={`flex size-7 items-center justify-center rounded-lg ${
                                   done ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
@@ -835,7 +838,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                     )}
 
                     {!scanningMarket && market && (
-                      <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-[12.5px] font-medium text-foreground">
+                      <div className="surface flex items-center gap-3 px-4 py-3 text-[12.5px] font-medium text-foreground">
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                           <Check className="size-3.5" />
                         </span>
@@ -853,23 +856,27 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
                     {market && (
                       <div className="grid gap-4 sm:grid-cols-2">
-                        <div className="rounded-xl border border-border p-3.5">
-                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                        <div className="surface relative overflow-hidden p-5 pl-6">
+                          <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-gold" />
+                          <p className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                             Competitors found
                           </p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {market.competitors.map((d) => (
-                              <span key={d} className="rounded-lg border border-border px-2 py-1 text-[11.5px]">
-                                {d}
-                              </span>
+                          <div className="mt-3 divide-y divide-border border-t border-border">
+                            {market.competitors.slice(0, 5).map((d, index) => (
+                              <div key={d} className="flex items-center gap-2.5 py-2.5 text-[13px] font-medium">
+                                <span className="w-5 font-mono text-[10.5px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+                                <span className="size-1.5 rounded-full bg-gold" />
+                                <span className="truncate">{d}</span>
+                              </div>
                             ))}
                             {!market.competitors.length && (
                               <span className="text-[11.5px] text-muted-foreground">None found.</span>
                             )}
                           </div>
                         </div>
-                        <div className="rounded-xl border border-border p-3.5">
-                          <p className="flex items-center justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
+                        <div className="surface relative overflow-hidden p-5 pl-6">
+                          <span aria-hidden className="absolute inset-y-3 left-0 w-1 rounded-r-full bg-primary" />
+                          <p className="flex items-center justify-between font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">
                             Keyword opportunities
                             <span
                               className={`rounded-full px-2 py-0.5 text-[10px] font-bold normal-case tracking-normal ${
@@ -881,17 +888,14 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                               {market.source === "dataforseo" ? "Live DataForSEO" : "AI estimate"}
                             </span>
                           </p>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {market.keywords.slice(0, 12).map((k) => (
-                              <span
-                                key={k.keyword}
-                                className="flex items-center gap-1.5 rounded-lg border border-border px-2 py-1 text-[11.5px]"
-                              >
-                                {k.keyword}
-                                {k.volume != null && (
-                                  <span className="text-[10.5px] text-muted-foreground">{k.volume}/mo</span>
-                                )}
-                              </span>
+                          <div className="mt-3 divide-y divide-border border-t border-border">
+                            {market.keywords.slice(0, 5).map((k, index) => (
+                              <div key={k.keyword} className="grid grid-cols-[24px_1fr_auto_auto] items-center gap-2 py-2.5 text-[12.5px]">
+                                <span className="font-mono text-[10.5px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
+                                <span className="truncate font-medium">{k.keyword}</span>
+                                <span className="font-mono text-[11px] text-muted-foreground">{k.volume != null ? `${k.volume}/mo` : "—"}</span>
+                                <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold ${k.difficulty == null ? "bg-muted text-muted-foreground" : k.difficulty < 34 ? "bg-success-soft text-success" : k.difficulty < 67 ? "bg-gold/20 text-gold-foreground" : "bg-destructive/10 text-destructive"}`}>{k.difficulty ?? "—"}</span>
+                              </div>
                             ))}
                             {!market.keywords.length && (
                               <span className="text-[11.5px] text-muted-foreground">None found.</span>
