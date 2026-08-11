@@ -519,17 +519,14 @@ export async function discoverCompetitorsFromSerp(
       });
     }
   }
-  // A domain found by both signals is the strongest possible evidence — bump
-  // its appearance count so it naturally sorts higher. One found only via
-  // keyword overlap still gets added: DataForSEO's own competitor index can
-  // surface real rivals that our 9 constructed queries never happen to hit.
+  // A domain found by both signals is stronger evidence. Do not add a domain
+  // that appears only in the overlap graph: a broad consumer site can share a
+  // generic product keyword without being present in the buyer's Google SERP.
   for (const d of overlapDomains) {
     if (!isRealCompetitor(d.domain, selfDomain)) continue;
     const existing = byDomain.get(d.domain);
     if (existing) {
       existing.appearances += 1;
-    } else {
-      byDomain.set(d.domain, { title: null, snippet: null, appearances: 1, bestPosition: 999 });
     }
   }
   // A domain the AI answer cites counts double: it is not merely ranking, it is

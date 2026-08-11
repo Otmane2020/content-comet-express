@@ -181,21 +181,15 @@ function aiPreviewOutcome(name: string, website: string, competitors: string[], 
     : `${name} isn't in that answer yet. That's exactly what your next 30 days of content change.`;
 }
 
-/**
- * Labels for this block only. The rest of the dashboard is hardcoded English
- * and there is no i18n layer in the app — but this block renders a French
- * conversation, so leaving its chrome in English looked broken.
- */
-function previewCopy(locale: string) {
-  const fr = locale === "fr";
+/** The preview shell stays English; only the illustrative buyer conversation
+ * follows the writing language selected by the merchant. */
+function previewCopy(_locale: string) {
   return {
-    kicker: fr ? "Aperçu des recherches acheteurs" : "Buyer-search preview",
-    badge: fr ? "Illustratif" : "Illustrative",
-    headline: fr ? "Ce que vos acheteurs voient aujourd’hui" : "This is what buyers see today",
-    disclaimer: fr
-      ? "Exemple illustratif, construit à partir de votre propre scan de marché — ce n’est pas une requête IA en direct."
-      : "Illustrative example, built from your own market scan — not a live AI query.",
-    placeholder: fr ? "Poser une question à ChatGPT…" : "Ask ChatGPT anything…",
+    kicker: "Buyer-search preview",
+    badge: "Illustrative",
+    headline: "This is what buyers see today",
+    disclaimer: "Illustrative example, built from your own market scan — not a live AI query.",
+    placeholder: "Ask ChatGPT anything…",
   };
 }
 

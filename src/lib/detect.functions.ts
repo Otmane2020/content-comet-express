@@ -155,24 +155,26 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     const biz = canonical;
 
-    // 2. DataForSEO's domain-competitor graph is the primary source. It uses
-    // real shared rankings, so rivals are not guessed from generic queries.
-    // `competitors_domain` always returns the target itself as the top row — it
-    // intersects 100% with itself — and an AI asked whether a site competes
-    // with itself answers yes, so the relevance score cannot remove it. Strip
-    // self and the platform giants first, before scoring and before the count
-    // below decides whether the SERP fallback is needed.
-    // Only `.domain` is read below, and the SERP fallback contributes a
-    // differently-shaped row — declaring the narrow shape lets the two sources
-    // merge without the cast the union previously forced.
-    let competitorRows: { domain: string }[] = (
-      await competitorDomains(domain, opts, Math.max(12, QUOTA.competitors * 2)).catch(() => [])
-    ).filter((row) => isRealCompetitor(row.domain, domain));
-    const competitorScores = await scoreCompetitorDomains(biz, competitorRows.map((row) => row.domain));
-    competitorRows = competitorRows.filter((row) => (competitorScores[row.domain.toLowerCase()] ?? 0) >= MIN_COMPETITOR_RELEVANCE);
+    // 2. Real Google SERPs are the source of truth. The domain-overlap graph
+    // can return broad retail sites for a wholesale business merely because
+    // both rank for a generic term. It must not suppress buyer-query SERPs.
+    // discoverCompetitorsFromSerp uses DataForSEO Google and SerpApi fallback.
+    let competitorRows: { domain: string }[] = await discoverCompetitorsFromSerp(
+      biz,
+      data.locale ?? null,
+      null,
+      null,
+      Math.max(8, QUOTA.competitors),
+    ).catch(() => []);
     if (competitorRows.length < 5) {
-      // Only fall back to live SERPs when Labs has insufficient domain data.
-      const serpRows = await discoverCompetitorsFromSerp(biz, data.locale ?? null, null, null, QUOTA.competitors);
+      // Only supplement real SERPs when they returned too few viable domains.
+      const graphRows = await competitorDomains(domain, opts, Math.max(12, QUOTA.competitors * 2)).catch(() => []);
+      const graphScores = await scoreCompetitorDomains(biz, graphRows.map((row) => row.domain));
+      const serpRows = graphRows.filter(
+        (row) =>
+          isRealCompetitor(row.domain, domain) &&
+          (graphScores[row.domain.toLowerCase()] ?? 0) >= MIN_COMPETITOR_RELEVANCE,
+      );
       const known = new Set(competitorRows.map((row) => row.domain.toLowerCase()));
       competitorRows = [...competitorRows, ...serpRows.filter((row) => !known.has(row.domain.toLowerCase()) && isRealCompetitor(row.domain, domain))].slice(0, Math.max(8, QUOTA.competitors));
     }
