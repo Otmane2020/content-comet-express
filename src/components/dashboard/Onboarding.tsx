@@ -1338,9 +1338,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           </p>
                           <div className="mt-3 divide-y divide-border border-t border-border">
                             {market.keywords.slice(0, 5).map((k, index) => (
-                              <div key={k.keyword} className="grid grid-cols-[24px_1fr_auto_auto] items-center gap-2 py-2.5 text-[12.5px]">
+                              <div key={k.keyword} className="grid grid-cols-[24px_minmax(0,1fr)_auto_auto] items-center gap-2 py-2.5 text-[12.5px]">
                                 <span className="font-mono text-[10.5px] text-muted-foreground">{String(index + 1).padStart(2, "0")}</span>
-                                <span className="truncate font-medium">{k.keyword}</span>
+                                <span className="min-w-0 break-words font-medium leading-5">{k.keyword}</span>
                                 <span className="font-mono text-[11px] text-muted-foreground">{k.volume != null ? `${k.volume}/mo` : "—"}</span>
                                 <span className={`rounded-full px-2 py-0.5 font-mono text-[10px] font-bold ${k.difficulty == null ? "bg-muted text-muted-foreground" : k.difficulty < 34 ? "bg-success-soft text-success" : k.difficulty < 67 ? "bg-gold/20 text-gold-foreground" : "bg-destructive/10 text-destructive"}`}>{k.difficulty ?? "—"}</span>
                               </div>
