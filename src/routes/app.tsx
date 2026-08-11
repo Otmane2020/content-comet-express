@@ -118,19 +118,25 @@ function Dashboard() {
   }, [embedded]);
 
   useEffect(() => {
-    if (!embedded || !appBridgeReady || loading || user) return;
+    if (!embedded || loading || user) return;
     let cancelled = false;
     const start = async () => {
       try {
         setEmbeddedSessionError(null);
-        const token = await waitForShopifyIdToken();
-        const res = await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+        const launch = new URLSearchParams(window.location.search);
+        const signedLaunch = launch.has("hmac") && launch.has("shop") && launch.has("timestamp");
+        const res = signedLaunch
+          ? await fetch(`/api/public/shopify/embedded-login?${launch.toString()}`, { cache: "no-store" })
+          : appBridgeReady
+            ? await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${await waitForShopifyIdToken()}` } })
+            : null;
+        if (!res) return;
         const body = await res.json() as { token_hash?: string; type?: "email"; error?: string };
         if (cancelled || !body.token_hash) {
           if (body.error) {
             const message = body.error === "shop_not_installed"
               ? "This store has no completed Ranki installation yet."
-              : body.error === "invalid_embedded_token"
+              : body.error === "invalid_embedded_token" || body.error === "invalid_embedded_launch"
                 ? "Shopify could not verify this admin session."
                 : "Your Shopify session could not be opened.";
             setEmbeddedSessionError(message);
