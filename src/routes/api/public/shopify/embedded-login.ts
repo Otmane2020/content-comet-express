@@ -27,9 +27,21 @@ async function issueEmbeddedSession(shop: string) {
     .eq("config->>shop", shop)
     .limit(1)
     .maybeSingle();
-  if (!integration?.user_id) return { error: "shop_not_installed" } as const;
-  const config = (integration.config ?? {}) as { access_token?: string };
   const { activeAppSubscription, signState } = await import("@/lib/shopify.server");
+  const billingUrl = () => {
+    const state = signState({ origin: "", shop, ts: Date.now() });
+    return `/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(state)}`;
+  };
+  if (!integration?.user_id) {
+    // OAuth has completed but payment has not: the pending row is enough to
+    // show the embedded selector; a Ranki user is intentionally not created
+    // until Shopify approves the charge.
+    const pendingStore = await import("@/lib/shopifyPendingInstall.server");
+    const pending = await pendingStore.getPendingShopifyInstall(shop);
+    if (pending) return { error: "billing_required", billing_url: billingUrl() } as const;
+    return { error: "shop_not_installed" } as const;
+  }
+  const config = (integration.config ?? {}) as { access_token?: string };
   // Opening the embedded tile must never be treated as payment approval. Old
   // partial installs can have an integration/user but no Shopify subscription.
   // Send those merchants back through the plan picker before issuing Ranki's
@@ -38,10 +50,9 @@ async function issueEmbeddedSession(shop: string) {
     ? await activeAppSubscription(shop, config.access_token).catch(() => null)
     : null;
   if (!active) {
-    const state = signState({ origin: "", shop, ts: Date.now() });
     return {
       error: "billing_required",
-      billing_url: `/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(state)}`,
+      billing_url: billingUrl(),
     } as const;
   }
   const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);

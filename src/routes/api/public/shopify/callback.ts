@@ -6,6 +6,10 @@ const back = (origin: string, params: Record<string, string>) => new Response(nu
  * re-enter OAuth instead. */
 const installError = (origin: string, shop: string | null, message: string) =>
   new Response(null, { status: 302, headers: { location: `${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}` } });
+// App Home is the only place an unpaid install may show the plan picker: it
+// gives the merchant the native Shopify Admin chrome instead of a Ranki tab.
+const embeddedApp = (shop: string) =>
+  `https://admin.shopify.com/store/${shop.replace(".myshopify.com", "")}/apps/newai-seo-and-marketing-scale`;
 /** Labels which step threw — an unlabeled crash here otherwise just says
  * "TypeError: ..." with no way to tell which of several parallel Shopify
  * Admin API calls actually failed. */
@@ -56,11 +60,9 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
           content: { products: [], collections: [], pages: [], policies: [], articles: [] },
             billing_plan: "monthly",
           });
-          // Shopify's confirmation can approve only one already-created
-          // subscription. Let the merchant choose the cycle in the embedded
-          // setup step immediately before we create that native charge.
-          const setupState = mod.signState({ origin: "", shop, ts: Date.now() });
-          return new Response(null, { status: 302, headers: { location: `${origin}/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(setupState)}` } });
+          // Re-enter App Home. embedded-login recognises this pending install
+          // and serves the plan picker *inside* Shopify Admin.
+          return new Response(null, { status: 302, headers: { location: embeddedApp(shop) } });
         }
       }
     }
