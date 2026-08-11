@@ -109,11 +109,18 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     const shop = params.get("shop");
     if (shop) {
-      const installUrl = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
-      // Shopify's account and billing pages refuse to render inside the App
-      // Home iframe. Start OAuth at top level, then return to App Home later.
+      // A signed App Home launch for a shop we already know is a session
+      // restoration, not a new OAuth install. Repeating OAuth here causes
+      // Shopify's `same_site_cookies` failure loop inside embedded apps.
+      const signedLaunch = params.has("hmac");
+      const installUrl = signedLaunch
+        ? `/api/public/shopify/embedded-login?${params.toString()}`
+        : `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+      // Shopify account and billing pages cannot render in App Home. Navigate
+      // the top browsing context explicitly instead of leaving the iframe in a
+      // blocked third-party-cookie state.
       if (window.top !== window.self) {
-        window.top!.location.href = installUrl;
+        window.open(installUrl, "_top");
       } else {
         window.location.href = installUrl;
       }
