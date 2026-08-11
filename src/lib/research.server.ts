@@ -145,6 +145,39 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   }
   const biz = canonical;
 
+  // The dashboard uses the exact same methodology as onboarding. Persist the
+  // validated output so the 30-day planner and article writer never fall back
+  // to a legacy seed expansion.
+  const market = await runLiveMarketResearch(biz, {
+    website: project.website_url ?? biz.website_url ?? "",
+    locale: project.locale ?? null,
+    targetCountry: project.target_country ?? null,
+    keywordLimit: QUOTA.totalKeywords,
+    competitorLimit: QUOTA.competitors,
+  });
+  if (market.competitors.length) {
+    await supabase.from("competitors").upsert(
+      market.competitors.map((competitor) => ({
+        user_id: userId,
+        project_id: projectId,
+        domain: competitor.domain,
+        title: competitor.title,
+        snippet: competitor.snippet,
+        appearances: competitor.appearances,
+        best_position: competitor.bestPosition,
+        metrics: {
+          appearances: competitor.appearances,
+          bestPosition: competitor.bestPosition,
+          relevance: competitor.relevance,
+        },
+        last_checked_at: new Date().toISOString(),
+      })),
+      { onConflict: "project_id,domain" },
+    );
+  }
+  const saved = await saveKeywords(supabase, userId, projectId, market.keywords, biz);
+  return { found: saved, skipped: false, live: true, competitors: market.competitors.length };
+
   const opts = localeOpts(project.locale ?? null, project.target_country ?? null);
   let rows: KwRow[] = [];
 
@@ -263,8 +296,8 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     rows.filter((r) => onTopic(r) && matchesRequestedLanguage(r.keyword, opts.languageCode)),
     QUOTA.totalKeywords * 4,
   );
-  const saved = await saveKeywords(supabase, userId, projectId, unique, biz);
-  return { found: saved, skipped: false, live: true, cachedCompetitors: cacheUsable };
+  const legacySaved = await saveKeywords(supabase, userId, projectId, unique, biz);
+  return { found: legacySaved, skipped: false, live: true, cachedCompetitors: cacheUsable };
 }
 
 /**
@@ -416,6 +449,7 @@ export async function discoverCompetitorsFromSerp(
   targetCountry: string | null,
   city?: string | null,
   limit = 5,
+  buyerQueries?: string[],
 ): Promise<SerpCompetitor[]> {
   const { serpWithAiSignals, competitorDomains } = await import("./dataforseo.server");
   const { dedupeDomains, isRealCompetitor } = await import("./quotas");
@@ -435,13 +469,28 @@ export async function discoverCompetitorsFromSerp(
     biz.sales_model === "manufacturer" ||
     biz.sales_model === "marketplace";
   const salesPrefix = biz.sales_model === "wholesale" ? (isFrench ? "grossiste " : "wholesale ") : "";
+  const b2bMerchant = ["wholesale", "manufacturer"].includes((biz.sales_model ?? "").toLowerCase());
   // Buying-intent modifiers aren't the same across sectors: "supplier"/
   // "cheap"/"online" only make sense for physical goods (wholesale, retail,
   // manufacturer, marketplace) — a service, SaaS, logistics or B2B business
   // is searched for with "best"/"reviews"/"alternative" instead. Picking one
   // set for every sector is what used to build nonsense queries like
   // "fournisseur assistant vocal IA" and silently return zero competitors.
-  const intentQueries = isPhysicalGoods
+  const intentQueries = b2bMerchant
+    ? (isFrench
+      ? (productQueries.length ? productQueries : [category]).flatMap((product) => [
+          `grossiste ${product}`,
+          `fournisseur ${product}`,
+          `${product} professionnel`,
+          `${product} en gros`,
+        ])
+      : (productQueries.length ? productQueries : [category]).flatMap((product) => [
+          `wholesale ${product}`,
+          `${product} supplier`,
+          `${product} for retailers`,
+          `${product} bulk`,
+        ]))
+    : isPhysicalGoods
     ? isFrench
       ? [
           salesPrefix ? `${salesPrefix}${category}`.trim() : `fournisseur ${category}`,
@@ -456,7 +505,7 @@ export async function discoverCompetitorsFromSerp(
     : isFrench
       ? [`meilleur ${category}`, `${category} avis`, `comparatif ${category}`]
       : [`best ${category}`, `${category} reviews`, `${category} alternative`];
-  const queries = Array.from(
+  const generatedQueries = Array.from(
     new Set(
       [
         // Bare product terms first: the buying-intent modifier below narrows
@@ -464,14 +513,17 @@ export async function discoverCompetitorsFromSerp(
         // surfaces small directory-style sites. The bare term is what most
         // buyers — and the sector's bigger, better-ranked players — actually
         // rank for.
-        ...productQueries,
-        ...productQueries.map((p) => `${salesPrefix}${p}`.trim()),
-        category,
-        city ? `${category} ${city}` : null,
-        `${category} ${country}`,
+        ...(b2bMerchant ? [] : productQueries),
+        ...(b2bMerchant ? [] : productQueries.map((p) => `${salesPrefix}${p}`.trim())),
+        ...(b2bMerchant ? [] : [category]),
+        ...(b2bMerchant ? [] : [city ? `${category} ${city}` : null]),
+        ...(b2bMerchant ? [] : [`${category} ${country}`]),
         ...intentQueries,
       ].filter((q): q is string => Boolean(q && q.trim())),
     ),
+  ).slice(0, 9);
+  const queries = Array.from(
+    new Set((buyerQueries?.length ? buyerQueries : generatedQueries).map((q) => q.trim()).filter(Boolean)),
   ).slice(0, 9);
 
   const selfDomain = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
@@ -551,7 +603,6 @@ export async function discoverCompetitorsFromSerp(
   // furniture retailers can rank for the same generic categories while selling
   // to an entirely different buyer. Verify the candidate's own landing page
   // with the same deterministic B2B extractor used for the merchant.
-  const b2bMerchant = ["wholesale", "manufacturer"].includes((biz.sales_model ?? "").toLowerCase());
   const landingProfiles = b2bMerchant ? await analyseCompetitorLandings(shortlist, 20) : [];
   const b2bDomains = new Set(landingProfiles.filter((p) => p.sellsToBusinesses).map((p) => p.domain.toLowerCase()));
   const buyerMatched = b2bMerchant ? shortlist.filter((domain) => b2bDomains.has(domain.toLowerCase())) : shortlist;
@@ -559,7 +610,12 @@ export async function discoverCompetitorsFromSerp(
     throw new Error("Google found category sites, but none showed evidence of selling to the same professional buyers.");
   }
 
-  const compScores = await scoreCompetitorDomains(biz, buyerMatched);
+  // A verified B2B landing page is direct evidence of the same buyer model.
+  // Do not discard it because a second model cannot infer a business from a
+  // domain name alone.
+  const compScores = b2bMerchant
+    ? Object.fromEntries(buyerMatched.map((domain) => [domain, 100]))
+    : await scoreCompetitorDomains(biz, buyerMatched);
   const kept = buyerMatched
     .filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE)
     .map((d) => {
@@ -577,4 +633,79 @@ export async function discoverCompetitorsFromSerp(
     .slice(0, limit);
 
   return kept;
+}
+
+/**
+ * The single live market-research methodology used by onboarding and the
+ * dashboard. There are deliberately no phrase-match suggestions, site-keyword
+ * expansions or domain-graph keywords in this function:
+ *
+ * landing page -> AI candidate queries -> DataForSEO validation -> real Google
+ * SERP + AI Overview -> buyer-model verified competitors.
+ */
+export async function runLiveMarketResearch(
+  biz: import("./relevance.server").CanonicalBusinessProfile,
+  input: {
+    website: string;
+    locale: string | null;
+    targetCountry?: string | null;
+    keywordLimit?: number;
+    competitorLimit?: number;
+  },
+): Promise<{
+  keywords: KwRow[];
+  competitors: SerpCompetitor[];
+  diagnostics: { proposed: number; measured: number; qualified: number; serps: number };
+}> {
+  const { scrapeSite } = await import("./scrape.server");
+  const { searchVolumeFor } = await import("./dataforseo.server");
+  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
+
+  const opts = localeOpts(input.locale, input.targetCountry ?? null);
+  const keywordLimit = input.keywordLimit ?? 30;
+  const site = await scrapeSite(input.website);
+  const proposed = await candidateKeywords(biz, site.landing ?? null, keywordLimit * 5);
+  if (!proposed.length) {
+    throw new Error("Could not derive qualified buyer queries from the website landing page.");
+  }
+
+  const measured = await searchVolumeFor(proposed, opts);
+  if (!measured.length) {
+    throw new Error("DataForSEO found no measurable demand for the qualified buyer queries.");
+  }
+
+  const relevance = await scoreRelevance(biz, measured.map((row) => row.keyword));
+  const keywords = measured
+    .map((row) => ({ ...row, origin: "seed" as const, relevance_score: relevance[row.keyword.toLowerCase()] ?? 0 }))
+    .filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE)
+    .sort((a, b) =>
+      compositeScore(b, b.relevance_score ?? 0) - compositeScore(a, a.relevance_score ?? 0) ||
+      (b.search_volume ?? 0) - (a.search_volume ?? 0),
+    )
+    .slice(0, keywordLimit);
+  if (!keywords.length) {
+    throw new Error("The measurable queries did not match this business's buyer profile.");
+  }
+
+  const competitors = await discoverCompetitorsFromSerp(
+    biz,
+    input.locale,
+    input.targetCountry ?? null,
+    null,
+    input.competitorLimit ?? 8,
+    keywords.map((row) => row.keyword),
+  );
+
+  console.info("[market-research] completed", {
+    website: input.website,
+    proposed: proposed.length,
+    measured: measured.length,
+    qualified: keywords.length,
+    competitors: competitors.length,
+  });
+  return {
+    keywords,
+    competitors,
+    diagnostics: { proposed: proposed.length, measured: measured.length, qualified: keywords.length, serps: competitors.length },
+  };
 }

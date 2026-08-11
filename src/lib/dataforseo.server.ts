@@ -358,7 +358,7 @@ export async function serpWithAiSignals(
   }
   const items = result[0]?.items ?? [];
 
-  const organic = items
+  const dataForSeoOrganic = items
     .filter((i) => i.type === "organic" && i.domain)
     .map((i) => ({
       keyword,
@@ -368,6 +368,30 @@ export async function serpWithAiSignals(
       position: i.rank_absolute ?? 999,
       url: i.url ?? null,
     }));
+
+  // When configured, SerpApi is an independent Google confirmation, not a
+  // replacement for DataForSEO: DataForSEO supplies AI Overview signals and
+  // keyword metrics, while SerpApi cross-checks the organic result set.
+  let organic = dataForSeoOrganic;
+  const { hasSerpApi, serpApiGoogle } = await import("./serpapi.server");
+  if (hasSerpApi()) {
+    try {
+      const serpApiOrganic = await serpApiGoogle(keyword, opts, depth);
+      const byUrl = new Map<string, SerpOrganicResult>();
+      for (const row of [...dataForSeoOrganic, ...serpApiOrganic]) {
+        const existing = byUrl.get(row.domain);
+        if (!existing || row.position < existing.position) byUrl.set(row.domain, row);
+      }
+      organic = Array.from(byUrl.values());
+      console.info("[serp] cross-checked Google results", {
+        keyword,
+        dataForSeo: dataForSeoOrganic.length,
+        serpApi: serpApiOrganic.length,
+      });
+    } catch (error) {
+      console.warn("[serp] SerpApi cross-check failed; keeping DataForSEO results", { keyword, error });
+    }
+  }
 
   const collected = { text: [] as string[], domains: [] as string[] };
   for (const item of items) {

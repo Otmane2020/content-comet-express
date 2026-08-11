@@ -5,6 +5,21 @@ import { planWindow, slugify, type ContentType, type PlatformId } from "./geo";
 import { renderMarkdown } from "./markdown";
 import type { LocalInfoFacts } from "./shopifyProvision.server";
 
+/** The article writer receives the pages that won the validated market scan. */
+async function competitorWritingBrief(supabase: any, projectId: string) {
+  const { data } = await supabase
+    .from("competitors")
+    .select("domain, appearances, best_position")
+    .eq("project_id", projectId)
+    .order("appearances", { ascending: false, nullsFirst: false })
+    .order("best_position", { ascending: true, nullsFirst: false })
+    .limit(5);
+  const domains = (data ?? []).map((row: { domain: string }) => row.domain).filter(Boolean);
+  if (!domains.length) return [];
+  const { analyseCompetitorLandings } = await import("./research.server");
+  return analyseCompetitorLandings(domains, 5);
+}
+
 export const buildPlan = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) =>
@@ -66,6 +81,7 @@ export const generateArticle = createServerFn({ method: "POST" })
         products = await fetchCatalog((stores ?? []) as never);
       }
       const links = await internalLinkTargets(supabase, item.project_id);
+      const competitors = await competitorWritingBrief(supabase, item.project_id);
       let localInfo: LocalInfoFacts | undefined;
       if (item.content_type === "local_aeo") {
         const { fetchShopifyLocalInfo } = await import("./shopifyProvision.server");
@@ -75,7 +91,7 @@ export const generateArticle = createServerFn({ method: "POST" })
       const article = await writeArticle(
         { ...project, keywords: target ? [target] : (project.keywords ?? []) },
         { content_type: item.content_type as ContentType, topic: item.topic },
-        { products, links, localInfo, profile: project.business_profile as never },
+        { products, links, localInfo, profile: project.business_profile as never, competitors },
       );
       // faq isn't in the generated Supabase types yet (migration only) — cast, same as target_keyword elsewhere.
       const { error: updateError } = await supabase
@@ -196,12 +212,13 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
 
     async function write(itemId: string, type: ContentType, topic: string | null) {
       const links = await internalLinkTargets(supabase, data.projectId);
+      const competitors = await competitorWritingBrief(supabase, data.projectId);
       let localInfo: LocalInfoFacts | undefined;
       if (type === "local_aeo") {
         const { fetchShopifyLocalInfo } = await import("./shopifyProvision.server");
         localInfo = await fetchShopifyLocalInfo(supabase, data.projectId);
       }
-      const article = await writeArticle(ctx, { content_type: type, topic }, { links, localInfo, profile: project!.business_profile as never });
+      const article = await writeArticle(ctx, { content_type: type, topic }, { links, localInfo, profile: project!.business_profile as never, competitors });
       await supabase
         .from("content_items")
         .update({

@@ -110,7 +110,6 @@ export const saveMarketResearch = createServerFn({ method: "POST" })
   )
   .handler(async ({ data, context }) => {
     const { supabase, userId } = context;
-    const { saveKeywords } = await import("./research.server");
 
     if (data.competitors.length) {
       const { error } = await supabase.from("competitors").upsert(
@@ -126,20 +125,27 @@ export const saveMarketResearch = createServerFn({ method: "POST" })
     }
 
     if (data.keywords.length) {
-      await saveKeywords(
-        supabase,
-        userId,
-        data.projectId,
-        data.keywords.map((k) => ({
-          keyword: k.keyword,
-          search_volume: k.volume ?? null,
+      // These rows have already passed the canonical-profile relevance gate in
+      // runLiveMarketResearch. Persist that verdict verbatim: rescoring with a
+      // partial onboarding draft is how qualified B2B terms were discarded
+      // before the calendar and article generator could consume them.
+      const { error } = await supabase.from("keyword_research").upsert(
+        data.keywords.map((keyword) => ({
+          user_id: userId,
+          project_id: data.projectId,
+          keyword: keyword.keyword,
+          search_volume: keyword.volume ?? null,
+          difficulty: keyword.difficulty ?? null,
           cpc: null,
           competition: null,
-          difficulty: k.difficulty ?? null,
           intent: null,
-          origin: "seed" as const,
+          origin: "seed",
+          relevance_score: 100,
+          used: false,
         })),
+        { onConflict: "project_id,keyword" },
       );
+      if (error) throw new Error(error.message);
     }
     return { ok: true };
   });

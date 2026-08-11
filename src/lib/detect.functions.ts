@@ -155,6 +155,29 @@ export const detectMarket = createServerFn({ method: "POST" })
 
     const biz = canonical;
 
+    // One methodology, shared with the dashboard research pipeline. No
+    // phrase-match suggestions or existing-domain keywords are allowed to
+    // enter this result after the landing-page candidate stage.
+    const { runLiveMarketResearch } = await import("./research.server");
+    const market = await runLiveMarketResearch(biz, {
+      website,
+      locale: data.locale ?? null,
+      keywordLimit: QUOTA.keywords,
+      competitorLimit: Math.max(8, QUOTA.competitors),
+    });
+    return {
+      live: true,
+      source: "dataforseo" as const,
+      competitors: market.competitors.map((competitor) => competitor.domain),
+      keywords: market.keywords.map((keyword) => ({
+        keyword: keyword.keyword,
+        volume: keyword.search_volume,
+        difficulty: keyword.difficulty,
+      })),
+      business_profile: canonical,
+      diagnostics: market.diagnostics,
+    };
+
     // 2. Real Google SERPs are the source of truth. The domain-overlap graph
     // can return broad retail sites for a wholesale business merely because
     // both rank for a generic term. It must not suppress buyer-query SERPs.
