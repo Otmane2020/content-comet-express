@@ -112,34 +112,34 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
   const healthy = integrations.filter((i) => !i.last_error).length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Banner */}
-      <section className="relative overflow-hidden rounded-2xl bg-deep px-6 py-7 text-background">
+      <section className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background sm:px-6 sm:py-5">
         <div className="pointer-events-none absolute -right-16 -top-20 size-56 rounded-full bg-gold/20 blur-3xl" />
-        <div className="relative flex flex-wrap items-start justify-between gap-6">
+        <div className="relative flex flex-wrap items-center justify-between gap-4">
           <div className="max-w-xl">
             <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Destinations</p>
-            <h1 className="mt-1.5 font-display text-[26px] font-bold leading-tight">
+            <h1 className="mt-1 font-display text-xl font-bold leading-tight sm:text-2xl">
               Connect your sites once. The autopilot publishes every day.
             </h1>
-            <p className="mt-2 text-[13.5px] leading-relaxed text-background/70">
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-background/70">
               Every generated article is sent automatically to your connected platforms — through their
               official APIs, no plugin required. Unsure about credentials? Open the platform guide,
               every step is explained.
             </p>
           </div>
-          <div className="flex gap-3">
-            <div className="rounded-xl border border-background/15 bg-background/10 px-4 py-3">
-              <p className="font-display text-2xl font-bold">{integrations.length}</p>
+          <div className="flex gap-2">
+            <div className="rounded-lg border border-background/15 bg-background/10 px-3 py-2">
+              <p className="font-display text-lg font-bold">{integrations.length}</p>
               <p className="text-[11px] uppercase tracking-wide text-background/60">Connected</p>
             </div>
-            <div className="rounded-xl border border-background/15 bg-background/10 px-4 py-3">
-              <p className="font-display text-2xl font-bold text-gold">{healthy}</p>
+            <div className="rounded-lg border border-background/15 bg-background/10 px-3 py-2">
+              <p className="font-display text-lg font-bold text-gold">{healthy}</p>
               <p className="text-[11px] uppercase tracking-wide text-background/60">Live</p>
             </div>
           </div>
         </div>
-        <div className="relative mt-5 flex flex-wrap gap-4 text-[12px] text-background/70">
+        <div className="relative mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-background/70">
           <span className="inline-flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-gold" /> Encrypted credentials</span>
           <span className="inline-flex items-center gap-1.5"><Plug className="size-3.5 text-gold" /> Official APIs</span>
           <span className="inline-flex items-center gap-1.5"><Timer className="size-3.5 text-gold" /> 2–5 min per site</span>

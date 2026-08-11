@@ -117,9 +117,9 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
   }, [auto, keywords.length, kwLoading, projectId, qc, source?.live]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       {/* Explainer banner — brand indigo → deep with gold accents */}
-      <header className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background sm:p-8">
+      <header className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background sm:px-6 sm:py-5">
         <div
           className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-gold/25 blur-3xl"
           aria-hidden
@@ -129,24 +129,23 @@ export function Research({ projectId, seedKeywords }: { projectId: string; seedK
             <Sparkles className="size-3" />
             Market research
           </span>
-          <h1 className="mt-3 font-display text-[26px] font-bold leading-tight sm:text-[30px]">
+          <h1 className="mt-2 font-display text-xl font-bold leading-tight sm:text-2xl">
             Keywords &amp; rivals
           </h1>
-          <p className="mt-2 max-w-2xl text-[14.5px] leading-relaxed text-background/75">
+          <p className="mt-1.5 max-w-2xl text-[12.5px] leading-relaxed text-background/70">
             This is the fuel of your autopilot. We read what your market searches for and what your
             competitors already rank on — then every article of the 30-day calendar is written around
             those exact terms.
           </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
             {[
               { n: "01", t: "We find the keywords", d: "Real volume, CPC and difficulty — never estimated." },
               { n: "02", t: "We validate the fit", d: "Off-topic terms and fake rivals are rejected, however big their volume." },
               { n: "03", t: "The autopilot writes", d: "Highest business relevance first — volume only breaks ties." },
             ].map((s) => (
-              <div key={s.n} className="rounded-xl bg-background/10 p-3.5 backdrop-blur-sm">
-                <p className="font-mono text-[11px] font-bold text-gold">{s.n}</p>
-                <p className="mt-1 text-[13.5px] font-semibold">{s.t}</p>
-                <p className="mt-0.5 text-[12px] leading-snug text-background/65">{s.d}</p>
+              <div key={s.n} className="rounded-lg bg-background/10 px-3 py-2 backdrop-blur-sm">
+                <p className="font-mono text-[10px] font-bold text-gold">{s.n} <span className="ml-1 font-sans text-[12px] text-background">{s.t}</span></p>
+                <p className="mt-0.5 text-[11px] leading-snug text-background/65">{s.d}</p>
               </div>
             ))}
           </div>
