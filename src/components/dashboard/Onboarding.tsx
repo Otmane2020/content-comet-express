@@ -248,7 +248,7 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
   // then reveal the analysis state and continue through the wizard on its own.
   useEffect(() => {
     const website = form.website_url.trim();
-    const host = website.replace(/^https?:\/\//, "").split("/")[0];
+    const host = website.replace(/^https?:\/\//, "").split("/")[0] ?? "";
     if (step !== 0 || !website || !host.includes(".") || scanning || website === lastAnalysedWebsite) return;
     const id = window.setTimeout(() => void autodetectBusiness(), 700);
     return () => window.clearTimeout(id);
