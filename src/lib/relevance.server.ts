@@ -283,10 +283,7 @@ export async function scoreCompetitorDomains(
 ): Promise<Record<string, number>> {
   const list = Array.from(new Set(domains.map((d) => d.trim().toLowerCase()).filter(Boolean))).slice(0, 40);
   if (!list.length) return {};
-  // Swallowing a real API failure into {} used to silently zero out every
-  // domain's score (compScores[d] ?? 0), producing "0 competitors found"
-  // with no visible error. Let it throw instead — the caller already shows
-  // the real error message to the user.
+  const fallback = () => Object.fromEntries(list.map((domain) => [domain, MIN_COMPETITOR_RELEVANCE]));
   const raw = await callOpenRouter({
     json: true,
     maxTokens: 1200,
