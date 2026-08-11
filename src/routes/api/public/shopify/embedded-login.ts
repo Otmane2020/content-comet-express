@@ -27,17 +27,28 @@ export const Route = createFileRoute("/api/public/shopify/embedded-login")({
         try {
           const token = request.headers.get("Authorization")?.replace(/^Bearer\s+/i, "") ?? "";
           const shop = await verifyAppBridgeToken(token);
-          if (!shop) return response({ error: "invalid_embedded_token" }, 401);
+          if (!shop) {
+            console.warn("[shopify embedded session] rejected ID token");
+            return response({ error: "invalid_embedded_token" }, 401);
+          }
+          console.info("[shopify embedded session] verified Shopify token", { shop });
           const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
           const { data: integration } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
-          if (!integration?.user_id) return response({ error: "shop_not_installed" }, 404);
+          if (!integration?.user_id) {
+            console.warn("[shopify embedded session] installed shop not found", { shop });
+            return response({ error: "shop_not_installed" }, 404);
+          }
           const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
-          if (!user.user?.email) return response({ error: "merchant_not_found" }, 404);
+          if (!user.user?.email) {
+            console.warn("[shopify embedded session] merchant account not found", { shop });
+            return response({ error: "merchant_not_found" }, 404);
+          }
           const provision = await import("@/lib/shopifyProvision.server");
           const session = await provision.shopifyEmbeddedSession(user.user.email);
+          console.info("[shopify embedded session] Supabase OTP issued", { shop });
           return response(session);
         } catch (error) {
-          console.error("[shopify embedded session]", error);
+          console.error("[shopify embedded session] failed", { message: error instanceof Error ? error.message : String(error) });
           return response({ error: "embedded_session_failed" }, 500);
         }
       },

@@ -127,7 +127,14 @@ function Dashboard() {
         const res = await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
         const body = await res.json() as { token_hash?: string; type?: "magiclink"; error?: string };
         if (cancelled || !body.token_hash) {
-          if (body.error) setEmbeddedSessionError("Your Shopify session could not be opened.");
+          if (body.error) {
+            const message = body.error === "shop_not_installed"
+              ? "This store has no completed Ranki installation yet."
+              : body.error === "invalid_embedded_token"
+                ? "Shopify could not verify this admin session."
+                : "Your Shopify session could not be opened.";
+            setEmbeddedSessionError(message);
+          }
           return;
         }
         const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "magiclink" });
