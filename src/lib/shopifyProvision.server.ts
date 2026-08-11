@@ -1,19 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@/integrations/supabase/types";
+import { cleanShopifyValue } from "./shopify.server";
 import type { ShopInfo, ShopifyStoreContent } from "./shopify.server";
 
 type Admin = Awaited<typeof import("@/integrations/supabase/client.server")>["supabaseAdmin"];
-
-/** Shopify data is external input. Drop the Unicode replacement character so
- * a malformed store field can never make a downstream HTTP header invalid. */
-function cleanShopifyValue(value: unknown): unknown {
-  if (typeof value === "string") return value.replace(/\uFFFD/g, "").trim() || null;
-  if (Array.isArray(value)) return value.map(cleanShopifyValue);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, cleanShopifyValue(item)]));
-  }
-  return value;
-}
 
 async function findUserByEmail(admin: Admin, email: string) {
   for (let page = 1; page <= 10; page++) {
@@ -126,8 +116,10 @@ export async function provisionShopifyMerchant(args: {
 }) {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const handle = args.shop.replace(".myshopify.com", "");
-  const info = cleanShopifyValue(args.info) as ShopInfo;
-  const content = cleanShopifyValue(args.content) as ShopifyStoreContent | undefined;
+  // Belt and braces: the callback already cleans what it fetches, but this also
+  // runs from claimPending with a payload replayed out of shopify_pending_installs.
+  const info = cleanShopifyValue(args.info);
+  const content = cleanShopifyValue(args.content);
 
   // Re-install of a store we already know: keep the existing account.
   const { data: known } = await supabaseAdmin

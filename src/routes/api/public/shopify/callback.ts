@@ -1,5 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 const back = (origin: string, params: Record<string, string>) => new Response(null, { status: 302, headers: { location: `${origin}/app?${new URLSearchParams({ tab: "platforms", ...params })}` } });
+/** An App Store merchant has no Ranki session yet, so /app would only show them
+ * the generic sign-up wizard with a toast — the dead end that hid every real
+ * install failure so far. Send them somewhere that states the cause and can
+ * re-enter OAuth instead. */
+const installError = (origin: string, shop: string | null, message: string) =>
+  new Response(null, { status: 302, headers: { location: `${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}` } });
 /** Labels which step threw — an unlabeled crash here otherwise just says
  * "TypeError: ..." with no way to tell which of several parallel Shopify
  * Admin API calls actually failed. */
@@ -14,18 +20,29 @@ async function step<T>(name: string, p: Promise<T>): Promise<T> {
 
 export const Route = createFileRoute("/api/public/shopify/callback")({ server: { handlers: { GET: async ({ request }) => {
   const url = new URL(request.url); const origin = url.origin; const mod = await import("@/lib/shopify.server");
+  // Tracked outside the try so the catch knows where to send the merchant back to.
+  let shop: string | null = null;
+  let flow: "install" | "dashboard" = "install";
+  const fail = (message: string) => (flow === "dashboard" ? back(origin, { shopify: "error", message }) : installError(origin, shop, message));
   try {
-    const shop = mod.normalizeShop(url.searchParams.get("shop")); const code = url.searchParams.get("code"); const state = mod.verifyState(url.searchParams.get("state"));
-    if (!shop || !code) return back(origin, { shopify: "error", message: "missing_params" });
-    if (!mod.verifyRequestHmac(url)) return back(origin, { shopify: "error", message: "bad_signature" });
+    shop = mod.normalizeShop(url.searchParams.get("shop")); const code = url.searchParams.get("code"); const state = mod.verifyState(url.searchParams.get("state"));
+    flow = mod.stateFlow(state);
+    if (!shop || !code) return fail("missing_params");
+    if (!mod.verifyRequestHmac(url)) return fail("bad_signature");
     const { access_token } = await step("exchangeCode", mod.exchangeCode(shop, code));
     console.info("[shopify callback] OAuth token exchanged", { shop });
-    const [blogId, info, snapshot, content] = await Promise.all([
+    const [blogId, rawInfo, rawSnapshot, rawContent] = await Promise.all([
       step("resolveBlogId", mod.resolveBlogId(shop, access_token)),
       step("fetchShopInfo", mod.fetchShopInfo(shop, access_token)),
       step("fetchProductSnapshot", mod.fetchProductSnapshot(shop, access_token)),
       step("fetchStoreContent", mod.fetchStoreContent(shop, access_token)),
     ]);
+    // Strip U+FFFD here, once, before any of the three branches below writes to
+    // Supabase: a single corrupted store field otherwise kills the whole install
+    // with an opaque "Cannot convert argument to a ByteString" TypeError.
+    const info = mod.cleanShopifyValue(rawInfo);
+    const snapshot = mod.cleanShopifyValue(rawSnapshot);
+    const content = mod.cleanShopifyValue(rawContent);
     console.info("[shopify callback] Shopify store data imported", { shop });
     const provision = await import("@/lib/shopifyProvision.server"); const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (state?.userId && state.projectId) {
@@ -35,7 +52,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const { error } = existing ? await supabaseAdmin.from("integrations").update(row).eq("id", existing.id) : await supabaseAdmin.from("integrations").insert(row); if (error) throw new Error(error.message);
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null); await provision.recordShopifySubscription(state.userId, email, active, state.plan ?? "monthly");
       if (active) return back(origin, { shopify: "connected" });
-      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ ...state, shop, ts: Date.now() }))}`;
+      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ ...state, shop, flow: "dashboard", ts: Date.now() }))}`;
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, state.plan ?? "monthly", info.isTestStore); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
     const { data: existing } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
@@ -48,7 +65,7 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       }
       const pending = await import("@/lib/shopifyPendingInstall.server");
       await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
-      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, ts: Date.now() }))}`;
+      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, userId: existing.user_id, flow: "install", ts: Date.now() }))}`;
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
       return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
@@ -58,5 +75,5 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     const install = await import("@/lib/shopifyInstall.server");
     const pendingToken = await install.createPendingConnection({ shop, accessToken: access_token, blogId, info, snapshot, content });
     return new Response(null, { status: 302, headers: { location: `${origin}/shopify/setup?${new URLSearchParams({ shop, pending_token: pendingToken })}` } });
-  } catch (e) { console.error("[shopify callback] installation failed", e); return back(origin, { shopify: "error", message: (e instanceof Error ? e.message : "failed").slice(0, 160) }); }
+  } catch (e) { console.error("[shopify callback] installation failed", e); return fail((e instanceof Error ? e.message : "failed").slice(0, 160)); }
 } } } });

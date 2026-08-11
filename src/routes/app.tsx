@@ -74,6 +74,12 @@ function Dashboard() {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("shopify") === "connected";
   });
+  // Read once at mount: the redirect effects below rewrite the query string.
+  const [shopifyVisitor] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const params = new URLSearchParams(window.location.search);
+    return !!(params.get("shop") || params.get("shopify"));
+  });
 
   useEffect(() => {
     if (!user) return;
@@ -88,19 +94,31 @@ function Dashboard() {
   // instead of showing an empty sign-up wizard with no context.
   useEffect(() => {
     if (loading || user) return;
-    const shop = new URLSearchParams(window.location.search).get("shop");
-    if (shop) window.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+    const params = new URLSearchParams(window.location.search);
+    const shop = params.get("shop");
+    if (shop) {
+      window.location.href = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+      return;
+    }
+    // An install that broke before we could identify the shop still lands here.
+    // A merchant provisioned from Shopify never set a password, so the sign-up
+    // wizard is a dead end — send them somewhere that states the reason.
+    if (params.get("shopify")) {
+      window.location.href = `/shopify/error?${new URLSearchParams({ message: params.get("message") ?? "failed" })}`;
+    }
   }, [loading, user]);
 
-  // A merchant can hit a Shopify install error before they have an account
-  // (e.g. the very first install attempt) — Platforms.tsx only shows this
-  // toast once signed in, so also surface it here, unconditionally.
+  // A signed-in merchant can also hit a Shopify error (e.g. adding a second
+  // store) — Platforms.tsx only shows this toast on its own tab, so surface it
+  // here too. Gated on `user` so it cannot strip the query params the
+  // signed-out redirect above still needs to read.
   useEffect(() => {
+    if (loading || !user) return;
     const params = new URLSearchParams(window.location.search);
     if (params.get("shopify") !== "error") return;
     toast.error(params.get("message") ?? "Shopify install failed.");
     window.history.replaceState({}, "", window.location.pathname);
-  }, []);
+  }, [loading, user]);
 
   const { data: project, isLoading: projectLoading } = useQuery({
     queryKey: ["project", user?.id],
@@ -154,6 +172,16 @@ function Dashboard() {
     );
   }
   if (!project) {
+    // Mid-install Shopify visitor: the effect above is already sending them
+    // back into OAuth or to /shopify/error. Hold rather than flash the
+    // sign-up wizard they can never complete.
+    if (!user && shopifyVisitor) {
+      return (
+        <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
+          Resuming your Shopify installation…
+        </div>
+      );
+    }
     return (
       <Onboarding
         userId={user?.id ?? null}

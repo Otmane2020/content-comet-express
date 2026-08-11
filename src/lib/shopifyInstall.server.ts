@@ -135,7 +135,19 @@ export async function claimPending(pendingToken: string, origin: string) {
   await provision.recordShopifySubscription(created.userId, created.email, existingSub, row.billing_plan);
 
   if (!existingSub) {
-    const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(row.shop)}`;
+    // The billing return handler rejects an unsigned return (invalid_state), so
+    // it has to carry the merchant we just provisioned — they have no session
+    // yet, and `flow` tells that handler to finish with a sign-in link.
+    const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(row.shop)}&state=${encodeURIComponent(
+      shopify.signState({
+        origin,
+        shop: row.shop,
+        userId: created.userId,
+        plan: row.billing_plan,
+        flow: "install",
+        ts: Date.now(),
+      }),
+    )}`;
     const { confirmationUrl } = await shopify.createAppSubscription(
       row.shop,
       row.access_token,

@@ -30,6 +30,35 @@ export function assertHeaderSafe(value: unknown, label: string): string {
   return value;
 }
 
+/**
+ * Shopify data is external input: a store field can carry U+FFFD replacement
+ * characters, and every write that carries them into a Supabase request dies
+ * with an opaque "Cannot convert argument to a ByteString" TypeError. Clean
+ * the payload once, at the callback's entry point, rather than per writer —
+ * patching writers one by one only moved the crash to the next unprotected
+ * one (provisionShopifyMerchant → savePendingShopifyInstall →
+ * createPendingConnection, each in turn).
+ */
+/** U+FFFD, built from its code point so that no literal replacement character
+ * ever lives in this source file — a literal one here is itself the decoding
+ * hazard this module exists to remove. */
+const REPLACEMENT_CHAR = new RegExp(String.fromCharCode(0xfffd), "g");
+
+export function cleanShopifyValue<T>(value: T): T {
+  if (typeof value === "string") {
+    // Only U+FFFD is stripped: it is always a decoding artifact, never real
+    // store content, so non-Latin1 product titles and emoji survive intact.
+    return (value.replace(REPLACEMENT_CHAR, "").trim() || null) as T;
+  }
+  if (Array.isArray(value)) return value.map(cleanShopifyValue) as T;
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, cleanShopifyValue(item)]),
+    ) as T;
+  }
+  return value;
+}
+
 /** mystore.myshopify.com — anything else is rejected. */
 export function normalizeShop(input: string | null | undefined) {
   if (!input) return null;
@@ -44,7 +73,17 @@ export type ShopifyState = {
   ts: number;
   shop?: string;
   plan?: ShopifyPlanId;
+  /** "install": App Store merchant with no session yet, finish by signing them
+   * in. "dashboard": merchant already signed in, adding a store to a project. */
+  flow?: "install" | "dashboard";
 };
+
+/** Older signed states predate `flow`; a projectId only ever came from the
+ * signed-in dashboard entry point, so it stands in for the missing field. */
+export function stateFlow(state: ShopifyState | null): "install" | "dashboard" {
+  if (state?.flow) return state.flow;
+  return state?.projectId ? "dashboard" : "install";
+}
 
 export function signState(payload: ShopifyState) {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");

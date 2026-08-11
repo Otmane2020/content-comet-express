@@ -21,6 +21,7 @@ import { Route as TermsRouteImport } from './routes/terms'
 import { Route as AuthCallbackRouteImport } from './routes/auth_.callback'
 import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
+import { Route as ShopifyErrorRouteImport } from './routes/shopify.error'
 import { Route as ShopifySetupRouteImport } from './routes/shopify.setup'
 import { Route as ApiPublicArticlesRouteImport } from './routes/api/public/articles'
 import { Route as ApiPublicGoogleCallbackRouteImport } from './routes/api/public/google/callback'
@@ -92,6 +93,11 @@ const BlogSlugRoute = BlogSlugRouteImport.update({
   id: '/$slug',
   path: '/$slug',
   getParentRoute: () => BlogRoute,
+} as any)
+const ShopifyErrorRoute = ShopifyErrorRouteImport.update({
+  id: '/shopify/error',
+  path: '/shopify/error',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const ShopifySetupRoute = ShopifySetupRouteImport.update({
   id: '/shopify/setup',
@@ -165,6 +171,7 @@ export interface FileRoutesByFullPath {
   '/terms': typeof TermsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/shopify/error': typeof ShopifyErrorRoute
   '/shopify/setup': typeof ShopifySetupRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
@@ -189,6 +196,7 @@ export interface FileRoutesByTo {
   '/terms': typeof TermsRoute
   '/auth/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/shopify/error': typeof ShopifyErrorRoute
   '/shopify/setup': typeof ShopifySetupRoute
   '/blog': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
@@ -215,6 +223,7 @@ export interface FileRoutesById {
   '/terms': typeof TermsRoute
   '/auth_/callback': typeof AuthCallbackRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/shopify/error': typeof ShopifyErrorRoute
   '/shopify/setup': typeof ShopifySetupRoute
   '/blog/': typeof BlogIndexRoute
   '/api/public/articles': typeof ApiPublicArticlesRoute
@@ -242,6 +251,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/auth/callback'
     | '/blog/$slug'
+    | '/shopify/error'
     | '/shopify/setup'
     | '/blog/'
     | '/api/public/articles'
@@ -266,6 +276,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/auth/callback'
     | '/blog/$slug'
+    | '/shopify/error'
     | '/shopify/setup'
     | '/blog'
     | '/api/public/articles'
@@ -291,6 +302,7 @@ export interface FileRouteTypes {
     | '/terms'
     | '/auth_/callback'
     | '/blog/$slug'
+    | '/shopify/error'
     | '/shopify/setup'
     | '/blog/'
     | '/api/public/articles'
@@ -316,6 +328,7 @@ export interface RootRouteChildren {
   SitemapDotxmlRoute: typeof SitemapDotxmlRoute
   TermsRoute: typeof TermsRoute
   AuthCallbackRoute: typeof AuthCallbackRoute
+  ShopifyErrorRoute: typeof ShopifyErrorRoute
   ShopifySetupRoute: typeof ShopifySetupRoute
   ApiPublicArticlesRoute: typeof ApiPublicArticlesRoute
   ApiPublicGoogleCallbackRoute: typeof ApiPublicGoogleCallbackRoute
@@ -414,6 +427,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/blog/$slug'
       preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof BlogRoute
+    }
+    '/shopify/error': {
+      id: '/shopify/error'
+      path: '/shopify/error'
+      fullPath: '/shopify/error'
+      preLoaderRoute: typeof ShopifyErrorRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/shopify/setup': {
       id: '/shopify/setup'
@@ -518,6 +538,7 @@ const rootRouteChildren: RootRouteChildren = {
   SitemapDotxmlRoute: SitemapDotxmlRoute,
   TermsRoute: TermsRoute,
   AuthCallbackRoute: AuthCallbackRoute,
+  ShopifyErrorRoute: ShopifyErrorRoute,
   ShopifySetupRoute: ShopifySetupRoute,
   ApiPublicArticlesRoute: ApiPublicArticlesRoute,
   ApiPublicGoogleCallbackRoute: ApiPublicGoogleCallbackRoute,
