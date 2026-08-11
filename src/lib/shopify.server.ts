@@ -71,38 +71,6 @@ export function verifyRequestHmac(url: URL) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/**
- * Verifies an App Bridge session token (window.shopify.idToken()): a JWT
- * signed HS256 with the app's client secret. Confirms the signature, the
- * audience (our client id) and the expiry, then returns the shop it was
- * issued for. https://shopify.dev/docs/apps/build/authentication-authorization/session-tokens
- */
-export function verifyShopifySessionToken(token: string): { shop: string } | null {
-  const parts = token.split(".");
-  if (parts.length !== 3) return null;
-  const [header, payload, sig] = parts as [string, string, string];
-  const expected = createHmac("sha256", shopifySecret())
-    .update(`${header}.${payload}`)
-    .digest("base64url");
-  const a = Buffer.from(sig);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length || !timingSafeEqual(a, b)) return null;
-
-  let claims: { aud?: string; dest?: string; exp?: number; nbf?: number };
-  try {
-    claims = JSON.parse(Buffer.from(payload, "base64url").toString());
-  } catch {
-    return null;
-  }
-  if (claims.aud !== SHOPIFY_CLIENT_ID) return null;
-  const now = Date.now() / 1000;
-  if (typeof claims.exp !== "number" || claims.exp < now) return null;
-  if (typeof claims.nbf === "number" && claims.nbf > now) return null;
-
-  const shop = normalizeShop(claims.dest ?? null);
-  return shop ? { shop } : null;
-}
-
 export function redirectUri(origin: string) {
   return `${origin.replace(/\/$/, "")}/api/public/shopify/callback`;
 }
@@ -122,29 +90,6 @@ export async function exchangeCode(shop: string, code: string) {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ client_id: SHOPIFY_CLIENT_ID, client_secret: shopifySecret(), code }),
-  });
-  if (!res.ok) throw new Error(`Shopify token exchange failed (${res.status})`);
-  const payload = (await res.json()) as { access_token?: unknown; scope?: string };
-  return { access_token: validateAccessToken(payload.access_token), scope: payload.scope };
-}
-
-/**
- * Embedded public apps receive an App Bridge ID token. Exchange it for the
- * store's offline Admin API token instead of first bouncing the merchant
- * through the legacy authorization-code flow.
- */
-export async function exchangeSessionToken(shop: string, subjectToken: string) {
-  const res = await fetch(`https://${shop}/admin/oauth/access_token`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({
-      client_id: SHOPIFY_CLIENT_ID,
-      client_secret: shopifySecret(),
-      grant_type: "urn:ietf:params:oauth:grant-type:token-exchange",
-      subject_token: subjectToken,
-      subject_token_type: "urn:ietf:params:oauth:token-type:id_token",
-      requested_token_type: "urn:shopify:params:oauth:token-type:offline-access-token",
-    }),
   });
   if (!res.ok) throw new Error(`Shopify token exchange failed (${res.status})`);
   const payload = (await res.json()) as { access_token?: unknown; scope?: string };

@@ -1,5 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 const back = (origin: string, params: Record<string, string>) => new Response(null, { status: 302, headers: { location: `${origin}/app?${new URLSearchParams({ tab: "platforms", ...params })}` } });
+/** Labels which step threw — an unlabeled crash here otherwise just says
+ * "TypeError: ..." with no way to tell which of several parallel Shopify
+ * Admin API calls actually failed. */
+async function step<T>(name: string, p: Promise<T>): Promise<T> {
+  try {
+    return await p;
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    throw new Error(`[${name}] ${msg}`);
+  }
+}
 
 export const Route = createFileRoute("/api/public/shopify/callback")({ server: { handlers: { GET: async ({ request }) => {
   const url = new URL(request.url); const origin = url.origin; const mod = await import("@/lib/shopify.server");
@@ -7,9 +18,14 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     const shop = mod.normalizeShop(url.searchParams.get("shop")); const code = url.searchParams.get("code"); const state = mod.verifyState(url.searchParams.get("state"));
     if (!shop || !code) return back(origin, { shopify: "error", message: "missing_params" });
     if (!mod.verifyRequestHmac(url)) return back(origin, { shopify: "error", message: "bad_signature" });
-    const { access_token } = await mod.exchangeCode(shop, code);
+    const { access_token } = await step("exchangeCode", mod.exchangeCode(shop, code));
     console.info("[shopify callback] OAuth token exchanged", { shop });
-    const [blogId, info, snapshot, content] = await Promise.all([mod.resolveBlogId(shop, access_token), mod.fetchShopInfo(shop, access_token), mod.fetchProductSnapshot(shop, access_token), mod.fetchStoreContent(shop, access_token)]);
+    const [blogId, info, snapshot, content] = await Promise.all([
+      step("resolveBlogId", mod.resolveBlogId(shop, access_token)),
+      step("fetchShopInfo", mod.fetchShopInfo(shop, access_token)),
+      step("fetchProductSnapshot", mod.fetchProductSnapshot(shop, access_token)),
+      step("fetchStoreContent", mod.fetchStoreContent(shop, access_token)),
+    ]);
     console.info("[shopify callback] Shopify store data imported", { shop });
     const provision = await import("@/lib/shopifyProvision.server"); const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (state?.userId && state.projectId) {

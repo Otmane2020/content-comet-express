@@ -12,7 +12,6 @@ import { startGoogleConnect } from "@/lib/google.functions";
 import { BrandLockup } from "@/components/BrandMark";
 import { Onboarding } from "@/components/dashboard/Onboarding";
 import { ShopifyWelcome } from "@/components/dashboard/ShopifyWelcome";
-import { exchangeShopifySession } from "@/lib/shopify.functions";
 import { Calendar } from "@/components/dashboard/Calendar";
 import { Platforms } from "@/components/dashboard/Platforms";
 import { Research } from "@/components/dashboard/Research";
@@ -57,16 +56,6 @@ type Project = {
   keywords: string[] | null;
 };
 
-/** App Bridge attaches window.shopify asynchronously once its script loads. */
-async function waitForShopifyAppBridge(timeoutMs = 8000): Promise<Window["shopify"] | null> {
-  const start = Date.now();
-  while (Date.now() - start < timeoutMs) {
-    if (window.shopify) return window.shopify;
-    await new Promise((r) => setTimeout(r, 100));
-  }
-  return null;
-}
-
 function Dashboard() {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -80,85 +69,15 @@ function Dashboard() {
   });
   const build = useServerFn(buildPlan);
   const announceSignup = useServerFn(notifySignup);
-  const exchangeSession = useServerFn(exchangeShopifySession);
   const [refilling, setRefilling] = useState(false);
   const [showShopifyWelcome, setShowShopifyWelcome] = useState(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("shopify") === "connected";
   });
-  // Shopify appends ?host=... to every load of an embedded app — the one
-  // reliable signal that we're running inside the admin iframe.
-  const [embedded] = useState(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(new URLSearchParams(window.location.search).get("host"));
-  });
-  // Storage is partitioned inside the iframe, so a session that exists when
-  // Ranki.ai is visited directly is invisible here — this stays false while
-  // we try to silently establish one from the App Bridge session token, so
-  // the plain "no session -> /auth" redirect below doesn't fire too early.
-  const [shopifyAuthChecked, setShopifyAuthChecked] = useState(!embedded);
-  const [shopifyEmbedError, setShopifyEmbedError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!embedded || loading || user || shopifyAuthChecked || shopifyEmbedError) return;
-    let cancelled = false;
-    void (async () => {
-      // Only ever flip this on a confirmed, unrecoverable failure: on
-      // success, `user` becomes truthy once useAuth's onAuthStateChange
-      // listener catches up, which already satisfies every gate that reads
-      // shopifyAuthChecked — setting it eagerly here raced ahead of that
-      // update and sent a freshly authenticated merchant to the signup
-      // screen anyway.
-      const fail = (reason = "We couldn't connect this Shopify session.") => {
-        if (cancelled) return;
-        // Embedded merchants must never be sent into Ranki's normal
-        // email/password or legacy OAuth flows. Keep them in Shopify with a
-        // clear retry state instead.
-        setShopifyEmbedError(reason);
-        setShopifyAuthChecked(true);
-      };
-      try {
-        const shopify = await waitForShopifyAppBridge();
-        if (cancelled) return;
-        if (!shopify) {
-          console.error("[shopify embed] App Bridge did not load in time");
-          return fail();
-        }
-        const token = await shopify.idToken();
-        const result = await exchangeSession({ data: { token, origin: window.location.origin } });
-        if ("installUrl" in result && typeof result.installUrl === "string") {
-          // Same dual-attempt as fail() below: a single window.open(_top) is
-          // known to silently no-op under some browser/iframe combinations
-          // (e.g. Safari 18.6+).
-          window.open(result.installUrl, "_top");
-          try {
-            if (window.top) window.top.location.href = result.installUrl;
-          } catch {
-            /* window.open above already attempted the navigation */
-          }
-          return;
-        }
-        const { hashedToken } = result;
-        // hashed_token (from admin.generateLink) verifies via token_hash, not
-        // the email+token pair used for user-typed OTP codes.
-        const { error } = await supabase.auth.verifyOtp({
-          token_hash: hashedToken,
-          type: "magiclink",
-        });
-        if (error) throw error;
-      } catch (e) {
-        console.error("[shopify embed] silent sign-in failed", e);
-        fail();
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [embedded, loading, user, shopifyAuthChecked, shopifyEmbedError, exchangeSession]);
-
-  useEffect(() => {
-    if (!embedded && !loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
-  }, [embedded, loading, user, shopifyAuthChecked, navigate]);
+    if (!loading && !user) navigate({ to: "/auth", replace: true });
+  }, [loading, user, navigate]);
 
   useEffect(() => {
     if (!user) return;
@@ -209,20 +128,7 @@ function Dashboard() {
     };
   }, [user, project, startGoogle]);
 
-  if (embedded && !user && shopifyEmbedError) {
-    return (
-      <div className="paper-grid flex min-h-screen items-center justify-center p-5">
-        <div className="surface w-full max-w-md p-7 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-destructive">Shopify connection</p>
-          <h1 className="mt-2 font-display text-2xl font-bold">We couldn't finish the connection</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{shopifyEmbedError}</p>
-          <Button className="mt-6 bg-deep text-background hover:bg-deep/90" onClick={() => window.location.reload()}>Try again</Button>
-        </div>
-      </div>
-    );
-  }
-
-  if (loading || (user && projectLoading) || (embedded && !user && !shopifyAuthChecked)) {
+  if (loading || (user && projectLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Loading your autopilot…
@@ -280,21 +186,7 @@ function Dashboard() {
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Embedded in Shopify admin: Shopify supplies the nav chrome, we only
-          feed it links — our own sidebar would just duplicate it. Ranki
-          keeps its branding on content (buttons, badges, accent colors). */}
-      {embedded && (
-        <ui-nav-menu>
-          {nav.map((entry, i) => (
-            <a key={entry.id} href={`/app?tab=${entry.id}`} rel={i === 0 ? "home" : undefined}>
-              {entry.label}
-            </a>
-          ))}
-        </ui-nav-menu>
-      )}
-
-      {!embedded && (
-        <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground md:flex">
+      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col bg-sidebar px-4 py-5 text-sidebar-foreground md:flex">
           <div className="px-1 pb-6">
             <BrandLockup dark />
           </div>
@@ -336,8 +228,7 @@ function Dashboard() {
               <LogOut className="size-3.5" /> Sign out
             </button>
           </div>
-        </aside>
-      )}
+      </aside>
 
       <main className="min-w-0 flex-1">
         <header className="flex flex-wrap items-center justify-between gap-4 border-b border-border/60 bg-gradient-to-r from-background via-background to-muted/30 px-5 py-4">
