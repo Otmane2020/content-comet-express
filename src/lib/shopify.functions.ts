@@ -24,7 +24,10 @@ export const exchangeShopifySession = createServerFn({ method: "POST" })
     if (!claims) throw new Error("Invalid Shopify session token");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const { data: integration } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", claims.shop).limit(1).maybeSingle();
-    if (!integration?.user_id) return { installUrl: `/api/public/shopify/install?shop=${encodeURIComponent(claims.shop)}` };
+    if (!integration?.user_id) {
+      console.info("[shopify-embed] starting top-level OAuth and Shopify billing", { shop: claims.shop });
+      return { installUrl: `/api/public/shopify/install?shop=${encodeURIComponent(claims.shop)}` };
+    }
     const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
     const email = user.user?.email;
     if (!email) throw new Error("Could not resolve the merchant account.");
