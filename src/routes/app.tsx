@@ -100,6 +100,7 @@ function Dashboard() {
   const [shopifyPlan, setShopifyPlan] = useState<"monthly" | "annual" | null>(null);
   const [choosingShopifyPlan, setChoosingShopifyPlan] = useState(false);
   const [shopifyEmbedError, setShopifyEmbedError] = useState<string | null>(null);
+  const [shopifyLoadTimedOut, setShopifyLoadTimedOut] = useState(false);
 
   useEffect(() => {
     if (!embedded || loading || user || shopifyAuthChecked || choosingShopifyPlan || shopifyEmbedError) return;
@@ -166,10 +167,10 @@ function Dashboard() {
   // state is somehow still lagging past a generous window, stop blocking the
   // UI on it instead of spinning forever.
   useEffect(() => {
-    if (!embedded || user || shopifyAuthChecked || choosingShopifyPlan || shopifyEmbedError) return;
-    const timer = setTimeout(() => setShopifyAuthChecked(true), 12000);
+    if (!embedded || user || choosingShopifyPlan || shopifyEmbedError) return;
+    const timer = setTimeout(() => setShopifyLoadTimedOut(true), 7000);
     return () => clearTimeout(timer);
-  }, [embedded, user, shopifyAuthChecked, choosingShopifyPlan, shopifyEmbedError]);
+  }, [embedded, user, choosingShopifyPlan, shopifyEmbedError]);
 
   useEffect(() => {
     if (!embedded && !loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
@@ -223,6 +224,25 @@ function Dashboard() {
       cancelled = true;
     };
   }, [user, project, startGoogle]);
+
+  if (embedded && !user && shopifyLoadTimedOut) {
+    return (
+      <div className="paper-grid flex min-h-screen items-center justify-center p-5">
+        <div className="surface w-full max-w-md p-7 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Ranki + Shopify</p>
+          <h1 className="mt-2 font-display text-2xl font-bold">Preparing your Shopify checkout</h1>
+          <p className="mt-2 text-sm text-muted-foreground">The connection took longer than expected. Retry safely from Shopify.</p>
+          <Button className="mt-6 bg-deep text-background hover:bg-deep/90" onClick={() => {
+            setShopifyLoadTimedOut(false);
+            setShopifyAuthChecked(false);
+            setShopifyEmbedError(null);
+            setChoosingShopifyPlan(false);
+            setShopifyPlan(null);
+          }}>Retry checkout</Button>
+        </div>
+      </div>
+    );
+  }
 
   if (embedded && !user && choosingShopifyPlan) {
     const choosePlan = (plan: "monthly" | "annual") => {
