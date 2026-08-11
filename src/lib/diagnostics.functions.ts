@@ -104,10 +104,11 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
     }, (value) => `${value.proposed.length} proposed; ${value.measured.length} measured; ${value.qualified.length} qualified`);
     if (!keywordStage) return { stages };
 
+    const writingLocale = marketLocale(data.website, site.landing?.lang);
     const competitors = await take("serp", () =>
       discoverCompetitorsFromSerp(
         profile,
-        site.landing?.lang ?? null,
+        writingLocale,
         null,
         null,
         8,
@@ -137,7 +138,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
           industry: profile.industry ?? null,
           audience: profile.audience ?? null,
           tone: "expert",
-          locale: site.landing?.lang ?? "en",
+          locale: writingLocale,
           keywords: keywordStage.qualified.map((row) => row.keyword),
         },
         slots,
@@ -154,7 +155,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
           industry: profile.industry ?? null,
           audience: profile.audience ?? null,
           tone: "expert",
-          locale: site.landing?.lang ?? "en",
+          locale: writingLocale,
           keywords: [keywordStage.qualified[0]!.keyword],
         },
         { content_type: first.type, topic: first.topic },
@@ -208,7 +209,7 @@ export const probeCandidates = createServerFn({ method: "POST" })
     const profile = await buildCanonicalProfile(site, { website_url: data.website });
     const proposed = await candidateKeywords(profile, site.landing ?? null, 60);
 
-    const opts = localeOpts(data.locale ?? site.landing?.lang ?? profile.locations?.[0] ?? null);
+    const opts = localeOpts(data.locale ?? marketLocale(data.website, site.landing?.lang));
     let measured: { keyword: string; search_volume: number | null }[] = [];
     let volumeError: string | null = null;
     try {

@@ -44,12 +44,14 @@ function Stage({
   title,
   cost,
   onRun,
+  fullPipelineRun,
   state,
 }: {
   n: number;
   title: string;
   cost: "free" | "billed";
   onRun: () => void;
+  fullPipelineRun?: () => void;
   state: { status: "idle" | "running" | "done" | "error"; checks: Check[]; error?: string; ms?: number; raw?: unknown };
 }) {
   const [showRaw, setShowRaw] = useState(false);
@@ -73,11 +75,11 @@ function Stage({
           </span>
         )}
         <button
-          onClick={onRun}
+          onClick={fullPipelineRun ?? onRun}
           disabled={state.status === "running"}
           className="ml-auto rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
         >
-          {state.status === "running" ? "…" : "Lancer"}
+          {state.status === "running" ? "…" : fullPipelineRun ? "Run full pipeline" : "Lancer"}
         </button>
       </div>
 
@@ -265,6 +267,7 @@ function TestPage() {
         title="Landing page — titre SEO, titre de page, meta, sections, marqueurs B2B"
         cost="free"
         state={s1}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() =>
           void run(setS1, async () => {
             const r = await runLanding({ data: { website } });
@@ -314,6 +317,7 @@ function TestPage() {
         title="Profil canonique — le modèle de vente qui fixe l'audience"
         cost="billed"
         state={s2}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() =>
           void run(setS2, async () => {
             const r = await runProfile({ data: { website } });
@@ -345,6 +349,7 @@ function TestPage() {
         title="IA → DataForSEO — candidats proposés, puis mesurés"
         cost="billed"
         state={s3}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() =>
           void run(setS3, async () => {
             const r = await runCandidates({ data: { website } });
@@ -384,6 +389,7 @@ function TestPage() {
         title="SERP + assistant IA — présence d'une AI Overview et domaines cités"
         cost="billed"
         state={s4}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() =>
           void run(setS4, async () => {
             const r = await runSerp({ data: { keyword } });
@@ -418,6 +424,7 @@ function TestPage() {
         title="Landing pages concurrentes — matière pour la génération"
         cost="free"
         state={s5}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() =>
           void run(setS5, async () => {
             const domains = rivals.split(",").map((d) => d.trim()).filter(Boolean);
@@ -447,6 +454,7 @@ function TestPage() {
         title="30-day calendar — topics selected from the validated keywords"
         cost="billed"
         state={s6}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() => void runCompleteDiagnostic()}
       />
 
@@ -455,6 +463,7 @@ function TestPage() {
         title="First article preview — generated from the calendar, profile and rivals"
         cost="billed"
         state={s7}
+        fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() => void runCompleteDiagnostic()}
       />
 

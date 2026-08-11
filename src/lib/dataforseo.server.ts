@@ -72,8 +72,10 @@ const loc = (o: LocationOpts) => ({
  * furniture wholesaler ended up with "canapés d'angle convertibles": consumer
  * queries expanded from a consumer seed.
  *
- * Candidates with no measured volume are dropped: an invented phrase nobody
- * searches is exactly what this call is here to catch.
+ * A response row is still useful when Google Ads reports a zero volume: it
+ * confirms that DataForSEO understood the candidate and lets the SERP decide
+ * whether the long-tail B2B query has live competitors. Only missing rows are
+ * rejected as unmeasurable candidates.
  */
 export async function searchVolumeFor(
   keywords: string[],
@@ -100,7 +102,7 @@ export async function searchVolumeFor(
     ...loc(opts),
   });
   return result
-    .filter((i) => i.keyword && (i.search_volume ?? 0) > 0)
+    .filter((i) => i.keyword)
     .map((i) => ({
       keyword: i.keyword!,
       search_volume: i.search_volume ?? null,
