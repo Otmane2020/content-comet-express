@@ -211,6 +211,17 @@ Rules:
  */
 export async function productSeeds(profile: BusinessProfile, max = 12): Promise<string[]> {
   const salesPrefix = profile.sales_model === "wholesale" ? "grossiste " : "";
+  // The bare product categories (e.g. "meubles design") are the highest-volume
+  // anchor terms available: short, unmodified, exactly what most buyers type.
+  // Phrase-match keyword expansion can only ever get as broad as its seed, so
+  // if every seed already carries a buyer-intent modifier ("grossiste meubles
+  // design", "fabricant meubles bois"), every suggestion inherits that same
+  // narrow, low-volume long tail. Seeding with the bare category first fixes
+  // that without loosening relevance — every suggestion still has to contain
+  // the seed verbatim.
+  const bareSeeds = (profile.products ?? [])
+    .map((p) => p.trim().toLowerCase())
+    .filter((p) => p.length > 2 && p.split(/\s+/).length <= 4);
   try {
     const raw = await callOpenRouter({
       json: true,
@@ -220,7 +231,10 @@ export async function productSeeds(profile: BusinessProfile, max = 12): Promise<
       user: `${profileBlock(profile)}
 
 List ${max} short search terms (2-4 words) that a buyer looking for THIS product would type.
-${salesPrefix ? `The business is a WHOLESALER — use terms like "grossiste <product>", "<product> en gros", "fournisseur <product>".` : "Use the product category, its common synonyms, comparison or buying phrasings."}
+Mix the terms: about half should be the bare product category alone or with a common synonym
+(the highest-volume, most generic phrasing a buyer would type), and the other half can carry
+buying-intent modifiers.
+${salesPrefix ? `The business is a WHOLESALER — for the intent half, use terms like "grossiste <product>", "<product> en gros", "fournisseur <product>".` : "For the intent half, use comparison or buying phrasings."}
 Use ONLY product categories from the confirmed products list above. Do NOT invent new product categories.
 No brand names other than this business's own. No generic one-word terms. No unrelated markets.
 ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.join(", ")}.` : "No city or region names."}
@@ -228,12 +242,12 @@ ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.j
 Return JSON: {"seeds":["...", "..."]}`,
     });
     const parsed = parseJsonLoose<{ seeds?: string[] }>(raw);
-    return (parsed.seeds ?? [])
+    const aiSeeds = (parsed.seeds ?? [])
       .map((s) => String(s).trim().toLowerCase())
-      .filter((s) => s.length > 2 && s.split(/\s+/).length <= 6)
-      .slice(0, max);
+      .filter((s) => s.length > 2 && s.split(/\s+/).length <= 6);
+    return Array.from(new Set([...bareSeeds, ...aiSeeds])).slice(0, max);
   } catch {
-    return [];
+    return bareSeeds.slice(0, max);
   }
 }
 

@@ -374,6 +374,12 @@ export async function discoverCompetitorsFromSerp(
   const queries = Array.from(
     new Set(
       [
+        // Bare product terms first: the buying-intent modifier below narrows
+        // every query to the same niche B2B slice of SERPs, which only ever
+        // surfaces small directory-style sites. The bare term is what most
+        // buyers — and the sector's bigger, better-ranked players — actually
+        // rank for.
+        ...productQueries,
         ...productQueries.map((p) => `${salesPrefix}${p}`.trim()),
         category,
         city ? `${category} ${city}` : null,
@@ -383,7 +389,7 @@ export async function discoverCompetitorsFromSerp(
         city ? `${category} ${city} ${country}` : `${category} pas cher`,
       ].filter((q): q is string => Boolean(q && q.trim())),
     ),
-  ).slice(0, 6);
+  ).slice(0, 9);
 
   const batches = await Promise.all(queries.map((q) => serpOrganicSearch(q, opts, 20)));
   const allResults = batches.flat();
