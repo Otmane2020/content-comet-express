@@ -97,12 +97,10 @@ function Dashboard() {
   // we try to silently establish one from the App Bridge session token, so
   // the plain "no session -> /auth" redirect below doesn't fire too early.
   const [shopifyAuthChecked, setShopifyAuthChecked] = useState(!embedded);
-  const [shopifyPlan, setShopifyPlan] = useState<"monthly" | "annual" | null>(null);
-  const [choosingShopifyPlan, setChoosingShopifyPlan] = useState(false);
   const [shopifyEmbedError, setShopifyEmbedError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!embedded || loading || user || shopifyAuthChecked || choosingShopifyPlan || shopifyEmbedError) return;
+    if (!embedded || loading || user || shopifyAuthChecked || shopifyEmbedError) return;
     let cancelled = false;
     void (async () => {
       // Only ever flip this on a confirmed, unrecoverable failure: on
@@ -129,20 +127,12 @@ function Dashboard() {
         const token = await shopify.idToken();
         const result = await exchangeSession({ data: { token, origin: window.location.origin } });
         if ("installUrl" in result && typeof result.installUrl === "string") {
+          // Same dual-attempt as fail() below: a single window.open(_top) is
+          // known to silently no-op under some browser/iframe combinations
+          // (e.g. Safari 18.6+).
           window.open(result.installUrl, "_top");
-          return;
-        }
-        if ("requiresPlanChoice" in result) {
-          setChoosingShopifyPlan(true);
-          return;
-        }
-        if ("confirmationUrl" in result) {
-          // The Shopify approval page must replace the top-level admin frame.
-          // Same dual-attempt as fail() below: window.open(_top) alone is
-          // known to silently no-op under some browser/iframe combinations.
-          window.open(result.confirmationUrl, "_top");
           try {
-            if (window.top) window.top.location.href = result.confirmationUrl;
+            if (window.top) window.top.location.href = result.installUrl;
           } catch {
             /* window.open above already attempted the navigation */
           }
@@ -164,7 +154,7 @@ function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [embedded, loading, user, shopifyAuthChecked, choosingShopifyPlan, shopifyEmbedError, shopifyPlan, exchangeSession]);
+  }, [embedded, loading, user, shopifyAuthChecked, shopifyEmbedError, exchangeSession]);
 
   useEffect(() => {
     if (!embedded && !loading && !user && shopifyAuthChecked) navigate({ to: "/auth", replace: true });
@@ -218,31 +208,6 @@ function Dashboard() {
       cancelled = true;
     };
   }, [user, project, startGoogle]);
-
-  if (embedded && !user && choosingShopifyPlan) {
-    const choosePlan = (plan: "monthly" | "annual") => {
-      setShopifyPlan(plan);
-      setChoosingShopifyPlan(false);
-      setShopifyEmbedError(null);
-    };
-    return (
-      <div className="paper-grid flex min-h-screen items-center justify-center p-5">
-        <div className="surface w-full max-w-lg p-7 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Ranki-full-access</p>
-          <h1 className="mt-2 font-display text-2xl font-bold">Start your 3-day trial</h1>
-          <p className="mt-2 text-sm text-muted-foreground">Choose your billing cycle. Shopify will show the final approval page.</p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
-            <Button variant="outline" className="h-auto flex-col gap-1 py-5" onClick={() => choosePlan("monthly")}>
-              <span className="font-semibold">Monthly</span><span className="text-muted-foreground">$9.99 / month</span>
-            </Button>
-            <Button className="h-auto flex-col gap-1 bg-deep py-5 text-background hover:bg-deep/90" onClick={() => choosePlan("annual")}>
-              <span className="font-semibold">Annual</span><span className="text-background/75">$99 / year</span>
-            </Button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   if (embedded && !user && shopifyEmbedError) {
     return (
