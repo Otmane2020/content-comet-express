@@ -21,9 +21,11 @@ function ShopifyPlan() {
   const state = params.get("state");
   const choose = (plan: "monthly" | "annual") => {
     if (!shop || !state) return;
-    window.location.assign(
-      `/api/public/shopify/billing-choice?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(state)}&plan=${plan}`,
-    );
+    const billingUrl = `/api/public/shopify/billing-choice?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(state)}&plan=${plan}`;
+    // The plan picker is embedded, but Shopify's approval screen is a native
+    // Admin page and must be opened in the top browsing context.
+    if (window.top !== window.self) window.open(billingUrl, "_top");
+    else window.location.assign(billingUrl);
   };
 
   const plans = [

@@ -135,8 +135,10 @@ function Dashboard() {
         if (cancelled || !body.token_hash) {
           if (body.error) {
             if (body.error === "billing_required" && body.billing_url) {
-              if (window.top !== window.self) window.open(body.billing_url, "_top");
-              else window.location.assign(body.billing_url);
+              // Keep the plan picker inside the Shopify App Home iframe. Only
+              // the subsequent native Shopify confirmation may leave the
+              // frame, because Shopify blocks charge approval in an iframe.
+              window.location.assign(body.billing_url);
               return;
             }
             if (body.error === "shop_not_installed") {
