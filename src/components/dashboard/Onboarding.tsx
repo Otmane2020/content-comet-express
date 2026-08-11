@@ -746,9 +746,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       ...shopifyReport.products.slice(0, 3).map((item) => ({ ...item, kind: "Product", icon: Package })),
       ...shopifyReport.collectionTitles.slice(0, 2).map((title) => ({ title, url: null, image: null, kind: "Collection", icon: Layers3 })),
       ...shopifyReport.pages.slice(0, 2).map((item) => ({ ...item, image: null, kind: "Page", icon: FileText })),
-    ].slice(0, 7);
+    ].slice(0, 6);
     return (
-      <div className="paper-grid min-h-screen px-4 py-10">
+      <div className="paper-grid min-h-screen px-4 py-6">
         <div className="mx-auto w-full max-w-5xl">
           <div className="sticky top-0 z-40 -mx-4 flex justify-center bg-background/92 px-4 py-3 backdrop-blur-md supports-[backdrop-filter]:bg-background/80">
             <BrandLockup />
@@ -761,46 +761,46 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
               <LogOut className="mr-1.5 size-3.5" /> Sign out
             </Button>
           </div>
-          <section className="surface mt-7 overflow-hidden">
-            <div className="relative overflow-hidden bg-deep px-7 py-9 text-background sm:px-10">
+          <section className="surface mt-5 overflow-hidden">
+            <div className="relative overflow-hidden bg-deep px-6 py-6 text-background sm:px-8 sm:py-7">
               <motion.div aria-hidden className="absolute -right-10 -top-20 size-72 rounded-full bg-gold/25 blur-3xl" animate={{ scale: [1, 1.15, 1], opacity: [0.35, 0.7, 0.35] }} transition={{ duration: 6, repeat: Infinity }} />
               <div className="relative max-w-2xl">
-                <p className="font-mono text-[11px] font-bold uppercase tracking-[0.18em] text-gold">Shopify store synced</p>
-                <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">Welcome, {shopifyReport.business_name || "your store"}.</h1>
-                <p className="mt-3 text-sm leading-6 text-background/70">Your Shopify data is securely connected. Here is the content foundation Ranki will use to build your GEO autopilot.</p>
+                <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-gold">Shopify store synced</p>
+                <h1 className="mt-2 font-display text-2xl font-bold tracking-tight sm:text-3xl">Welcome, {shopifyReport.business_name || "your store"}.</h1>
+                <p className="mt-2 text-[13px] leading-5 text-background/70">Your Shopify data is securely connected. Here is the content foundation Ranki will use to build your GEO autopilot.</p>
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-background/15 bg-background/10 px-3 py-1.5 text-sm font-medium">
                   <Globe2 className="size-4 text-gold" /> {shopifyReport.business_name || "Your Shopify store"} <span className="text-background/45">· Shopify</span>
                 </div>
               </div>
             </div>
 
-            <div className="p-6 sm:p-8">
-              <div className="grid gap-3 sm:grid-cols-4">
+            <div className="p-4 sm:p-6">
+              <div className="grid gap-2 sm:grid-cols-4">
                 {[
                   { label: "Products", value: shopifyReport.productCount, icon: Package },
                   { label: "Collections", value: shopifyReport.collectionTitles.length, icon: Layers3 },
                   { label: "Store pages", value: shopifyReport.pages.length, icon: FileText },
                   { label: "Blog", value: shopifyReport.blogConnected ? "Connected" : "Not connected", icon: BookOpen },
-                ].map((stat) => <div key={stat.label} className="rounded-2xl border border-border bg-muted/30 p-4"><stat.icon className="size-4 text-primary" /><p className="mt-3 text-2xl font-bold">{stat.value}</p><p className="mt-0.5 text-xs text-muted-foreground">{stat.label}</p></div>)}
+                ].map((stat) => <div key={stat.label} className="rounded-xl border border-border bg-muted/20 p-3"><stat.icon className="size-3.5 text-primary" /><p className="mt-2 text-xl font-bold">{stat.value}</p><p className="mt-0.5 text-[11px] text-muted-foreground">{stat.label}</p></div>)}
               </div>
 
-              <div className="mt-8 flex items-end justify-between gap-4">
+              <div className="mt-6 flex items-end justify-between gap-4">
                 <div><p className="font-display text-xl font-bold">Your connected content</p><p className="mt-1 text-sm text-muted-foreground">Real Shopify products, collections and pages — ready for internal linking.</p></div>
                 <span className="hidden rounded-full bg-success-soft px-3 py-1 text-xs font-semibold text-success sm:block">Sync complete</span>
               </div>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="mt-3 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
                 {previews.map((item, index) => {
                   const Icon = item.icon;
-                  return <article key={`${item.kind}-${item.title}-${index}`} className="group overflow-hidden rounded-2xl border border-border bg-card">
-                    <div className="relative flex aspect-[16/9] items-center justify-center overflow-hidden bg-gradient-to-br from-primary/15 via-muted to-gold/15">
-                      {item.image ? <img src={item.image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <Icon className="size-7 text-primary/60" />}
-                      <span className="absolute left-2 top-2 rounded-full bg-background/85 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-foreground">{item.kind}</span>
+                  return <article key={`${item.kind}-${item.title}-${index}`} className="group overflow-hidden rounded-xl border border-border bg-card">
+                    <div className="relative flex aspect-[4/3] items-center justify-center overflow-hidden bg-gradient-to-br from-primary/15 via-muted to-gold/15">
+                      {item.image ? <img src={item.image} alt="" className="h-full w-full object-cover transition duration-500 group-hover:scale-105" /> : <Icon className="size-5 text-primary/60" />}
+                      <span className="absolute left-1.5 top-1.5 rounded-full bg-background/85 px-1.5 py-0.5 text-[8px] font-bold uppercase tracking-wide text-foreground">{item.kind}</span>
                     </div>
-                    <div className="p-3"><p className="truncate text-sm font-semibold">{item.title || "Untitled"}</p><p className="mt-1 text-xs text-muted-foreground">Available for GEO content</p></div>
+                    <div className="p-2"><p className="truncate text-[12px] font-semibold">{item.title || "Untitled"}</p></div>
                   </article>;
                 })}
               </div>
-              <div className="mt-8 flex flex-col justify-between gap-4 border-t border-border pt-6 sm:flex-row sm:items-center">
+              <div className="mt-6 flex flex-col justify-between gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
                 <p className="max-w-xl text-sm leading-6 text-muted-foreground">Next, confirm your writing profile. We then map the queries and competitors that matter for {shopifyReport.business_name || "your store"}.</p>
                 <Button type="button" size="lg" onClick={() => { setShopifyWelcome(false); setStep(1); void saveDraft(1); }} className="bg-deep text-background hover:bg-deep/90">Start your onboarding <ArrowRight className="ml-2 size-4" /></Button>
               </div>
