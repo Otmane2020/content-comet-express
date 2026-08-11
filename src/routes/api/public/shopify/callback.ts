@@ -44,16 +44,22 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
       const { data: known } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
       if (!known?.user_id) {
-        const pending = await import("@/lib/shopifyPendingInstall.server");
-        await pending.savePendingShopifyInstall({
-          shop, access_token, blog_id: "", store_info: info,
-          snapshot: { count: 0, types: [], titles: [] },
-          content: { products: [], collections: [], pages: [], policies: [] },
-          billing_plan: "monthly",
-        });
-        const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin: "", shop, ts: Date.now() }))}`;
-        const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
-        return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+        // A previous billing return can have succeeded while provisioning was
+        // interrupted. Resume that paid install instead of creating a second
+        // Shopify subscription.
+        const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
+        if (!active) {
+          const pending = await import("@/lib/shopifyPendingInstall.server");
+          await pending.savePendingShopifyInstall({
+            shop, access_token, blog_id: "", store_info: info,
+            snapshot: { count: 0, types: [], titles: [] },
+            content: { products: [], collections: [], pages: [], policies: [] },
+            billing_plan: "monthly",
+          });
+          const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin: "", shop, ts: Date.now() }))}`;
+          const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
+          return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+        }
       }
     }
     const [blogId, rawInfo, rawSnapshot, rawContent] = await Promise.all([
@@ -93,6 +99,14 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, userId: existing.user_id, flow: "install", ts: Date.now() }))}`;
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
       return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+    }
+    if (!state) {
+      const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
+      if (active) {
+        const merchant = await provision.provisionShopifyMerchant({ shop, accessToken: access_token, blogId, info, snapshot, content });
+        await provision.recordShopifySubscription(merchant.userId, merchant.email, active, "monthly");
+        return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(merchant.email, `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
+      }
     }
     // Brand-new merchant: park only the encrypted OAuth/install data, then
     // open Shopify billing immediately. The Supabase user and project are

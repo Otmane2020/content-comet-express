@@ -134,6 +134,15 @@ function Dashboard() {
         const body = await res.json() as { token_hash?: string; type?: "email"; error?: string };
         if (cancelled || !body.token_hash) {
           if (body.error) {
+            if (body.error === "shop_not_installed") {
+              const shop = launch.get("shop");
+              if (shop) {
+                const installUrl = `/api/public/shopify/install?shop=${encodeURIComponent(shop)}`;
+                if (window.top !== window.self) window.open(installUrl, "_top");
+                else window.location.assign(installUrl);
+                return;
+              }
+            }
             const message = body.error === "shop_not_installed"
               ? "This store has no completed Ranki installation yet."
               : body.error === "invalid_embedded_token" || body.error === "invalid_embedded_launch"
