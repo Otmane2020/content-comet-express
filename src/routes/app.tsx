@@ -46,6 +46,20 @@ export const Route = createFileRoute("/app")({
 
 type Tab = "calendar" | "research" | "local" | "platforms" | "help" | "settings";
 
+type ShopifyBridge = { idToken?: () => Promise<string> };
+
+async function waitForShopifyIdToken(): Promise<string> {
+  // App Bridge's script can finish loading just before it exposes its global.
+  // Polling briefly avoids rejecting a valid embedded session on that small
+  // initialization gap, which is common when App Home restores an iframe.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const bridge = (window as Window & { shopify?: ShopifyBridge }).shopify;
+    if (typeof bridge?.idToken === "function") return bridge.idToken();
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 500));
+  }
+  throw new Error("Shopify App Bridge did not expose an ID token.");
+}
+
 type Project = {
   id: string;
   name: string;
@@ -107,13 +121,9 @@ function Dashboard() {
     if (!embedded || !appBridgeReady || loading || user) return;
     let cancelled = false;
     const start = async () => {
-      const bridge = (window as Window & { shopify?: { idToken?: () => Promise<string> } }).shopify;
-      if (!bridge?.idToken) {
-        setEmbeddedSessionError("Shopify session is not available yet.");
-        return;
-      }
       try {
-        const token = await bridge.idToken();
+        setEmbeddedSessionError(null);
+        const token = await waitForShopifyIdToken();
         const res = await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
         const body = await res.json() as { token_hash?: string; type?: "magiclink"; error?: string };
         if (cancelled || !body.token_hash) {
