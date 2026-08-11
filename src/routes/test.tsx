@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
-import { useAuth } from "@/hooks/useAuth";
 import {
   probeLanding,
   probeProfile,
@@ -134,7 +133,6 @@ type StageState = {
 const IDLE: StageState = { status: "idle", checks: [] };
 
 function TestPage() {
-  const { user, loading } = useAuth();
   const [website, setWebsite] = useState("https://sweet-deco.fr/");
   const [keyword, setKeyword] = useState("grossiste meubles");
   const [rivals, setRivals] = useState("miliboo.com, atmosphera.com");
@@ -153,10 +151,19 @@ function TestPage() {
   const runSerp = useServerFn(probeSerpAi);
   const runRivals = useServerFn(probeRivals);
   const runFullDiagnostic = useServerFn(runPipelineDiagnostic);
-  const calendarPreview = Array.isArray(s6.raw)
+  // The diagnostic endpoint is the authority for authentication. The client
+  // must not hide /test because a just-restored local session briefly reads as
+  // null. It also must never reveal a calendar/article until every gate has
+  // succeeded in the same complete run.
+  const allStagesGreen = [s1, s2, s3, s4, s5, s6, s7].every(
+    (stage) => stage.status === "done" && stage.checks.length > 0 && stage.checks.every((check) => check.ok),
+  );
+  const calendarPreview = allStagesGreen && Array.isArray(s6.raw)
     ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null }[])
     : [];
-  const articlePreview = s7.raw as { title?: string; excerpt?: string; body_md?: string } | null;
+  const articlePreview = allStagesGreen
+    ? (s7.raw as { title?: string; excerpt?: string; body_md?: string } | null)
+    : null;
 
   async function runCompleteDiagnostic() {
     const running: StageState = { status: "running", checks: [] };
@@ -199,22 +206,6 @@ function TestPage() {
     } catch (e) {
       set({ status: "error", checks: [], error: e instanceof Error ? e.message : String(e) });
     }
-  }
-
-  if (loading) return <main className="p-8 text-sm text-muted-foreground">…</main>;
-  if (!user) {
-    return (
-      <main className="mx-auto max-w-2xl p-8">
-        <h1 className="text-lg font-semibold">Diagnostics</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Ces sondes lancent des appels facturés et lisent une URL arbitraire côté serveur.{" "}
-          <a href="/auth" className="underline">
-            Connectez-vous
-          </a>{" "}
-          pour y accéder.
-        </p>
-      </main>
-    );
   }
 
   return (
