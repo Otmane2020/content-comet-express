@@ -118,35 +118,12 @@ export async function claimPending(pendingToken: string, origin: string) {
   if (!row) throw new Error("This installation link has expired. Please reinstall the app from Shopify.");
 
   const shopify = await import("./shopify.server");
-  const provision = await import("./shopifyProvision.server");
-
-  const created = await provision.provisionShopifyMerchant({
-    shop: row.shop,
-    accessToken: row.access_token,
-    blogId: row.blog_id,
-    info: row.store_info,
-    snapshot: row.snapshot,
-    content: row.content,
-  });
-
-  await pendingTable().update({ is_claimed: true, claimed_by: created.userId }).eq("shop", row.shop);
-
   const existingSub = await shopify.activeAppSubscription(row.shop, row.access_token).catch(() => null);
-  await provision.recordShopifySubscription(created.userId, created.email, existingSub, row.billing_plan);
-
   if (!existingSub) {
-    // The billing return handler rejects an unsigned return (invalid_state), so
-    // it has to carry the merchant we just provisioned — they have no session
-    // yet, and `flow` tells that handler to finish with a sign-in link.
+    // The billing callback independently verifies this subscription before it
+    // creates the merchant account, project, or Shopify destination.
     const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(row.shop)}&state=${encodeURIComponent(
-      shopify.signState({
-        origin,
-        shop: row.shop,
-        userId: created.userId,
-        plan: row.billing_plan,
-        flow: "install",
-        ts: Date.now(),
-      }),
+      shopify.signState({ origin: "", shop: row.shop, plan: row.billing_plan, ts: Date.now() }),
     )}`;
     const { confirmationUrl } = await shopify.createAppSubscription(
       row.shop,
@@ -158,6 +135,17 @@ export async function claimPending(pendingToken: string, origin: string) {
     return { url: confirmationUrl };
   }
 
+  const provision = await import("./shopifyProvision.server");
+  const created = await provision.provisionShopifyMerchant({
+    shop: row.shop,
+    accessToken: row.access_token,
+    blogId: row.blog_id,
+    info: row.store_info,
+    snapshot: row.snapshot,
+    content: row.content,
+  });
+  await pendingTable().update({ is_claimed: true, claimed_by: created.userId }).eq("shop", row.shop);
+  await provision.recordShopifySubscription(created.userId, created.email, existingSub, row.billing_plan);
   const link = await provision.shopifyLoginLink(created.email, `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(row.shop)}`);
   return { url: link };
 }

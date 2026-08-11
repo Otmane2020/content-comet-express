@@ -107,34 +107,82 @@ type FirstPostResult = {
 };
 
 /**
- * Illustrative-only mockup of a buyer question, built from the detected
- * category — never sent to an AI model. Pairs with aiPreviewAnswer below to
- * show the format of a real AI-assistant answer without inventing one.
+ * Illustrative-only mockup of a buyer question — never sent to an AI model.
+ * Pairs with aiPreviewAnswer below to show the shape of a real AI-assistant
+ * answer without inventing one.
+ *
+ * The category comes from the merchant's own words. `business_profile` is built
+ * by the AI from their site, so it is already in their language; the English
+ * `industry` label is only the last resort. Translating that label instead
+ * meant one hardcoded French string for furniture and raw English for every
+ * other trade ("Quel est le meilleur fashion & apparel ?").
  */
-function previewCategory(industry: string, locale: string) {
-  const raw = (industry || "this").toLowerCase();
-  if (locale === "fr" && /home\s*&\s*furniture|furniture|home decor/.test(raw)) return "meubles et décoration";
-  return raw;
+function previewCategory(
+  industry: string,
+  locale: string,
+  profile?: Record<string, unknown> | null,
+): string {
+  const products = Array.isArray(profile?.["products"]) ? (profile["products"] as unknown[]) : [];
+  const own = products.find((p): p is string => typeof p === "string" && p.trim().length > 2);
+  if (own) return own.trim().toLowerCase();
+  const label = industry.trim().toLowerCase();
+  if (label) return label;
+  return locale === "fr" ? "ce type de produit" : "this category";
 }
 
-function aiPreviewQuestion(industry: string, locale: string): string {
-  const category = previewCategory(industry, locale);
-  return locale === "fr" ? `Quel est le meilleur ${category} ?` : `What's the best ${category}?`;
+function aiPreviewQuestion(category: string, locale: string): string {
+  // The fixed noun head ("site") carries the agreement, so the category can be
+  // plural, feminine or a mass noun without breaking the sentence. Inlining it
+  // as `le meilleur ${category}` produced "le meilleur meubles et décoration".
+  return locale === "fr"
+    ? `Quel est le meilleur site pour acheter ${category} ?`
+    : `Which site is best to buy ${category}?`;
 }
 
 /** Uses only real, already-discovered competitor domains — never invented. */
-function aiPreviewAnswer(industry: string, competitors: string[], locale: string): string {
-  const category = previewCategory(industry || "this category", locale);
+function aiPreviewAnswer(category: string, competitors: string[], locale: string): string {
   const names = competitors.slice(0, 3).join(", ");
   return locale === "fr"
     ? `Pour ${category}, on cite souvent ${names}. Comparez leurs prix, délais de livraison et gamme de produits.`
     : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
 }
 
-function aiPreviewOutcome(name: string, locale: string) {
+const bareDomain = (value: string) =>
+  value.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
+
+/**
+ * The answer cites domains while this caption names the business, so the check
+ * has to run on the domain. Without it the caption claimed the merchant was
+ * absent from a sentence that listed them first.
+ */
+function aiPreviewOutcome(name: string, website: string, competitors: string[], locale: string) {
+  const me = bareDomain(website);
+  if (me && competitors.slice(0, 3).some((d) => bareDomain(d) === me)) {
+    return locale === "fr"
+      ? `${name} est déjà cité dans cette réponse. Vos 30 prochains jours de contenu servent à y rester et à gagner des places.`
+      : `${name} is already cited in that answer. Your next 30 days of content are about holding that spot and climbing.`;
+  }
   return locale === "fr"
     ? `${name} n’apparaît pas encore dans cette réponse. C’est précisément ce que vos 30 prochains jours de contenu vont changer.`
     : `${name} isn't in that answer yet. That's exactly what your next 30 days of content change.`;
+}
+
+/**
+ * Labels for this block only. The rest of the dashboard is hardcoded English
+ * and there is no i18n layer in the app — but this block renders a French
+ * conversation, so leaving its chrome in English looked broken.
+ */
+function previewCopy(locale: string) {
+  const fr = locale === "fr";
+  return {
+    kicker: fr ? "Aperçu des recherches acheteurs" : "Buyer-search preview",
+    badge: fr ? "Illustratif" : "Illustrative",
+    headline: fr ? "Ce que vos acheteurs voient aujourd’hui" : "This is what buyers see today",
+    disclaimer: fr
+      ? "Exemple illustratif, construit à partir de votre propre scan de marché — ce n’est pas une requête IA en direct."
+      : "Illustrative example, built from your own market scan — not a live AI query.",
+    placeholder: fr ? "Poser une question à ChatGPT…" : "Ask ChatGPT anything…",
+  };
 }
 
 export function Onboarding({ userId, onDone }: { userId: string | null; onDone: () => void }) {
@@ -583,7 +631,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const active = STEPS[step]!;
 
   if (shopifyWelcome && shopifyReport) {
-    const displayDomain = (shopifyReport.website_url || shopifyReport.shop).replace(/^https?:\/\//, "").replace(/\/$/, "");
     const previews = [
       ...shopifyReport.products.slice(0, 3).map((item) => ({ ...item, kind: "Product", icon: Package })),
       ...shopifyReport.collectionTitles.slice(0, 2).map((title) => ({ title, url: null, image: null, kind: "Collection", icon: Layers3 })),
@@ -594,6 +641,11 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         <div className="mx-auto w-full max-w-5xl">
           <div className="relative flex justify-center">
             <BrandLockup />
+            <nav className="absolute left-0 top-1/2 hidden -translate-y-1/2 items-center gap-5 text-[11px] font-semibold text-muted-foreground lg:flex" aria-label="Shopify setup progress">
+              <span className="flex items-center gap-1.5 text-primary"><Check className="size-3.5" /> Store synced</span>
+              <span className="flex items-center gap-1.5 text-primary"><Check className="size-3.5" /> Shopify payment</span>
+              <span className="flex items-center gap-1.5"><span className="flex size-4 items-center justify-center rounded-full bg-deep text-[9px] text-background">3</span> Onboarding</span>
+            </nav>
             <Button type="button" variant="ghost" size="sm" onClick={async () => { await supabase.auth.signOut(); window.location.assign("/"); }} className="absolute right-0 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground hover:text-foreground">
               <LogOut className="mr-1.5 size-3.5" /> Sign out
             </Button>
@@ -606,7 +658,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                 <h1 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">Welcome, {shopifyReport.business_name || "your store"}.</h1>
                 <p className="mt-3 text-sm leading-6 text-background/70">Your Shopify data is securely connected. Here is the content foundation Ranki will use to build your GEO autopilot.</p>
                 <div className="mt-5 inline-flex items-center gap-2 rounded-full border border-background/15 bg-background/10 px-3 py-1.5 text-sm font-medium">
-                  <Globe2 className="size-4 text-gold" /> {displayDomain}
+                  <Globe2 className="size-4 text-gold" /> {shopifyReport.business_name || "Your Shopify store"} <span className="text-background/45">· Shopify</span>
                 </div>
               </div>
             </div>
@@ -1179,30 +1231,30 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                         <div className="relative flex items-center justify-between gap-3">
                           <div className="flex items-center gap-2.5">
                             <span className="flex size-8 items-center justify-center rounded-full bg-white text-[#10a37f] shadow-sm"><Bot className="size-4" /></span>
-                            <div><p className="text-[13px] font-semibold text-white">ChatGPT</p><p className="text-[10px] text-background/55">Buyer-search preview</p></div>
+                            <div><p className="text-[13px] font-semibold text-white">ChatGPT</p><p className="text-[10px] text-background/55">{previewCopy(form.locale).kicker}</p></div>
                           </div>
-                          <span className="rounded-full border border-gold/30 bg-gold/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gold">Illustrative</span>
+                          <span className="rounded-full border border-gold/30 bg-gold/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gold">{previewCopy(form.locale).badge}</span>
                         </div>
                         <p className="relative mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
-                          This is what buyers see today
+                          {previewCopy(form.locale).headline}
                         </p>
                         <p className="relative mt-1 text-[12px] text-background/60">
-                          Illustrative example, built from your own market scan — not a live AI query.
+                          {previewCopy(form.locale).disclaimer}
                         </p>
                         <div className="relative mt-4 space-y-2.5">
                           <div className="ml-auto max-w-[85%] rounded-2xl rounded-tr-sm bg-background/10 px-3.5 py-2.5 text-[12.5px]">
-                            {aiPreviewQuestion(form.industry, form.locale)}
+                            {aiPreviewQuestion(previewCategory(form.industry, form.locale, market.business_profile), form.locale)}
                           </div>
                           <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-background/95 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-deep">
-                            {aiPreviewAnswer(form.industry, market.competitors, form.locale)}
+                            {aiPreviewAnswer(previewCategory(form.industry, form.locale, market.business_profile), market.competitors, form.locale)}
                           </div>
                         </div>
                         <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-background/15 bg-background/5 px-3 py-2 text-[11.5px] text-background/45">
-                          <Bot className="size-3.5 text-[#74d7bb]" /> Ask ChatGPT anything…
+                          <Bot className="size-3.5 text-[#74d7bb]" /> {previewCopy(form.locale).placeholder}
                           <span className="ml-auto flex size-5 items-center justify-center rounded-md bg-background/10 text-background/60">↑</span>
                         </div>
                         <p className="relative mt-4 text-[12px] leading-relaxed text-background/70">
-                          <strong className="font-semibold text-gold">{aiPreviewOutcome(form.name || (form.locale === "fr" ? "Votre entreprise" : "Your business"), form.locale)}</strong>
+                          <strong className="font-semibold text-gold">{aiPreviewOutcome(form.name || (form.locale === "fr" ? "Votre entreprise" : "Your business"), form.website_url, market.competitors, form.locale)}</strong>
                         </p>
                       </motion.div>
                     )}
