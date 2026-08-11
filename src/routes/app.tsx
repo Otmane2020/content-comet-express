@@ -138,7 +138,13 @@ function Dashboard() {
           return fail();
         }
         const token = await shopify.idToken();
-        const { hashedToken } = await exchangeSession({ data: { token } });
+        const result = await exchangeSession({ data: { token, origin: window.location.origin } });
+        if ("confirmationUrl" in result) {
+          // The Shopify approval page must replace the top-level admin frame.
+          window.open(result.confirmationUrl, "_top");
+          return;
+        }
+        const { hashedToken } = result;
         // hashed_token (from admin.generateLink) verifies via token_hash, not
         // the email+token pair used for user-typed OTP codes.
         const { error } = await supabase.auth.verifyOtp({
