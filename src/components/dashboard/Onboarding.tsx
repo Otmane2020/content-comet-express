@@ -145,20 +145,20 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     v.split(sep as never).map((x: string) => x.trim()).filter(Boolean);
 
   /** Mirror the wizard into the database so it survives Checkout and reloads. */
-  async function saveDraft(atStep: number) {
+  async function saveDraft(atStep: number, values = form, description = detected) {
     try {
       await persistDraft({
         data: {
-          website_url: form.website_url,
-          business_name: form.name,
-          industry: form.industry,
-          target_market: form.audience,
-          tone: form.tone,
-          language: form.locale,
-          keywords: asList(form.keywords),
-          competitors: asList(form.competitors, /[\n,]/),
+          website_url: values.website_url,
+          business_name: values.name,
+          industry: values.industry,
+          target_market: values.audience,
+          tone: values.tone,
+          language: values.locale,
+          keywords: asList(values.keywords),
+          competitors: asList(values.competitors, /[\n,]/),
           current_step: atStep,
-          ...(detected ? { business_description: detected } : {}),
+          ...(description ? { business_description: description } : {}),
         },
       });
     } catch {
@@ -315,19 +315,21 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
     setScanning(true);
     try {
       const d = await detectBiz({ data: { website: form.website_url } });
-      setForm((f) => ({
-        ...f,
-        name: f.name || (d.name ?? ""),
-        industry: d.industry ?? f.industry,
-        audience: d.audience ?? f.audience,
+      const nextForm = {
+        ...form,
+        name: form.name || (d.name ?? ""),
+        industry: d.industry ?? form.industry,
+        audience: d.audience ?? form.audience,
         tone: d.tone,
         locale: d.locale,
-        keywords: f.keywords || d.keywords.join(", "),
-      }));
+        keywords: form.keywords || d.keywords.join(", "),
+      };
+      setForm(nextForm);
       setDetected(d.summary);
       toast.success("Website analysed — your profile is ready.");
-      void saveDraft(1);
-      setStep(1);
+      // Show the prefilled values after the animation. The merchant advances
+      // to the live SEO scan only by pressing Continue.
+      void saveDraft(0, nextForm, d.summary);
       return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not read that website");
