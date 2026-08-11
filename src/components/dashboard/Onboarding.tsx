@@ -215,6 +215,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const [scanningMarket, setScanningMarket] = useState(false);
   const [lastAnalysedWebsite, setLastAnalysedWebsite] = useState("");
   const [detected, setDetected] = useState<string | null>(null);
+  /** Canonical profile from step 1 (sales model, products, audience). It used to
+   * be returned by detectBusiness and thrown away, so the market scan rebuilt it
+   * from scratch without knowing who the business sells to. */
+  const [bizProfile, setBizProfile] = useState<Record<string, unknown> | null>(null);
   const [market, setMarket] = useState<{
     source: "dataforseo" | "ai";
     competitors: string[];
@@ -467,6 +471,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         keywords: profileKeywords.slice(0, 15).join(", "),
       };
       setForm(nextForm);
+      setBizProfile((d.business_profile ?? null) as Record<string, unknown> | null);
       setDetected(d.summary);
       toast.success("Website analysed — your profile is ready.");
       // The website analysis completes step 1. Move directly to the editable
@@ -493,6 +498,15 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         website: form.website_url,
         name: form.name || undefined,
         industry: form.industry || undefined,
+        // Step 1 already worked out who actually buys from this business — for
+        // Sweet Deco, "professional furniture resellers". Dropping it here made
+        // the scan re-derive the sales model blind from the page and read a
+        // wholesaler as a shop, which is what returned consumer keywords
+        // ("canapés d'angle convertibles") instead of "fournisseur canapé".
+        // The merchant can also correct this field in step 2, so it is the more
+        // trustworthy signal of the two.
+        audience: form.audience || undefined,
+        profile: bizProfile ?? undefined,
         locale: form.locale,
         seeds: form.keywords
           .split(",")
@@ -906,6 +920,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           </motion.div>
                         ))}
                       </div>
+                      <div className="mt-5" aria-label="Analysis in progress">
+                        <div className="h-1.5 overflow-hidden rounded-full bg-primary/10">
+                          <motion.div className="h-full rounded-full bg-gradient-to-r from-primary via-gold to-primary" animate={{ x: ["-55%", "105%"] }} transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }} style={{ width: "58%" }} />
+                        </div>
+                        <p className="mt-2 text-center text-[11px] font-medium text-muted-foreground">This usually takes a few seconds. Please wait.</p>
+                      </div>
                     </div>
                   </motion.div>
                 )}
@@ -1063,16 +1083,16 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
                 {step === 1 && (
                   <div className="mt-6 space-y-5">
-                    <div className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background">
-                      <div aria-hidden className="pointer-events-none absolute -right-10 -top-12 size-44 rounded-full bg-gold/25 blur-3xl" />
+                    <div className="relative overflow-hidden rounded-2xl border border-primary/15 bg-gradient-to-r from-[#f6f7ff] via-background to-[#fff9ec] p-6 text-foreground shadow-[0_18px_45px_-35px_rgba(35,35,105,0.45)]">
+                      <div aria-hidden className="pointer-events-none absolute -right-10 -top-12 size-44 rounded-full bg-gold/20 blur-3xl" />
                       <div className="relative flex items-center gap-3">
-                        <span className="flex size-10 items-center justify-center rounded-[11px] bg-gold/20 text-gold">
+                        <span className="flex size-10 items-center justify-center rounded-[11px] bg-primary/10 text-primary">
                           <Sparkles className="size-4" />
                         </span>
                         <div>
-                          <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Writing brief</p>
+                          <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-primary">Writing brief</p>
                           <p className="mt-1 font-display text-lg font-semibold">Your AI writing brief</p>
-                          <p className="mt-1 text-[12.5px] text-background/65">Fine-tune what Ranki learned before the live SEO scan.</p>
+                          <p className="mt-1 text-[12.5px] text-muted-foreground">Fine-tune what Ranki learned before the live SEO scan.</p>
                         </div>
                       </div>
                     </div>
@@ -1131,7 +1151,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                 {step === 2 && (
                   <div className="mt-6 space-y-5">
                     {scanningMarket && (
-                      <div className="relative overflow-hidden rounded-3xl bg-deep px-6 py-7 text-background shadow-xl shadow-deep/15 sm:px-8">
+                      <div className="relative overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-[#f5f7ff] via-background to-[#fff9ec] px-6 py-7 text-foreground shadow-[0_20px_55px_-35px_rgba(35,35,105,0.42)] sm:px-8">
                         <motion.div
                           aria-hidden
                           className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-gold/30 to-transparent blur-xl"
@@ -1145,17 +1165,23 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           <div>
                             <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Live DataForSEO</p>
                             <p className="mt-1 font-display text-xl font-bold tracking-tight">Mapping your real search market…</p>
-                            <p className="mt-1 text-sm leading-6 text-background/65">Please keep this page open while we prepare the inputs for your 30-day content plan.</p>
+                            <p className="mt-1 text-sm leading-6 text-muted-foreground">Please keep this page open while we prepare the inputs for your 30-day content plan.</p>
                             <div className="mt-4 grid gap-2 sm:grid-cols-3">
                               {["Searching competitors", "Finding buyer keywords", "Improving your visibility inputs"].map((label, index) => (
-                                <motion.div key={label} className="flex items-center gap-2 rounded-xl border border-background/10 bg-background/[0.07] px-3 py-2 text-[11.5px] font-medium text-background/85" animate={{ opacity: [0.45, 1, 0.45], y: [2, 0, 2] }} transition={{ duration: 2.8, delay: index * 0.55, repeat: Infinity, ease: "easeInOut" }}>
+                                <motion.div key={label} className="flex items-center gap-2 rounded-xl border border-primary/10 bg-background/80 px-3 py-2 text-[11.5px] font-medium text-foreground/80 shadow-sm" animate={{ opacity: [0.45, 1, 0.45], y: [2, 0, 2] }} transition={{ duration: 2.8, delay: index * 0.55, repeat: Infinity, ease: "easeInOut" }}>
                                   <Loader2 className="size-3.5 shrink-0 animate-spin text-gold" /> {label}
                                 </motion.div>
                               ))}
                             </div>
                             <p className="mt-0.5 text-[13px] font-semibold">Mapping your real search market…</p>
                           </div>
-                          <Loader2 className="ml-auto size-4 animate-spin text-background/60" />
+                          <Loader2 className="ml-auto size-4 animate-spin text-primary/60" />
+                        </div>
+                        <div className="relative mt-6">
+                          <div className="h-1.5 overflow-hidden rounded-full bg-primary/10">
+                            <motion.div className="h-full rounded-full bg-gradient-to-r from-primary via-gold to-primary" animate={{ x: ["-55%", "105%"] }} transition={{ duration: 1.8, repeat: Infinity, ease: "linear" }} style={{ width: "58%" }} />
+                          </div>
+                          <p className="mt-2 text-[11px] font-medium text-muted-foreground">DataForSEO is checking live results. Please wait.</p>
                         </div>
                       </div>
                     )}
