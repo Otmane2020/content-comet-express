@@ -547,8 +547,20 @@ export async function discoverCompetitorsFromSerp(
     throw new Error("No plausible competitor domains found in real Google SERP results.");
   }
 
-  const compScores = await scoreCompetitorDomains(biz, shortlist);
-  const kept = shortlist
+  // SERP presence alone is not enough for a wholesale/manufacturer profile:
+  // furniture retailers can rank for the same generic categories while selling
+  // to an entirely different buyer. Verify the candidate's own landing page
+  // with the same deterministic B2B extractor used for the merchant.
+  const b2bMerchant = ["wholesale", "manufacturer"].includes((biz.sales_model ?? "").toLowerCase());
+  const landingProfiles = b2bMerchant ? await analyseCompetitorLandings(shortlist, 20) : [];
+  const b2bDomains = new Set(landingProfiles.filter((p) => p.sellsToBusinesses).map((p) => p.domain.toLowerCase()));
+  const buyerMatched = b2bMerchant ? shortlist.filter((domain) => b2bDomains.has(domain.toLowerCase())) : shortlist;
+  if (!buyerMatched.length) {
+    throw new Error("Google found category sites, but none showed evidence of selling to the same professional buyers.");
+  }
+
+  const compScores = await scoreCompetitorDomains(biz, buyerMatched);
+  const kept = buyerMatched
     .filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE)
     .map((d) => {
       const info = byDomain.get(d)!;

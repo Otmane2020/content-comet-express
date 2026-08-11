@@ -105,7 +105,10 @@ STRICT INTENT RULES — score 0 regardless of volume when any of these apply:
   products.`;
 
 async function scoreBatch(profile: BusinessProfile, list: string[]): Promise<Record<string, number>> {
-  const fallback = () => Object.fromEntries(list.map((domain) => [domain, MIN_COMPETITOR_RELEVANCE]));
+  // Never accept an unverified domain by default. A fail-open score made a
+  // temporary model/API failure look like a valid competitor list, especially
+  // harmful for B2B wholesalers sharing broad consumer product keywords.
+  const fallback = () => Object.fromEntries(list.map((domain) => [domain, 0]));
   const raw = await callOpenRouter({
     json: true,
     maxTokens: 1400,
