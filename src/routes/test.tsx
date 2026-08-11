@@ -8,6 +8,7 @@ import {
   probeCandidates,
   probeSerpAi,
   probeRivals,
+  runPipelineDiagnostic,
 } from "@/lib/diagnostics.functions";
 
 /**
@@ -147,6 +148,35 @@ function TestPage() {
   const runCandidates = useServerFn(probeCandidates);
   const runSerp = useServerFn(probeSerpAi);
   const runRivals = useServerFn(probeRivals);
+  const runFullDiagnostic = useServerFn(runPipelineDiagnostic);
+
+  async function runCompleteDiagnostic() {
+    const running: StageState = { status: "running", checks: [] };
+    setS1(running); setS2(running); setS3(running); setS4(running); setS5(running);
+    try {
+      const result = await runFullDiagnostic({ data: { website } });
+      const byId = new Map(result.stages.map((stage) => [stage.id, stage]));
+      const stateFor = (id: "landing" | "profile" | "keywords" | "serp" | "rivals"): StageState => {
+        const stage = byId.get(id);
+        if (!stage) return { status: "error", checks: [], error: "Blocked by an earlier pipeline stage." };
+        return {
+          status: stage.ok ? "done" : "error",
+          checks: [{ label: stage.summary, ok: stage.ok, detail: stage.error ?? undefined }],
+          error: stage.error ?? undefined,
+          ms: stage.ms,
+          raw: stage.data,
+        };
+      };
+      setS1(stateFor("landing"));
+      setS2(stateFor("profile"));
+      setS3(stateFor("keywords"));
+      setS4(stateFor("serp"));
+      setS5(stateFor("rivals"));
+    } catch (error) {
+      const failed = { status: "error" as const, checks: [], error: error instanceof Error ? error.message : String(error) };
+      setS1(failed); setS2(failed); setS3(failed); setS4(failed); setS5(failed);
+    }
+  }
 
   async function run(
     set: (s: StageState) => void,
@@ -196,7 +226,7 @@ function TestPage() {
             className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
-        <label className="sm:col-span-2">
+        <label className="hidden sm:col-span-2">
           <span className="text-[11px] font-medium text-muted-foreground">Mot-clé (étape 4)</span>
           <input
             value={keyword}
@@ -204,7 +234,7 @@ function TestPage() {
             className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
-        <label>
+        <label className="hidden">
           <span className="text-[11px] font-medium text-muted-foreground">Concurrents (étape 5)</span>
           <input
             value={rivals}
@@ -212,6 +242,14 @@ function TestPage() {
             className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
+        <button
+          onClick={() => void runCompleteDiagnostic()}
+          disabled={s1.status === "running"}
+          className="sm:col-span-3 rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {s1.status === "running" ? "Running full pipeline..." : "Run full pipeline"}
+        </button>
+        <p className="sm:col-span-3 text-[11px] text-muted-foreground">One URL only. Every diagnostic stage runs in sequence and keeps its own error report.</p>
       </div>
 
       <Stage

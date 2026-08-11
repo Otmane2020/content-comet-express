@@ -12,6 +12,97 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const siteInput = z.object({ website: z.string().min(3).max(300) });
 
+export type PipelineDiagnosticStage = {
+  id: "landing" | "profile" | "keywords" | "serp" | "rivals";
+  ok: boolean;
+  ms: number;
+  summary: string;
+  error: string | null;
+  data: unknown;
+};
+
+/**
+ * One URL, one complete run. Each dependency is recorded independently so a
+ * failure such as a blocked page, malformed AI response or DataForSEO outage
+ * remains observable instead of collapsing into "0 competitors".
+ */
+export const runPipelineDiagnostic = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => siteInput.parse(input))
+  .handler(async ({ data }): Promise<{ stages: PipelineDiagnosticStage[] }> => {
+    const stages: PipelineDiagnosticStage[] = [];
+    const take = async <T,>(
+      id: PipelineDiagnosticStage["id"],
+      work: () => Promise<T>,
+      summary: (value: T) => string,
+    ): Promise<T | null> => {
+      const started = Date.now();
+      try {
+        const value = await work();
+        stages.push({ id, ok: true, ms: Date.now() - started, summary: summary(value), error: null, data: value });
+        return value;
+      } catch (error) {
+        stages.push({
+          id,
+          ok: false,
+          ms: Date.now() - started,
+          summary: "Failed",
+          error: error instanceof Error ? error.message : String(error),
+          data: null,
+        });
+        return null;
+      }
+    };
+
+    const { scrapeSite } = await import("./scrape.server");
+    const site = await take("landing", () => scrapeSite(data.website), (value) => {
+      const landing = value.landing;
+      return `${landing?.title ? "SEO title found" : "SEO title missing"}; ${landing?.bodyExcerpt.length ?? 0} characters of page copy`;
+    });
+    if (!site) return { stages };
+
+    const { buildCanonicalProfile, candidateKeywords, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
+    const profile = await take("profile", () => buildCanonicalProfile(site, { website_url: data.website }), (value) =>
+      `${value.sales_model ?? "unknown sales model"}; ${value.products?.length ?? 0} confirmed product categories`,
+    );
+    if (!profile?.reliable) {
+      if (profile) stages[stages.length - 1]!.ok = false;
+      return { stages };
+    }
+
+    const { searchVolumeFor } = await import("./dataforseo.server");
+    const { localeOpts, discoverCompetitorsFromSerp, analyseCompetitorLandings, requireLiveDataForSeo } = await import("./research.server");
+    const keywordStage = await take("keywords", async () => {
+      await requireLiveDataForSeo();
+      const proposed = await candidateKeywords(profile, site.landing ?? null, 120);
+      if (!proposed.length) throw new Error("The AI returned no buyer-query candidates from this landing page.");
+      const measured = await searchVolumeFor(proposed, localeOpts(site.landing?.lang ?? null));
+      if (!measured.length) throw new Error("DataForSEO returned no measured search volume for the AI candidates.");
+      const scores = await scoreRelevance(profile, measured.map((row) => row.keyword));
+      const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE);
+      if (!qualified.length) throw new Error("Every measurable keyword failed the business-audience relevance gate.");
+      return { proposed, measured, qualified };
+    }, (value) => `${value.proposed.length} proposed; ${value.measured.length} measured; ${value.qualified.length} qualified`);
+    if (!keywordStage) return { stages };
+
+    const competitors = await take("serp", () =>
+      discoverCompetitorsFromSerp(
+        profile,
+        site.landing?.lang ?? null,
+        null,
+        null,
+        8,
+        keywordStage.qualified.slice(0, 8).map((row) => row.keyword),
+      ),
+    (value) => `${value.length} buyer-matched competitors from Google, DataForSEO and SerpApi`);
+    if (!competitors?.length) return { stages };
+
+    await take("rivals", () => analyseCompetitorLandings(competitors.map((row) => row.domain), 5), (value) =>
+      `${value.length} rival landing pages read for article-generation context`,
+    );
+    return { stages };
+  });
+
 /** Stage 1 — landing page. No API cost: one HTTP GET. */
 export const probeLanding = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
