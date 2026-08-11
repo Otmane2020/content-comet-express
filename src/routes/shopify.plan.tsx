@@ -15,7 +15,9 @@ const benefits = [
 ];
 
 function ShopifyPlan() {
-  const params = new URLSearchParams(window.location.search);
+  // This route is server-rendered before it is loaded in Shopify's iframe.
+  // Reading `window` during SSR turned the plan picker into a 500 response.
+  const params = new URLSearchParams(typeof window === "undefined" ? "" : window.location.search);
   const shop = params.get("shop");
   const state = params.get("state");
   // Shopify App Home can retain its iframe scroll position after OAuth. Reset
