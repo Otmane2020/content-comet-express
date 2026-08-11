@@ -215,6 +215,16 @@ export async function shopifyLoginLink(email: string, redirectTo: string) {
   return data.properties.action_link;
 }
 
+/** Creates a one-time OTP hash for an authenticated Shopify App Bridge launch.
+ * The browser verifies it locally, so its Supabase session lives in the iframe
+ * partition and no cross-site redirect or cookie is required. */
+export async function shopifyEmbeddedSession(email: string) {
+  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+  const { data, error } = await supabaseAdmin.auth.admin.generateLink({ type: "magiclink", email });
+  if (error || !data.properties?.hashed_token) throw new Error(error?.message ?? "Could not create embedded session.");
+  return { token_hash: data.properties.hashed_token, type: data.properties.verification_type ?? "magiclink" };
+}
+
 /** Mirror the Shopify-managed subscription into our own billing table. */
 export async function recordShopifySubscription(
   userId: string,

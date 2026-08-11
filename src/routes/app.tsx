@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { SHOPIFY_CLIENT_ID } from "@/lib/shopify.constants";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -37,6 +38,7 @@ export const Route = createFileRoute("/app")({
       { property: "og:title", content: "Dashboard — Ranki.ai" },
       { property: "og:description", content: "Your rolling 30-day AI content calendar." },
       { name: "robots", content: "noindex" },
+      { name: "shopify-api-key", content: SHOPIFY_CLIENT_ID },
     ],
   }),
   component: Dashboard,
@@ -83,15 +85,46 @@ function Dashboard() {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).has("host");
   });
+  const [appBridgeReady, setAppBridgeReady] = useState(false);
 
   useEffect(() => {
-    if (!embedded || document.querySelector('script[data-ranki-app-bridge]')) return;
+    if (!embedded) return;
+    if (document.querySelector('script[data-ranki-app-bridge]')) {
+      setAppBridgeReady(true);
+      return;
+    }
     const script = document.createElement("script");
     script.src = "https://cdn.shopify.com/shopifycloud/app-bridge.js";
     script.async = true;
     script.dataset.rankiAppBridge = "true";
+    script.onload = () => setAppBridgeReady(true);
     document.head.appendChild(script);
   }, [embedded]);
+
+  useEffect(() => {
+    if (!embedded || !appBridgeReady || loading || user) return;
+    let cancelled = false;
+    const start = async () => {
+      const bridge = (window as Window & { shopify?: { idToken?: () => Promise<string> } }).shopify;
+      if (!bridge?.idToken) return;
+      try {
+        const token = await bridge.idToken();
+        const res = await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${token}` } });
+        const body = await res.json() as { token_hash?: string; type?: "magiclink"; error?: string };
+        if (cancelled || !body.token_hash) {
+          if (body.error) toast.error("Could not open the embedded Shopify session.");
+          return;
+        }
+        const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "magiclink" });
+        if (error) throw error;
+      } catch (error) {
+        console.error("[shopify embedded] session token exchange failed", error);
+        if (!cancelled) toast.error("Could not open the embedded Shopify session.");
+      }
+    };
+    void start();
+    return () => { cancelled = true; };
+  }, [embedded, appBridgeReady, loading, user]);
 
   useEffect(() => {
     if (!user) return;
@@ -109,6 +142,9 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     const shop = params.get("shop");
     if (shop) {
+      // Embedded App Home authenticates through the App Bridge token-exchange
+      // effect above. Redirecting here causes the same-site-cookie OAuth loop.
+      if (embedded) return;
       // A signed App Home launch for a shop we already know is a session
       // restoration, not a new OAuth install. Repeating OAuth here causes
       // Shopify's `same_site_cookies` failure loop inside embedded apps.
