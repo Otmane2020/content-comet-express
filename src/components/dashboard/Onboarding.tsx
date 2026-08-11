@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Loader as Loader2, Radar, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Globe2, Loader as Loader2, Radar, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -595,13 +595,28 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                       <Label htmlFor="name" className="text-[12.5px]">Business name</Label>
                       <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Maison Dupont" />
                     </div>
-                    <div className="sm:col-span-2">
-                      <Label htmlFor="url" className="text-[12.5px]">Website</Label>
-                      <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
-                        <Input id="url" value={form.website_url} onChange={set("website_url")} placeholder="https://yoursite.com" />
+                    <div className="sm:col-span-2 rounded-2xl border border-primary/15 bg-primary/[0.025] p-4 shadow-sm">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <Label htmlFor="url" className="text-[12.5px] font-semibold">Website</Label>
+                        <span className="inline-flex items-center gap-1.5 rounded-full border border-gold/30 bg-gold-soft/60 px-2.5 py-1 text-[10.5px] font-bold uppercase tracking-[0.1em] text-foreground/80">
+                          <Sparkles className="size-3 text-gold" /> Autopilot starts here
+                        </span>
                       </div>
-                      <p className="mt-1.5 text-[11.5px] text-muted-foreground">
-                        Add your URL and we’ll automatically prepare your profile, competitors and keyword opportunities.
+                      <div className="relative mt-2">
+                        <Globe2 className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-primary/70" />
+                        <Input
+                          id="url"
+                          value={form.website_url}
+                          onChange={set("website_url")}
+                          placeholder="sweet-deco.fr"
+                          className="h-11 border-primary/20 bg-background pl-9 shadow-sm focus-visible:ring-gold/50"
+                        />
+                      </div>
+                      <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
+                        <Wand2 className="size-3.5 text-gold" />
+                        {form.website_url.trim()
+                          ? "Your website will be analysed automatically in a moment."
+                          : "Enter your site and we’ll find your positioning, audience and keyword opportunities."}
                       </p>
                       {detected && (
                         <motion.p
@@ -631,9 +646,12 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <Label htmlFor="locale" className="text-[12.5px]">Language</Label>
-                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    <div className="rounded-2xl border border-border bg-secondary/25 p-3.5 sm:col-span-2">
+                      <div className="flex items-baseline justify-between gap-3">
+                        <Label htmlFor="locale" className="text-[12.5px] font-semibold">Content language</Label>
+                        <span className="text-[10.5px] text-muted-foreground">Choose how Ranki writes</span>
+                      </div>
+                      <div className="mt-2.5 flex flex-wrap gap-1.5">
                         {LANGUAGES.map((l) => (
                           <button
                             key={l.code}
@@ -642,8 +660,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                             title={l.label}
                             className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[12px] font-medium transition ${
                               form.locale === l.code
-                                ? "border-primary bg-primary/5 ring-1 ring-primary/30"
-                                : "border-border text-muted-foreground hover:border-primary/40 hover:bg-muted/50"
+                                ? "border-primary bg-background text-foreground shadow-sm ring-1 ring-primary/30"
+                                : "border-border bg-background/70 text-muted-foreground hover:border-primary/40 hover:bg-background"
                             }`}
                           >
                             <span className="text-[15px] leading-none">{l.flag}</span>
