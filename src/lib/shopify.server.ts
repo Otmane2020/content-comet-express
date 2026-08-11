@@ -447,7 +447,18 @@ export function buildShopifyOnboardingProfile(
 
 /* ------------------------------- Billing ------------------------------- */
 
-export const SHOPIFY_PLAN = { name: "Ranki.ai — Autopilot", amount: 9.99, currency: "USD", trialDays: 7 };
+export type ShopifyPlanId = "monthly" | "annual";
+
+export const SHOPIFY_PLANS: Record<ShopifyPlanId, {
+  name: string;
+  amount: number;
+  currency: "USD";
+  trialDays: number;
+  interval: "EVERY_30_DAYS" | "ANNUAL";
+}> = {
+  monthly: { name: "Ranki-full-access", amount: 9.99, currency: "USD", trialDays: 3, interval: "EVERY_30_DAYS" },
+  annual: { name: "Ranki-full-access", amount: 99, currency: "USD", trialDays: 3, interval: "ANNUAL" },
+};
 
 async function graphql<T>(shop: string, token: string, query: string, variables: unknown) {
   const res = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
@@ -462,7 +473,7 @@ async function graphql<T>(shop: string, token: string, query: string, variables:
 }
 
 /** Merchants pay through Shopify, not Stripe: recurring app subscription. */
-export async function createAppSubscription(shop: string, token: string, returnUrl: string) {
+export async function createAppSubscription(\n  shop: string,\n  token: string,\n  returnUrl: string,\n  planId: ShopifyPlanId = "monthly",\n) {\n  const plan = SHOPIFY_PLANS[planId];
   const query = `
     mutation Create($name: String!, $returnUrl: URL!, $trialDays: Int!, $amount: Decimal!, $currency: CurrencyCode!, $test: Boolean!) {
       appSubscriptionCreate(
@@ -470,7 +481,7 @@ export async function createAppSubscription(shop: string, token: string, returnU
         returnUrl: $returnUrl
         trialDays: $trialDays
         test: $test
-        lineItems: [{ plan: { appRecurringPricingDetails: { price: { amount: $amount, currencyCode: $currency }, interval: EVERY_30_DAYS } } }]
+        lineItems: [{ plan: { appRecurringPricingDetails: { price: { amount: $amount, currencyCode: $currency }, interval: $interval } } }]
       ) {
         confirmationUrl
         appSubscription { id status }
