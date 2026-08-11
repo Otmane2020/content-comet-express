@@ -45,7 +45,20 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
     }
     if (!merchant) {
       if (!pending) throw new Error("Could not resolve the merchant account for this shop.");
-      const created = await provision.provisionShopifyMerchant({ shop, accessToken: pending.access_token, blogId: pending.blog_id, info: pending.store_info, snapshot: pending.snapshot, content: pending.content });
+      const [blogId, info, snapshot, content] = await Promise.all([
+        mod.resolveBlogId(shop, pending.access_token),
+        mod.fetchShopInfo(shop, pending.access_token),
+        mod.fetchProductSnapshot(shop, pending.access_token),
+        mod.fetchStoreContent(shop, pending.access_token),
+      ]);
+      const created = await provision.provisionShopifyMerchant({
+        shop,
+        accessToken: pending.access_token,
+        blogId,
+        info: mod.cleanShopifyValue(info),
+        snapshot: mod.cleanShopifyValue(snapshot),
+        content: mod.cleanShopifyValue(content),
+      });
       merchant = { userId: created.userId, email: created.email };
     }
 

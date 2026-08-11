@@ -31,6 +31,26 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     if (!mod.verifyRequestHmac(url)) return fail("bad_signature");
     const { access_token } = await step("exchangeCode", mod.exchangeCode(shop, code));
     console.info("[shopify callback] OAuth token exchanged", { shop });
+    // A first App Store install should reach Shopify billing immediately. Only
+    // fetch the small shop record needed to mark a development store as test;
+    // the product/catalog import runs after Shopify confirms the subscription.
+    if (!state) {
+      const info = mod.cleanShopifyValue(await step("fetchShopInfo", mod.fetchShopInfo(shop, access_token)));
+      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
+      const { data: known } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
+      if (!known?.user_id) {
+        const pending = await import("@/lib/shopifyPendingInstall.server");
+        await pending.savePendingShopifyInstall({
+          shop, access_token, blog_id: "", store_info: info,
+          snapshot: { count: 0, types: [], titles: [] },
+          content: { products: [], collections: [], pages: [], policies: [] },
+          billing_plan: "monthly",
+        });
+        const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin: "", shop, ts: Date.now() }))}`;
+        const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
+        return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+      }
+    }
     const [blogId, rawInfo, rawSnapshot, rawContent] = await Promise.all([
       step("resolveBlogId", mod.resolveBlogId(shop, access_token)),
       step("fetchShopInfo", mod.fetchShopInfo(shop, access_token)),
