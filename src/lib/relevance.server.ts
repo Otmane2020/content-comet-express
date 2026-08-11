@@ -74,6 +74,18 @@ STRICT INTENT RULES — score 0 regardless of volume when any of these apply:
   "tapissier" for a wholesaler, "décapage" for a retailer). Services and crafts are not product purchases.
 - The keyword implies an INCOMPATIBLE SALES MODEL (e.g. "repair", "rental", "sur mesure", "devis" for a
   wholesaler; "grossiste" for a local service provider).
+- The keyword targets the WRONG BUYER: the product/service category matches, but the person behind that
+  search is not who this business sells to, per its stated sales_model and audience. This applies to any
+  business type, not just retail vs wholesale — examples:
+  · wholesaler/manufacturer selling only to professionals/resellers → score down a single-unit,
+    personal/home-use consumer search ("tables de chevet" for a furniture wholesaler).
+  · consumer retailer → score down a bulk/professional B2B search ("grossiste tables" for a home-decor shop).
+  · B2B service or logistics company serving businesses → score down a personal/individual-use search
+    ("suivre mon colis" for a freight-logistics company, "assurance auto particulier" for a fleet insurer).
+  · factory/manufacturer that only supplies distributors/brands → score down a direct-to-consumer purchase
+    search for the finished product ("acheter [produit] en ligne" for a contract manufacturer).
+  The underlying test is always the same: would THIS business's actual customer type be the one typing this
+  search? If not, score low regardless of category match.
 - The keyword is a LOCAL SERVICE query with a city/region NOT in the business's confirmed locations
   (e.g. "menuisier lyon" for a national online seller).
 - The keyword mentions a COMPETING BRAND by name (e.g. "schmidt meuble sur mesure") unless the business
@@ -272,6 +284,13 @@ export async function scoreCompetitorDomains(
 For each domain, score 0-100 how much it is a REAL competitor: it sells a similar product to the same buyers,
 or its content targets the same buyers. Score 0-20 for news sites, forums, directories, review aggregators,
 generic blogs and companies from another market, even if they rank for similar words.
+The buyer match matters as much as the product/service match, for any business type: a site targeting a
+different customer type than this business's own sales_model/audience is NOT a real competitor even if it
+ranks for the same searches — score it 0-20. This isn't only about wholesale vs retail: a B2B logistics
+company isn't competing with a consumer parcel-tracking app, a contract manufacturer isn't competing with
+a direct-to-consumer brand it might supply, a fleet-insurance broker isn't competing with a personal-auto
+insurance comparator. Judge it the same way every time: does this domain sell to the SAME buyer as this
+business, not just the same category?
 
 Domains:
 ${list.map((d) => `- ${d}`).join("\n")}
