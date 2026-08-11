@@ -17,8 +17,10 @@ export function billingError(scope: BillingLogScope, message: string, extra?: un
 }
 
 export function stripeKey() {
-  const key = process.env["STRIPE_LIVE_API_KEY"];
-  if (!key) throw new Error("Stripe is not configured (STRIPE_LIVE_API_KEY missing).");
+  // Keep the existing deployment configuration working while accepting the
+  // standard Stripe secret name used by Vercel/Supabase integrations.
+  const key = process.env["STRIPE_LIVE_API_KEY"] || process.env["STRIPE_SECRET_KEY"];
+  if (!key) throw new Error("Stripe is not configured (STRIPE_LIVE_API_KEY or STRIPE_SECRET_KEY missing).");
   return key;
 }
 

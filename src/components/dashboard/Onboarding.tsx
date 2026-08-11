@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Globe2, Loader as Loader2, Radar, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Globe2, Loader as Loader2, LogOut, Radar, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -360,6 +360,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     }
     setLastAnalysedWebsite(form.website_url.trim());
     setScanning(true);
+    // The live market scan builds its own canonical profile, so it can run
+    // alongside the step-1 website analysis instead of making the merchant wait.
+    if (!market && !scanningMarket) void autodetectMarket();
     try {
       const d = await detectBiz({ data: { website: form.website_url } });
       const nextForm = {
@@ -526,8 +529,21 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   return (
     <div className="paper-grid min-h-screen px-4 py-10">
       <div className="mx-auto w-full max-w-5xl">
-        <div className="flex justify-center">
+        <div className="relative flex justify-center">
           <BrandLockup />
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              localStorage.removeItem(DRAFT_KEY);
+              await supabase.auth.signOut();
+              window.location.assign("/");
+            }}
+            className="absolute right-0 top-1/2 -translate-y-1/2 text-[12px] text-muted-foreground hover:text-foreground"
+          >
+            <LogOut className="mr-1.5 size-3.5" /> Sign out
+          </Button>
         </div>
 
         <div className="surface mt-6 grid overflow-hidden lg:grid-cols-[330px_1fr]">
@@ -911,9 +927,23 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                     )}
 
                     {scanningMarket && (
-                      <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
-                        <Loader2 className="size-3.5 animate-spin text-primary" />
-                        Live scan running with DataForSEO…
+                      <div className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background">
+                        <motion.div
+                          aria-hidden
+                          className="absolute inset-y-0 w-1/2 bg-gradient-to-r from-transparent via-gold/30 to-transparent blur-xl"
+                          animate={{ x: ["-120%", "260%"] }}
+                          transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                        />
+                        <div className="relative flex items-center gap-3">
+                          <span className="flex size-9 items-center justify-center rounded-xl bg-background/10 text-gold">
+                            <Radar className="size-4 animate-pulse" />
+                          </span>
+                          <div>
+                            <p className="font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">Live DataForSEO</p>
+                            <p className="mt-0.5 text-[13px] font-semibold">Mapping your real search market…</p>
+                          </div>
+                          <Loader2 className="ml-auto size-4 animate-spin text-background/60" />
+                        </div>
                       </div>
                     )}
 
