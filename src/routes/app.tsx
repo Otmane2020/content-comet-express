@@ -128,7 +128,11 @@ function Dashboard() {
           return fail();
         }
         const token = await shopify.idToken();
-        const result = await exchangeSession({ data: { token, origin: window.location.origin, plan: shopifyPlan ?? undefined } });
+        const result = await exchangeSession({ data: { token, origin: window.location.origin } });
+        if ("installUrl" in result && typeof result.installUrl === "string") {
+          window.open(result.installUrl, "_top");
+          return;
+        }
         if ("requiresPlanChoice" in result) {
           setChoosingShopifyPlan(true);
           return;

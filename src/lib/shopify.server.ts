@@ -18,8 +18,8 @@ export function normalizeShop(input: string | null | undefined) {
 }
 
 export type ShopifyState = {
-  userId: string;
-  projectId: string;
+  userId?: string;
+  projectId?: string;
   origin: string;
   ts: number;
   shop?: string;
