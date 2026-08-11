@@ -19,6 +19,17 @@ function validateAccessToken(token: unknown) {
   return token;
 }
 
+/** Any Shopify-returned string later used as a redirect Location header must
+ * be printable ASCII too — a corrupted character (seen with U+FFFD replacement
+ * characters in store data) otherwise throws an opaque Fetch "ByteString"
+ * TypeError deep in the platform instead of a message that says what broke. */
+export function assertHeaderSafe(value: unknown, label: string): string {
+  if (typeof value !== "string" || !value || /[^\x20-\x7E]/.test(value)) {
+    throw new Error(`Shopify returned a malformed ${label}. Reinstall the app and retry.`);
+  }
+  return value;
+}
+
 /** mystore.myshopify.com — anything else is rejected. */
 export function normalizeShop(input: string | null | undefined) {
   if (!input) return null;
@@ -474,7 +485,7 @@ export async function createAppSubscription(
   const result = data.appSubscriptionCreate;
   if (result.userErrors?.length) throw new Error(result.userErrors[0]!.message);
   if (!result.confirmationUrl) throw new Error("Shopify did not return a billing confirmation URL.");
-  return { confirmationUrl: result.confirmationUrl, id: result.appSubscription?.id ?? null };
+  return { confirmationUrl: assertHeaderSafe(result.confirmationUrl, "billing confirmation URL"), id: result.appSubscription?.id ?? null };
 }
 
 /** ACTIVE (or trialing) app subscription currently installed on the shop, if any. */
