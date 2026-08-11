@@ -127,7 +127,7 @@ export async function provisionShopifyMerchant(args: {
   const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
   const handle = args.shop.replace(".myshopify.com", "");
   const info = cleanShopifyValue(args.info) as ShopInfo;
-  const content = cleanShopifyValue(content) as ShopifyStoreContent | undefined;
+  const content = cleanShopifyValue(args.content) as ShopifyStoreContent | undefined;
 
   // Re-install of a store we already know: keep the existing account.
   const { data: known } = await supabaseAdmin
@@ -192,7 +192,7 @@ export async function provisionShopifyMerchant(args: {
     project_id: projectId,
     platform: "shopify",
     label: info.name || handle,
-    config: buildShopifyConfig(args.shop, args.accessToken, args.blogId, args.info, args.snapshot, content),
+    config: buildShopifyConfig(args.shop, args.accessToken, args.blogId, info, args.snapshot, content),
     status: "connected",
     last_error: null,
     auto_publish: true,
