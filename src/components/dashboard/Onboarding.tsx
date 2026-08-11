@@ -699,45 +699,57 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
 
                 {step === 1 && (
                   <div className="mt-6 space-y-5">
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      {MARKET_STAGES.map((s, i) => {
-                        const done = Boolean(market) || (scanningMarket && i < marketStage);
-                        const current = scanningMarket && i === marketStage && !market;
-                        return (
-                          <motion.div
-                            key={s.label}
-                            initial={{ opacity: 0, y: 12 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: 0.06 * i }}
-                            className={`rounded-xl border p-3.5 transition ${
-                              current
-                                ? "border-primary/40 bg-primary/5"
-                                : done
-                                  ? "border-primary/20 bg-primary/5"
-                                  : "border-border bg-secondary/40"
-                            }`}
-                          >
-                            <span
-                              className={`flex size-7 items-center justify-center rounded-lg ${
-                                done ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
+                    {scanningMarket && (
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        {MARKET_STAGES.map((s, i) => {
+                          const done = i < marketStage;
+                          const current = i === marketStage;
+                          return (
+                            <motion.div
+                              key={s.label}
+                              initial={{ opacity: 0, y: 12 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: 0.06 * i }}
+                              className={`rounded-xl border p-3.5 transition ${
+                                current
+                                  ? "border-primary/40 bg-primary/5"
+                                  : done
+                                    ? "border-primary/20 bg-primary/5"
+                                    : "border-border bg-secondary/40"
                               }`}
                             >
-                              {done ? (
-                                <Check className="size-3.5" />
-                              ) : (
-                                <s.icon className={`size-3.5 ${current ? "animate-pulse" : ""}`} />
-                              )}
-                            </span>
-                            <p className="mt-2 text-[12.5px] font-semibold leading-snug">{s.label}</p>
-                          </motion.div>
-                        );
-                      })}
-                    </div>
+                              <span
+                                className={`flex size-7 items-center justify-center rounded-lg ${
+                                  done ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground"
+                                }`}
+                              >
+                                {done ? (
+                                  <Check className="size-3.5" />
+                                ) : (
+                                  <s.icon className={`size-3.5 ${current ? "animate-pulse" : ""}`} />
+                                )}
+                              </span>
+                              <p className="mt-2 text-[12.5px] font-semibold leading-snug">{s.label}</p>
+                            </motion.div>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {scanningMarket && (
                       <div className="flex items-center gap-2 text-[12px] text-muted-foreground">
                         <Loader2 className="size-3.5 animate-spin text-primary" />
                         Live scan running with DataForSEO…
+                      </div>
+                    )}
+
+                    {!scanningMarket && market && (
+                      <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3.5 py-2.5 text-[12.5px] font-medium text-foreground">
+                        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+                          <Check className="size-3.5" />
+                        </span>
+                        Scan complete — {market.competitors.length} competitors,{" "}
+                        {market.keywords.length} keywords found.
                       </div>
                     )}
 
@@ -950,7 +962,8 @@ export function Onboarding({ userId, onDone }: { userId: string; onDone: () => v
                   disabled={!canNext || scanning}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
-                  {step === 0 ? "Continue without analysis" : "Continue"} <ArrowRight className="ml-1.5 size-4" />
+                  {step === 0 ? (detected ? "Continue" : "Continue without analysis") : "Continue"}{" "}
+                  <ArrowRight className="ml-1.5 size-4" />
                 </Button>
               ) : subActive === false ? (
                 <Button
