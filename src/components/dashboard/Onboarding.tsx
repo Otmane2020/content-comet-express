@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, BookOpen, Building2, CalendarDays, Check, FileText, Globe2, Layers3, Loader as Loader2, LogOut, Package, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, BookOpen, Bot, Building2, CalendarDays, Check, FileText, Globe2, Layers3, Loader as Loader2, LogOut, Package, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -1114,7 +1114,14 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           animate={{ scale: [1, 1.15, 1] }}
                           transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
                         />
-                        <p className="relative text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
+                        <div className="relative flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5">
+                            <span className="flex size-8 items-center justify-center rounded-full bg-white text-[#10a37f] shadow-sm"><Bot className="size-4" /></span>
+                            <div><p className="text-[13px] font-semibold text-white">ChatGPT</p><p className="text-[10px] text-background/55">Buyer-search preview</p></div>
+                          </div>
+                          <span className="rounded-full border border-gold/30 bg-gold/10 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.12em] text-gold">Illustrative</span>
+                        </div>
+                        <p className="relative mt-4 text-[11px] font-bold uppercase tracking-[0.16em] text-gold">
                           This is what buyers see today
                         </p>
                         <p className="relative mt-1 text-[12px] text-background/60">
@@ -1127,6 +1134,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-background/95 px-3.5 py-2.5 text-[12.5px] leading-relaxed text-deep">
                             {aiPreviewAnswer(form.industry, market.competitors, form.locale)}
                           </div>
+                        </div>
+                        <div className="relative mt-4 flex items-center gap-2 rounded-xl border border-background/15 bg-background/5 px-3 py-2 text-[11.5px] text-background/45">
+                          <Bot className="size-3.5 text-[#74d7bb]" /> Ask ChatGPT anything…
+                          <span className="ml-auto flex size-5 items-center justify-center rounded-md bg-background/10 text-background/60">↑</span>
                         </div>
                         <p className="relative mt-4 text-[12px] leading-relaxed text-background/70">
                           <strong className="font-semibold text-gold">
