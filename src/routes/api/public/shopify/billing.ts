@@ -44,6 +44,7 @@ export const Route = createFileRoute("/api/public/shopify/billing")({
           );
           return new Response(null, { status: 302, headers: { location: link } });
         } catch (e) {
+          console.error("[shopify billing] return failed", e);
           return back(origin, {
             shopify: "error",
             message: (e instanceof Error ? e.message : "failed").slice(0, 160),
