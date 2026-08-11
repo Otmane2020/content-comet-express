@@ -82,8 +82,11 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       content,
       billing_plan: "monthly",
     });
+    // Shopify caps `returnUrl` at 255 characters. Keep the shop in signed
+    // state (so the return cannot be retargeted), but omit redundant origin,
+    // plan and flow values: /billing already has safe defaults for those.
     const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(
-      mod.signState({ origin, shop, plan: "monthly", flow: "install", ts: Date.now() }),
+      mod.signState({ origin: "", shop, ts: Date.now() }),
     )}`;
     const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly", info.isTestStore);
     return new Response(null, { status: 302, headers: { location: confirmationUrl } });

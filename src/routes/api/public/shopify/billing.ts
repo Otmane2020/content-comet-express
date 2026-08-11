@@ -14,7 +14,7 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
     shop = mod.normalizeShop(url.searchParams.get("shop"));
     const state = mod.verifyState(url.searchParams.get("state"));
     flow = mod.stateFlow(state);
-    if (!shop || !state) return fail("invalid_state");
+    if (!shop || !state || (state.shop && state.shop !== shop)) return fail("invalid_state");
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     const provision = await import("@/lib/shopifyProvision.server");
