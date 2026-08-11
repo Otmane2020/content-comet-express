@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Globe2, Loader as Loader2, LogOut, Radar, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Building2, CalendarDays, Check, Globe2, Loader as Loader2, LogOut, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -138,6 +138,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     competitors: string[];
     keywords: { keyword: string; volume: number | null; difficulty: number | null }[];
     business_profile?: Record<string, unknown> | null;
+    error?: string;
   } | null>(null);
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -399,19 +400,26 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     }
     setScanningMarket(true);
     try {
-      const r = await detectMkt({
+      const scanInput = {
+        website: form.website_url,
+        name: form.name || undefined,
+        industry: form.industry || undefined,
+        locale: form.locale,
+        seeds: form.keywords
+          .split(",")
+          .map((k) => k.trim())
+          .filter(Boolean)
+          .slice(0, 10),
+      };
+      let r = await detectMkt({
         data: {
-          website: form.website_url,
-          name: form.name || undefined,
-          industry: form.industry || undefined,
-          locale: form.locale,
-          seeds: form.keywords
-            .split(",")
-            .map((k) => k.trim())
-            .filter(Boolean)
-            .slice(0, 10),
+          ...scanInput,
         },
       });
+      if (!r.competitors.length && !r.keywords.length && !r.error) {
+        toast.message("No usable SEO data on the first pass. Retrying live data once…");
+        r = await detectMkt({ data: { ...scanInput, retry: true } });
+      }
       setMarket(r);
       // Live DataForSEO keywords take priority over the AI-detected ones,
       // which are only kept as a tail so a wrong industry guess can't drive
@@ -428,7 +436,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           keywords: merged.join(", "),
         };
       });
-      toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
+      if (r.error) toast.error(r.error);
+      else toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
       return r;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Market scan failed");
@@ -892,7 +901,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
                 {step === 2 && (
                   <div className="mt-6 space-y-5">
-                    {false && scanningMarket && (
+                    {scanningMarket && (
                       <div className="relative overflow-hidden rounded-2xl bg-deep px-5 py-4 text-background">
                         <motion.div
                           aria-hidden
@@ -913,13 +922,25 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       </div>
                     )}
 
-                    {!scanningMarket && market && (
+                    {!scanningMarket && market && !market.error && (
                       <div className="surface flex items-center gap-3 px-4 py-3 text-[12.5px] font-medium text-foreground">
                         <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                           <Check className="size-3.5" />
                         </span>
                         Scan complete — {market.competitors.length} competitors,{" "}
                         {market.keywords.length} keywords found.
+                      </div>
+                    )}
+
+                    {!scanningMarket && market?.error && (
+                      <div className="surface flex flex-wrap items-center gap-3 border-gold/30 bg-gold-soft/40 px-4 py-3 text-[12.5px] text-foreground">
+                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-gold/20 text-gold-foreground">
+                          <Radar className="size-3.5" />
+                        </span>
+                        <p className="min-w-0 flex-1 leading-relaxed">{market.error}</p>
+                        <Button type="button" size="sm" variant="outline" onClick={() => void autodetectMarket()}>
+                          <RefreshCw className="mr-1.5 size-3.5" /> Retry scan
+                        </Button>
                       </div>
                     )}
 

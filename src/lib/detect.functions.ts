@@ -77,6 +77,7 @@ export const detectMarket = createServerFn({ method: "POST" })
         industry: z.string().max(160).optional(),
         locale: z.string().max(8).optional(),
         seeds: z.array(z.string().min(1).max(120)).max(20).optional(),
+        retry: z.boolean().optional(),
       })
       .parse(input),
   )
@@ -173,7 +174,7 @@ export const detectMarket = createServerFn({ method: "POST" })
       .sort((a, b) => compositeScore(b.k, b.rel) - compositeScore(a.k, a.rel))
       .slice(0, QUOTA.keywords);
 
-    return {
+    const result = {
       live: true,
       source: "dataforseo" as const,
       competitors: competitorRows.map((c) => c.domain),
@@ -184,4 +185,15 @@ export const detectMarket = createServerFn({ method: "POST" })
       })),
       business_profile: canonical,
     };
+    // A zero/zero result is not useful market research. The client performs
+    // one fresh live retry; only then turn it into an explicit, actionable
+    // outcome instead of pretending the scan completed successfully.
+    if (data.retry && !result.competitors.length && !result.keywords.length) {
+      return {
+        ...result,
+        error:
+          "DataForSEO returned no usable rankings for this site and market. This usually means the domain is new or not indexed in the selected country yet. Try again later or add your first competitors and keywords manually.",
+      };
+    }
+    return result;
   });
