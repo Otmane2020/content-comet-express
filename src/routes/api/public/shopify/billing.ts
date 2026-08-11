@@ -34,7 +34,7 @@ export const Route = createFileRoute("/api/public/shopify/billing")({
           const sub = await mod.activeAppSubscription(shop, token);
           const { data: user } = await supabaseAdmin.auth.admin.getUserById(state.userId);
           const email = user.user?.email ?? `${shop}@shopify-merchant.ranki.ai`;
-          await provision.recordShopifySubscription(state.userId, email, sub);
+          await provision.recordShopifySubscription(state.userId, email, sub, state.plan ?? "monthly");
 
           if (!sub) return back(origin, { shopify: "error", message: "billing_declined" });
 
