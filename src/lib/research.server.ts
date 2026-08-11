@@ -21,7 +21,7 @@ export type KwRow = {
 };
 
 /** Why a keyword is in the list: the site itself, a seed expansion, or a rival. */
-export type KwOrigin = "site" | "seed" | "competitor";
+export type KwOrigin = "site" | "seed" | "competitor" | "local";
 
 export function hasDataForSeo() {
   return Boolean(process.env["DATAFORSEO_LOGIN"] && process.env["DATAFORSEO_PASSWORD"]);
@@ -176,7 +176,46 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
     );
   }
   const saved = await saveKeywords(supabase, userId, projectId, market.keywords, biz);
-  return { found: saved, skipped: false, live: true, competitors: market.competitors.length };
+  // Local research is a branch of this same run: its query candidates are
+  // added to the shared opportunity pool, while Google Maps businesses live in
+  // their own table because many have no organic website to store as a rival.
+  let localCompetitors = 0;
+  if (project.target_country) {
+    const { researchLocalMarket } = await import("./local-market.server");
+    const local = await researchLocalMarket({
+      business: biz,
+      locale: project.locale ?? null,
+      targetCountry: project.target_country,
+      buyerKeywords: market.keywords.map((row) => row.keyword),
+      limit: QUOTA.competitors,
+    });
+    localCompetitors = local.competitors.length;
+    if (local.competitors.length) {
+      const { error } = await supabase.from("local_competitors").upsert(
+        local.competitors.map((competitor) => ({
+          user_id: userId,
+          project_id: projectId,
+          identity: competitor.identity,
+          name: competitor.name,
+          domain: competitor.domain,
+          place_id: competitor.placeId,
+          country: competitor.country,
+          city: competitor.city,
+          category: competitor.category,
+          rating: competitor.rating,
+          review_count: competitor.reviewCount,
+          queries_found_for: competitor.queriesFoundFor,
+          local_pack_positions: competitor.localPackPositions,
+          recurrence_score: competitor.recurrenceScore,
+          last_checked_at: new Date().toISOString(),
+        })),
+        { onConflict: "project_id,identity" },
+      );
+      if (error) console.warn("[local-market] could not save Maps competitors", error.message);
+    }
+    if (local.opportunities.length) await saveKeywords(supabase, userId, projectId, local.opportunities, biz);
+  }
+  return { found: saved, skipped: false, live: true, competitors: market.competitors.length, localCompetitors };
 
   const opts = localeOpts(project.locale ?? null, project.target_country ?? null);
   let rows: KwRow[] = [];

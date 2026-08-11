@@ -271,6 +271,78 @@ export type SerpOrganicResult = {
   url: string | null;
 };
 
+/** A business returned by the real Google Maps local results. */
+export type GoogleMapsResult = {
+  keyword: string;
+  name: string;
+  domain: string | null;
+  placeId: string | null;
+  category: string | null;
+  rating: number | null;
+  reviewCount: number | null;
+  position: number;
+  city: string | null;
+};
+
+/**
+ * Google Maps is deliberately queried separately from the organic SERP: a
+ * business can dominate the Local Pack while having no meaningful SEO domain.
+ * The advanced endpoint provides the real map rank, category and review data.
+ */
+export async function googleMapsSearch(
+  keyword: string,
+  opts: LocationOpts = {},
+  depth = 10,
+): Promise<GoogleMapsResult[]> {
+  const result = await post<
+    {
+      items?: {
+        type?: string;
+        title?: string;
+        domain?: string;
+        url?: string;
+        place_id?: string;
+        cid?: string;
+        category?: string;
+        rating?: { value?: number; votes_count?: number } | number;
+        reviews_count?: number;
+        rank_group?: number;
+        rank_absolute?: number;
+        address?: string;
+      }[];
+    }[]
+  >("/serp/google/maps/live/advanced", {
+    keyword,
+    ...loc(opts),
+    depth,
+  });
+  return (result[0]?.items ?? [])
+    .filter((item) => item.type === "maps_search" && item.title)
+    .map((item) => {
+      const rating = typeof item.rating === "number" ? item.rating : item.rating?.value ?? null;
+      const reviewCount = item.reviews_count ?? (typeof item.rating === "object" ? item.rating?.votes_count ?? null : null);
+      let domain = item.domain ?? null;
+      if (!domain && item.url) {
+        try {
+          domain = new URL(item.url).hostname.replace(/^www\./i, "").toLowerCase();
+        } catch {
+          domain = null;
+        }
+      }
+      return {
+        keyword,
+        name: item.title!.trim(),
+        domain,
+        placeId: item.place_id ?? item.cid ?? null,
+        category: item.category ?? null,
+        rating,
+        reviewCount,
+        position: item.rank_group ?? item.rank_absolute ?? 99,
+        city: item.address?.split(",").map((part) => part.trim()).filter(Boolean).at(-2) ?? null,
+      };
+    });
+}
+
 /**
  * Real Google organic SERP results for one query (live advanced endpoint).
  * Used for competitor discovery: who actually ranks for the buyer's queries,

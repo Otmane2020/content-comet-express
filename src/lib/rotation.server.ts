@@ -20,7 +20,7 @@ export type RotationProject = {
   keywords: string[] | null;
 };
 
-export type PickedKeyword = { id: string; keyword: string; intent?: string | null };
+export type PickedKeyword = { id: string; keyword: string; intent?: string | null; origin?: string | null };
 
 /**
  * Which search intents suit each content format. Used to pair a keyword with a
@@ -112,13 +112,16 @@ export async function ensureWindow(
   // (a transactional term on a Shopping day, a question on an AEO day). Falls
   // back to plain order when the intent is unknown, which is the case for every
   // keyword captured during onboarding.
-  const pool: { keyword: string; intent: string }[] = picked.length
-    ? picked.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase() }))
-    : brief.keywords.map((keyword) => ({ keyword, intent: "" }));
+  const pool: { keyword: string; intent: string; origin: string }[] = picked.length
+    ? picked.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase(), origin: k.origin ?? "" }))
+    : brief.keywords.map((keyword) => ({ keyword, intent: "", origin: "" }));
   const claimed = new Set<number>();
   const takeFor = (type: ContentType) => {
     const fits = INTENT_FIT[type] ?? [];
-    let index = pool.findIndex((k, i) => !claimed.has(i) && k.intent && fits.includes(k.intent));
+    let index = type === "local_aeo"
+      ? pool.findIndex((k, i) => !claimed.has(i) && k.origin === "local")
+      : -1;
+    if (index < 0) index = pool.findIndex((k, i) => !claimed.has(i) && k.intent && fits.includes(k.intent));
     if (index < 0) index = pool.findIndex((_, i) => !claimed.has(i));
     if (index < 0) return null;
     claimed.add(index);
