@@ -795,7 +795,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                   <div className="mt-6 grid gap-4 sm:grid-cols-2">
                     <div className="sm:col-span-2">
                       <Label htmlFor="name" className="text-[12.5px]">Business name</Label>
-                      <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Maison Dupont" />
+                      <Input id="name" required value={form.name} onChange={set("name")} className="mt-1.5" placeholder="Acme Studio" />
                     </div>
                     {!userId && (
                       <div className="sm:col-span-2 grid gap-3 rounded-2xl border border-border bg-secondary/25 p-4 sm:grid-cols-2">
