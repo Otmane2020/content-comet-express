@@ -151,6 +151,10 @@ function TestPage() {
   const runSerp = useServerFn(probeSerpAi);
   const runRivals = useServerFn(probeRivals);
   const runFullDiagnostic = useServerFn(runPipelineDiagnostic);
+  const calendarPreview = Array.isArray(s6.raw)
+    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null }[])
+    : [];
+  const articlePreview = s7.raw as { title?: string; excerpt?: string; body_md?: string } | null;
 
   async function runCompleteDiagnostic() {
     const running: StageState = { status: "running", checks: [] };
@@ -453,6 +457,35 @@ function TestPage() {
         state={s7}
         onRun={() => void runCompleteDiagnostic()}
       />
+
+      {calendarPreview.length > 0 && (
+        <section className="rounded-lg border border-border bg-card p-4">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Test output</p>
+          <h2 className="mt-1 text-base font-semibold">30-day content calendar</h2>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {calendarPreview.map((item, index) => (
+              <div key={`${item.date}-${index}`} className="rounded-md border border-border/70 bg-background p-2.5">
+                <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
+                  <span>{item.date}</span><span>{item.type?.toUpperCase()}</span>
+                </div>
+                <p className="mt-1 text-sm font-medium leading-snug">{item.topic}</p>
+                {item.keyword && <p className="mt-1 text-[11px] text-muted-foreground">Target: {item.keyword}</p>}
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {articlePreview?.body_md && (
+        <section className="rounded-lg border border-border bg-card p-4">
+          <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Test output</p>
+          <h2 className="mt-1 text-xl font-semibold">{articlePreview.title}</h2>
+          {articlePreview.excerpt && <p className="mt-2 text-sm text-muted-foreground">{articlePreview.excerpt}</p>}
+          <pre className="mt-4 max-h-[720px] overflow-auto whitespace-pre-wrap rounded-md bg-muted/60 p-4 font-sans text-sm leading-7 text-foreground">
+            {articlePreview.body_md}
+          </pre>
+        </section>
+      )}
     </main>
   );
 }
