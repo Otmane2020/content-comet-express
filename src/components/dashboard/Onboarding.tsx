@@ -374,9 +374,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       setForm(nextForm);
       setDetected(d.summary);
       toast.success("Website analysed — your profile is ready.");
-      // Show the prefilled values after the animation. The merchant advances
-      // to the live SEO scan only by pressing Continue.
-      void saveDraft(0, nextForm, d.summary);
+      // The website analysis completes step 1. Move directly to the editable
+      // content profile, then let the merchant confirm before the SEO scan.
+      void saveDraft(1, nextForm, d.summary);
+      setStep(1);
       return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not read that website");
