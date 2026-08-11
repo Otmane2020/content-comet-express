@@ -473,9 +473,15 @@ async function graphql<T>(shop: string, token: string, query: string, variables:
 }
 
 /** Merchants pay through Shopify, not Stripe: recurring app subscription. */
-export async function createAppSubscription(\n  shop: string,\n  token: string,\n  returnUrl: string,\n  planId: ShopifyPlanId = "monthly",\n) {\n  const plan = SHOPIFY_PLANS[planId];
+export async function createAppSubscription(
+  shop: string,
+  token: string,
+  returnUrl: string,
+  planId: ShopifyPlanId = "monthly",
+) {
+  const plan = SHOPIFY_PLANS[planId];
   const query = `
-    mutation Create($name: String!, $returnUrl: URL!, $trialDays: Int!, $amount: Decimal!, $currency: CurrencyCode!, $test: Boolean!) {
+    mutation Create($name: String!, $returnUrl: URL!, $trialDays: Int!, $amount: Decimal!, $currency: CurrencyCode!, $interval: AppPricingInterval!, $test: Boolean!) {
       appSubscriptionCreate(
         name: $name
         returnUrl: $returnUrl
@@ -495,11 +501,12 @@ export async function createAppSubscription(\n  shop: string,\n  token: string,\
       userErrors: { message: string }[];
     };
   }>(shop, token, query, {
-    name: SHOPIFY_PLAN.name,
+    name: plan.name,
     returnUrl,
-    trialDays: SHOPIFY_PLAN.trialDays,
-    amount: SHOPIFY_PLAN.amount,
-    currency: SHOPIFY_PLAN.currency,
+    trialDays: plan.trialDays,
+    amount: plan.amount,
+    currency: plan.currency,
+    interval: plan.interval,
     test: process.env["SHOPIFY_BILLING_TEST"] === "1",
   });
   const result = data.appSubscriptionCreate;
