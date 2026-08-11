@@ -10,6 +10,15 @@ export function shopifySecret() {
   return secret;
 }
 
+/** Shopify access tokens are ASCII. Failing here gives a useful, safe error
+ * instead of the opaque Fetch "ByteString" exception when the header is made. */
+function validateAccessToken(token: unknown) {
+  if (typeof token !== "string" || token.length < 10 || /[^\x20-\x7E]/.test(token)) {
+    throw new Error("Shopify returned an invalid access token. Reinstall the app and retry.");
+  }
+  return token;
+}
+
 /** mystore.myshopify.com — anything else is rejected. */
 export function normalizeShop(input: string | null | undefined) {
   if (!input) return null;
@@ -115,7 +124,8 @@ export async function exchangeCode(shop: string, code: string) {
     body: JSON.stringify({ client_id: SHOPIFY_CLIENT_ID, client_secret: shopifySecret(), code }),
   });
   if (!res.ok) throw new Error(`Shopify token exchange failed (${res.status})`);
-  return (await res.json()) as { access_token: string; scope?: string };
+  const payload = (await res.json()) as { access_token?: unknown; scope?: string };
+  return { access_token: validateAccessToken(payload.access_token), scope: payload.scope };
 }
 
 /**
@@ -137,12 +147,13 @@ export async function exchangeSessionToken(shop: string, subjectToken: string) {
     }),
   });
   if (!res.ok) throw new Error(`Shopify token exchange failed (${res.status})`);
-  return (await res.json()) as { access_token: string; scope?: string };
+  const payload = (await res.json()) as { access_token?: unknown; scope?: string };
+  return { access_token: validateAccessToken(payload.access_token), scope: payload.scope };
 }
 
 /** The blog we publish into — first one found, created on the fly if none exists. */
 export async function resolveBlogId(shop: string, token: string) {
-  const headers = { "X-Shopify-Access-Token": token, "content-type": "application/json" };
+  const headers = adminHeaders(token);
   const res = await fetch(`https://${shop}/admin/api/2024-10/blogs.json?limit=1`, { headers });
   if (res.ok) {
     const data = (await res.json()) as { blogs?: { id: number; title: string }[] };
@@ -161,7 +172,7 @@ export async function resolveBlogId(shop: string, token: string) {
 }
 
 const adminHeaders = (token: string) => ({
-  "X-Shopify-Access-Token": token,
+  "X-Shopify-Access-Token": validateAccessToken(token),
   "content-type": "application/json",
 });
 

@@ -8,7 +8,9 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     if (!shop || !code) return back(origin, { shopify: "error", message: "missing_params" });
     if (!mod.verifyRequestHmac(url)) return back(origin, { shopify: "error", message: "bad_signature" });
     const { access_token } = await mod.exchangeCode(shop, code);
+    console.info("[shopify callback] OAuth token exchanged", { shop });
     const [blogId, info, snapshot, content] = await Promise.all([mod.resolveBlogId(shop, access_token), mod.fetchShopInfo(shop, access_token), mod.fetchProductSnapshot(shop, access_token), mod.fetchStoreContent(shop, access_token)]);
+    console.info("[shopify callback] Shopify store data imported", { shop });
     const provision = await import("@/lib/shopifyProvision.server"); const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     if (state?.userId && state.projectId) {
       const { data: user } = await supabaseAdmin.auth.admin.getUserById(state.userId); const email = user.user?.email ?? info.email ?? `${shop}@shopify-merchant.ranki.ai`;
@@ -21,7 +23,19 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, state.plan ?? "monthly"); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
     const { data: existing } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
-    if (existing?.user_id) { const { data: user } = await supabaseAdmin.auth.admin.getUserById(existing.user_id); const email = user.user?.email; if (!email) throw new Error("Could not resolve the existing merchant account."); return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(email, `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } }); }
+    if (existing?.user_id) {
+      const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
+      if (active) {
+        const { data: user } = await supabaseAdmin.auth.admin.getUserById(existing.user_id); const email = user.user?.email;
+        if (!email) throw new Error("Could not resolve the existing merchant account.");
+        return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(email, `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
+      }
+      const pending = await import("@/lib/shopifyPendingInstall.server");
+      await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
+      const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, ts: Date.now() }))}`;
+      const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly");
+      return new Response(null, { status: 302, headers: { location: confirmationUrl } });
+    }
     const pending = await import("@/lib/shopifyPendingInstall.server"); await pending.savePendingShopifyInstall({ shop, access_token, blog_id: blogId, store_info: info, snapshot, content, billing_plan: "monthly" });
     const returnUrl = `${origin}/api/public/shopify/billing?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(mod.signState({ origin, shop, ts: Date.now() }))}`;
     const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, "monthly"); return new Response(null, { status: 302, headers: { location: confirmationUrl } });

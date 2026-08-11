@@ -23,9 +23,15 @@ export const exchangeShopifySession = createServerFn({ method: "POST" })
     const claims = mod.verifyShopifySessionToken(data.token);
     if (!claims) throw new Error("Invalid Shopify session token");
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-    const { data: integration } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", claims.shop).limit(1).maybeSingle();
+    const { data: integration } = await supabaseAdmin.from("integrations").select("user_id, config").eq("platform", "shopify").eq("config->>shop", claims.shop).limit(1).maybeSingle();
     if (!integration?.user_id) {
       console.info("[shopify-embed] starting top-level OAuth and Shopify billing", { shop: claims.shop });
+      return { installUrl: `/api/public/shopify/install?shop=${encodeURIComponent(claims.shop)}` };
+    }
+    const storedToken = (integration.config as { access_token?: string } | null)?.access_token;
+    const active = storedToken ? await mod.activeAppSubscription(claims.shop, storedToken).catch(() => null) : null;
+    if (!active) {
+      console.info("[shopify-embed] existing merchant needs Shopify billing", { shop: claims.shop });
       return { installUrl: `/api/public/shopify/install?shop=${encodeURIComponent(claims.shop)}` };
     }
     const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
