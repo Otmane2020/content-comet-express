@@ -99,7 +99,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       }
       if (data.batch === "keywords") {
         if (!context.site || !context.profile) missingBatchInput(data.batch);
-        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
+        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
         const { searchVolumeFor } = await import("./dataforseo.server");
         const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
         await requireLiveDataForSeo();
@@ -109,8 +109,13 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const measured = await searchVolumeFor(proposed, localeOpts(writingLocale));
         if (!measured.length) throw new Error("DataForSEO returned no measured search volume for the AI candidates.");
         const scores = await scoreRelevance(context.profile, measured.map((row) => row.keyword));
-        const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE);
+        const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row));
         if (!qualified.length) throw new Error("Every measurable keyword failed the business-audience relevance gate.");
+        if (qualified.length < MIN_QUALIFIED_KEYWORDS) {
+          throw new Error(
+            `Only ${qualified.length} keyword(s) had real, measurable demand (not null) and passed the relevance gate — need at least ${MIN_QUALIFIED_KEYWORDS} to plan a non-repetitive 30-day calendar.`,
+          );
+        }
         const result = { proposed, measured, qualified };
         return finish(`${proposed.length} proposed; ${measured.length} measured; ${qualified.length} qualified`, result, { ...context, writingLocale, qualified });
       }
@@ -240,7 +245,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
     });
     if (!site) return { stages };
 
-    const { buildCanonicalProfile, candidateKeywords, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
+    const { buildCanonicalProfile, candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
     const profile = await take("profile", () => buildCanonicalProfile(site, { website_url: data.website }), (value) =>
       `${value.sales_model ?? "unknown sales model"}; ${value.products?.length ?? 0} confirmed product categories`,
     );
@@ -264,8 +269,13 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
         );
       }
       const scores = await scoreRelevance(profile, measured.map((row) => row.keyword));
-      const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE);
+      const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row));
       if (!qualified.length) throw new Error("Every measurable keyword failed the business-audience relevance gate.");
+      if (qualified.length < MIN_QUALIFIED_KEYWORDS) {
+        throw new Error(
+          `Only ${qualified.length} keyword(s) had real, measurable demand (not null) and passed the relevance gate — need at least ${MIN_QUALIFIED_KEYWORDS} to plan a non-repetitive 30-day calendar.`,
+        );
+      }
       return { proposed, measured, qualified };
     }, (value) => `${value.proposed.length} proposed; ${value.measured.length} measured; ${value.qualified.length} qualified`);
     if (!keywordStage) return { stages };

@@ -750,7 +750,7 @@ export async function runLiveMarketResearch(
 }> {
   const { scrapeSite } = await import("./scrape.server");
   const { searchVolumeFor } = await import("./dataforseo.server");
-  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
+  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
 
   const opts = localeOpts(input.locale, input.targetCountry ?? null);
   const keywordLimit = input.keywordLimit ?? 30;
@@ -768,7 +768,7 @@ export async function runLiveMarketResearch(
   const relevance = await scoreRelevance(biz, measured.map((row) => row.keyword));
   const keywords = measured
     .map((row) => ({ ...row, origin: "seed" as const, relevance_score: relevance[row.keyword.toLowerCase()] ?? 0 }))
-    .filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE)
+    .filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row))
     .sort((a, b) =>
       compositeScore(b, b.relevance_score ?? 0) - compositeScore(a, a.relevance_score ?? 0) ||
       (b.search_volume ?? 0) - (a.search_volume ?? 0),
@@ -776,6 +776,14 @@ export async function runLiveMarketResearch(
     .slice(0, keywordLimit);
   if (!keywords.length) {
     throw new Error("The measurable queries did not match this business's buyer profile.");
+  }
+  // Fewer than this and the 30-day calendar has no choice but to repeat the
+  // same handful of topics for the rest of the month — surface it as a scan
+  // failure instead of silently shipping a thin, repetitive month.
+  if (keywords.length < MIN_QUALIFIED_KEYWORDS) {
+    throw new Error(
+      `Only ${keywords.length} keyword${keywords.length === 1 ? "" : "s"} had real, measurable demand for this business — need at least ${MIN_QUALIFIED_KEYWORDS} to plan a non-repetitive 30-day calendar. Try again once the site has more distinct buyer-facing pages/copy for the AI to draw candidates from.`,
+    );
   }
 
   const competitors = await discoverCompetitorsFromSerp(

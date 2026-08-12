@@ -223,7 +223,7 @@ export async function buildCanonicalProfile(
 Website title: ${site.title ?? ""}
 Description: ${site.description ?? ""}
 Headings: ${site.headings?.slice(0, 15).join(" | ") ?? ""}
-Page text (truncated): ${site.text?.slice(0, 3000) ?? ""}
+Page text (truncated): ${site.text?.slice(0, 6000) ?? ""}
 Hints — name: ${hints?.name ?? ""}, industry: ${hints?.industry ?? ""}, website: ${hints?.website_url ?? ""}
 ${hints?.audience ? `Known audience (already confirmed for this business, trust it over your own reading of the page): ${hints.audience}\nIf that audience is resellers, retailers, professionals or other businesses, "sales_model" MUST be "wholesale" or "manufacturer" — never "retail".` : ""}
 
@@ -437,7 +437,7 @@ export async function candidateKeywords(
           ? `Section headings: ${[...landing.h2, ...landing.h3].slice(0, 15).join(" | ")}`
           : null,
         landing.categoryLinks.length ? `Categories on the page: ${landing.categoryLinks.slice(0, 15).join(", ")}` : null,
-        landing.bodyExcerpt ? `Landing page copy (truncated):\n${landing.bodyExcerpt.slice(0, 2500)}` : null,
+        landing.bodyExcerpt ? `Landing page copy (truncated):\n${landing.bodyExcerpt.slice(0, 4000)}` : null,
       ]
         .filter(Boolean)
         .join("\n")
@@ -641,3 +641,18 @@ export const MIN_RELEVANCE = 60;
 
 /** Rival domains below this business-relevance are never mined for keywords. */
 export const MIN_COMPETITOR_RELEVANCE = 55;
+
+/**
+ * A calendar built from fewer distinct keywords than this repeats the same
+ * 2-3 topics for the rest of the 30-day window. DataForSEO returning
+ * `search_volume: null` for every candidate (no Google Ads data at all, not
+ * "zero searches") used to still count as "measured" and pass straight
+ * through the relevance gate, so a handful of unmeasurable AI guesses could
+ * silently become the entire keyword pool for a month of content.
+ */
+export const MIN_QUALIFIED_KEYWORDS = 8;
+
+/** True only for a keyword DataForSEO actually returned demand data for. `null` means no data, not zero demand — it must not be treated as validated. */
+export function hasMeasurableDemand(row: { search_volume?: number | null }): boolean {
+  return row.search_volume !== null && row.search_volume !== undefined;
+}

@@ -180,7 +180,7 @@ export function validateCalendarTopic(project: ProjectBrief, slot: { type: Conte
         : slot.type === "shopping"
           ? commercialEntity === "product"
             ? /\b(mod[eè]les?|selection|dimensions?|finitions?|catalogue|models?|selection|dimensions?|finishes|products?)\b/i.test(topic)
-            : /\b(co[uû]te?|prix|tarifs?|abonnement|fonctionnalit|inclus|prestataire|offres?|comparer|choisir|logiciel|plateforme|outil|service|cost|price|pricing|plan|feature|include|provider|offer|compare|choose|software|platform|tool|subscription)\b/i.test(topic)
+            : /\b(co[uû]te?s?|prix|tarifs?|abonnement|fonctionnalit|inclus|inclut|prestataire|offres?|comparer|choisir|logiciel|plateforme|outil|service|costs?|price|pricing|plans?|features?|includes?|included|provider|offers?|compare|choose|software|platform|tool|subscription)\b/i.test(topic)
           : true;
   return { keywordAligned, contentTypeAligned, locationValid: !hasUnknownCity && !injectedLocationOutsideLocal };
 }
