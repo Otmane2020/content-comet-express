@@ -1,6 +1,47 @@
 export const ROTATION = ["geo", "seo", "aeo", "local_aeo", "shopping"] as const;
 export type ContentType = (typeof ROTATION)[number];
 
+/** Formats every business is eligible for, regardless of model or geography. */
+export const BASE_FORMATS: ContentType[] = ["geo", "seo", "aeo"];
+
+/**
+ * The subset of a business profile the eligibility engine reads. Structural
+ * only, so both the client (marketing/dashboard) and the server (planning,
+ * diagnostics) can pass whatever project/profile shape they already have.
+ */
+export type EligibilitySignals = {
+  locations?: string[] | null;
+  has_physical_location?: boolean | null;
+  has_service_area?: boolean | null;
+};
+
+/**
+ * Local AEO ("near me", city pages) requires a genuine local signal — a
+ * confirmed location, a physical address, or a stated service area. A
+ * globally-sold SaaS or service has none of these, and forcing local content
+ * on it produces nonsense like "AI SEO for Shopify near you".
+ */
+export function isLocalEligible(signals: EligibilitySignals): boolean {
+  return Boolean(
+    (signals.locations?.length ?? 0) > 0 || signals.has_physical_location || signals.has_service_area,
+  );
+}
+
+/**
+ * Which formats this business's calendar may rotate through. GEO/SEO/AEO and
+ * the commercial ("shopping") slot are universal — every business answers
+ * buyer questions and has something commercial to say about itself, even
+ * without a product catalogue (the commercial slot renders as software or
+ * service content instead of a product comparison — see writeArticle's
+ * entity-adaptive "shopping" guidance). Local AEO is added only with a
+ * genuine local signal, never mechanically.
+ */
+export function getEligibleFormats(signals: EligibilitySignals): ContentType[] {
+  const formats: ContentType[] = [...BASE_FORMATS, "shopping"];
+  if (isLocalEligible(signals)) formats.push("local_aeo");
+  return formats;
+}
+
 export type PlatformId =
   | "wordpress"
   | "woocommerce"
@@ -108,11 +149,12 @@ export const dayKey = (d: Date) => {
   return copy.toISOString().slice(0, 10);
 };
 
-export function planWindow(start: Date, days = 30) {
+export function planWindow(start: Date, days = 30, formats: readonly ContentType[] = ROTATION) {
+  const rotation = formats.length ? formats : ROTATION;
   return Array.from({ length: days }, (_, i) => {
     const d = new Date(start);
     d.setDate(start.getDate() + i);
-    return { date: dayKey(d), type: ROTATION[i % ROTATION.length] as ContentType, offset: i };
+    return { date: dayKey(d), type: rotation[i % rotation.length] as ContentType, offset: i };
   });
 }
 
