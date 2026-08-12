@@ -86,16 +86,16 @@ const CAPABILITIES = [
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Ranki.ai — AI SEO & GEO on Autopilot" },
+      { title: "Ranki.ai – Generative Search Content, Automated" },
       {
         name: "description",
         content:
-          "Get 30 days of SEO & GEO content created and auto-published to help your business rank on Google, ChatGPT & Perplexity.",
+          "Ranki.ai plans, writes and publishes AI-search-ready content daily — keywords, competitors, images and CMS publishing included. +60% average visibility lift.",
       },
-      { property: "og:title", content: "Ranki.ai — AI SEO & GEO on Autopilot" },
+      { property: "og:title", content: "Ranki.ai – Generative Search Content, Automated" },
       {
         property: "og:description",
-        content: "Get 30 days of SEO & GEO content created and auto-published to help your business rank on Google, ChatGPT & Perplexity.",
+        content: "Ranki.ai plans, writes and publishes AI-search-ready content daily — keywords, competitors, images and CMS publishing included. +60% average visibility lift.",
       },
       { property: "og:url", content: "https://www.ranki.ai/" },
       { property: "og:type", content: "website" },

@@ -83,7 +83,7 @@ function Stage({
           disabled={state.status === "running"}
           className="ml-auto rounded border border-border px-2.5 py-1 text-xs font-medium hover:bg-muted disabled:opacity-50"
         >
-          {state.status === "running" ? "…" : fullPipelineRun ? "Run full pipeline" : "Lancer"}
+          {state.status === "running" ? "…" : "Lancer cette étape"}
         </button>
       </div>
 
@@ -208,22 +208,34 @@ function TestPage() {
     window.setTimeout(() => setReportCopied(false), 2000);
   }
 
-  async function runCompleteDiagnostic() {
+  const setters = {
+    landing: setS1, profile: setS2, keywords: setS3, serp: setS4,
+    rivals: setS5, calendar: setS6, article: setS7,
+  } as const;
+
+  /**
+   * `startBatch` is the exact stage to (re)run — pass a specific stage's own
+   * id, not always resumePoint, so retrying stage 6 after a "Calendar
+   * mismatch" runs *stage 6 alone* against the context stages 1-5 already
+   * produced, rather than resumePoint recomputing "the first incomplete
+   * stage" and potentially cascading through every stage after it too.
+   * `stopAfterOne` is what makes a single stage's button behave as "just
+   * this stage": each per-stage card passes true; only the page-level "Run
+   * full pipeline" button passes false to keep running to the end.
+   */
+  async function runPipelineFrom(startBatch: (typeof batchOrder)[number], stopAfterOne: boolean) {
     if (pipelineRunning) return;
     setPipelineRunning(true);
-    const setters = {
-      landing: setS1, profile: setS2, keywords: setS3, serp: setS4,
-      rivals: setS5, calendar: setS6, article: setS7,
-    } as const;
+    const startIndex = batchOrder.indexOf(startBatch);
     // Every click used to wipe all seven stages and restart from "landing",
     // so a developer probing stage 5 alone still paid for the SERP/DataForSEO
     // work stages 3-4 already did successfully seconds earlier — the actual
     // driver of a debugging session burning far more than "one pipeline run"
-    // in DataForSEO cost. Resume from the first stage that isn't already a
-    // clean pass, on the same website (resumePoint, computed above from the
-    // same stage states this closure captured at click time), and reuse its
-    // accumulated context instead of re-billing everything before it.
-    const startIndex = resumePoint;
+    // in DataForSEO cost. Reuse the context already accumulated through the
+    // requested stage instead of re-billing everything before it — the
+    // server itself rejects a stale/mismatched context with a clear
+    // "Run the previous diagnostic batch before X" error, so an out-of-order
+    // click fails loudly rather than silently re-running earlier stages.
     if (startIndex === 0) {
       setS1(IDLE); setS2(IDLE); setS3(IDLE); setS4(IDLE); setS5(IDLE); setS6(IDLE); setS7(IDLE);
     } else {
@@ -263,6 +275,7 @@ function TestPage() {
         if (!stage.ok) break;
         context = result.context;
         setPipelineContext(context);
+        if (stopAfterOne) break;
       }
     } catch (error) {
       // Previously always blamed stage 1 regardless of which batch actually
@@ -325,7 +338,7 @@ function TestPage() {
         </label>
         <div className="sm:col-span-3 flex gap-2">
           <button
-            onClick={() => void runCompleteDiagnostic()}
+            onClick={() => void runPipelineFrom(batchOrder[resumePoint]!, false)}
             disabled={pipelineRunning}
             className="flex-1 rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
@@ -384,7 +397,7 @@ function TestPage() {
         title="Landing page — titre SEO, titre de page, meta, sections, marqueurs B2B"
         cost="free"
         state={s1}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("landing", true)}
         onRun={() =>
           void run(setS1, async () => {
             const r = await runLanding({ data: { website } });
@@ -434,7 +447,7 @@ function TestPage() {
         title="Profil canonique — le modèle de vente qui fixe l'audience"
         cost="billed"
         state={s2}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("profile", true)}
         onRun={() =>
           void run(setS2, async () => {
             const r = await runProfile({ data: { website } });
@@ -466,7 +479,7 @@ function TestPage() {
         title="IA → DataForSEO — candidats proposés, puis mesurés"
         cost="billed"
         state={s3}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("keywords", true)}
         onRun={() =>
           void run(setS3, async () => {
             const r = await runCandidates({ data: { website } });
@@ -506,7 +519,7 @@ function TestPage() {
         title="SERP + assistant IA — présence d'une AI Overview et domaines cités"
         cost="billed"
         state={s4}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("serp", true)}
         onRun={() =>
           void run(setS4, async () => {
             const r = await runSerp({ data: { keyword } });
@@ -541,7 +554,7 @@ function TestPage() {
         title="Landing pages concurrentes — matière pour la génération"
         cost="billed"
         state={s5}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("rivals", true)}
         onRun={() =>
           void run(setS5, async () => {
             const domains = rivals.split(",").map((d) => d.trim()).filter(Boolean);
@@ -571,8 +584,8 @@ function TestPage() {
         title="30-day calendar — topics selected from the validated keywords"
         cost="billed"
         state={s6}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
-        onRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("calendar", true)}
+        onRun={() => void runPipelineFrom("calendar", true)}
       />
 
       <Stage
@@ -580,8 +593,8 @@ function TestPage() {
         title="First article preview — generated from the calendar, profile and rivals"
         cost="billed"
         state={s7}
-        fullPipelineRun={() => void runCompleteDiagnostic()}
-        onRun={() => void runCompleteDiagnostic()}
+        fullPipelineRun={() => void runPipelineFrom("article", true)}
+        onRun={() => void runPipelineFrom("article", true)}
       />
 
       {calendarPreview.length > 0 && (
