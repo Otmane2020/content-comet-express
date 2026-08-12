@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
+import { CheckCircle2 } from "lucide-react";
 import {
   probeLanding,
   probeProfile,
@@ -56,10 +57,14 @@ function Stage({
   const [showRaw, setShowRaw] = useState(false);
   const passed = state.checks.filter((c) => c.ok).length;
   const total = state.checks.length;
+  const completed = state.status === "done" && total > 0 && passed === total;
   return (
     <section className="rounded-lg border border-border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs text-muted-foreground">{n}</span>
+        <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
+          {n}
+          {completed && <CheckCircle2 aria-label="Étape terminée" className="h-4 w-4 text-emerald-600" />}
+        </span>
         <h2 className="text-sm font-semibold">{title}</h2>
         <span
           className={`rounded px-1.5 py-0.5 font-mono text-[10px] ${
