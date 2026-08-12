@@ -12,6 +12,36 @@ import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
 
 const siteInput = z.object({ website: z.string().min(3).max(300) });
 
+/**
+ * `String(err)` on a plain object (not an Error instance) produces the
+ * useless "[object Object]" — exactly what a Vercel platform-level failure
+ * (a 504 timeout, a non-Error rejection from the RPC layer) throws as. Every
+ * catch block in this file and in /test's client code funnels through this
+ * so a stage's error box always shows something diagnosable instead of that
+ * literal string.
+ */
+export function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const asRecord = err as Record<string, unknown>;
+    const nested = asRecord["message"] ?? (asRecord["error"] as Record<string, unknown> | string | undefined);
+    if (typeof nested === "string") return nested;
+    if (nested && typeof nested === "object") {
+      const inner = (nested as Record<string, unknown>)["message"];
+      if (typeof inner === "string") return inner;
+    }
+    const details = asRecord["details"];
+    if (typeof details === "string") return details;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      /* fall through */
+    }
+  }
+  return String(err);
+}
+
 /** A storefront theme's html lang is often English even on a French shop. */
 function marketLocale(website: string, declared: string | null | undefined) {
   try {
@@ -231,7 +261,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       const article = await writeArticle({ name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: [context.qualified?.[0]?.keyword ?? ""] }, { content_type: first.type, topic: first.topic }, { profile: context.profile, competitors: context.rivals });
       return finish(`Article preview generated: ${article.title}`, article, context);
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       console.error("[pipeline-diagnostic] batch failed", { id: data.batch, website: data.website, error: message, stack: error instanceof Error ? error.stack : undefined });
       return { stage: { id: data.batch, ok: false, ms: Date.now() - started, summary: "Failed", error: message, data: null }, context };
     }
@@ -267,7 +297,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
         console.error("[pipeline-diagnostic] stage failed", {
           id,
           website: data.website,
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage(error),
           stack: error instanceof Error ? error.stack : undefined,
         });
         stages.push({
@@ -275,7 +305,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
           ok: false,
           ms: Date.now() - started,
           summary: "Failed",
-          error: error instanceof Error ? error.message : String(error),
+          error: errorMessage(error),
           data: null,
         });
         return null;
@@ -480,7 +510,7 @@ export const probeSerpAi = createServerFn({ method: "POST" })
       const { organic, ai } = await serpWithAiSignals(data.keyword, localeOpts(data.locale ?? null), 20);
       return { ai, topOrganic: organic.slice(0, 5), error: null, ms: Date.now() - started };
     } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
+      const message = errorMessage(error);
       console.error("[pipeline-diagnostic] standalone SERP failed", { keyword: data.keyword, message, stack: error instanceof Error ? error.stack : undefined });
       return {
         ai: { keyword: data.keyword, hasAiOverview: false, aiOverviewText: null, citedDomains: [], hasFeaturedSnippet: false, hasPeopleAlsoAsk: false, featureTypes: [] },

@@ -12,6 +12,35 @@ import {
 } from "@/lib/diagnostics.functions";
 
 /**
+ * `String(err)` on a plain object (not an Error instance) produces the
+ * useless "[object Object]" — exactly what a platform-level failure (a 504
+ * timeout, a non-Error rejection surfaced by the RPC layer) throws as here.
+ * Every catch block below funnels through this so a stage's error box
+ * always shows something diagnosable.
+ */
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === "string") return err;
+  if (err && typeof err === "object") {
+    const asRecord = err as Record<string, unknown>;
+    const nested = asRecord["message"] ?? (asRecord["error"] as Record<string, unknown> | string | undefined);
+    if (typeof nested === "string") return nested;
+    if (nested && typeof nested === "object") {
+      const inner = (nested as Record<string, unknown>)["message"];
+      if (typeof inner === "string") return inner;
+    }
+    const details = asRecord["details"];
+    if (typeof details === "string") return details;
+    try {
+      return JSON.stringify(err);
+    } catch {
+      /* fall through */
+    }
+  }
+  return String(err);
+}
+
+/**
  * Pipeline diagnostics. Each stage runs on its own so a failure can be seen
  * where it happens instead of surfacing as an empty scan three steps later.
  *
@@ -281,7 +310,7 @@ function TestPage() {
       // Previously always blamed stage 1 regardless of which batch actually
       // threw — a genuine mid-loop exception on a later stage silently
       // vanished if stage 1 had already finished, leaving no visible error.
-      const failed = { status: "error" as const, checks: [], error: error instanceof Error ? error.message : String(error) };
+      const failed = { status: "error" as const, checks: [], error: errorMessage(error) };
       setters[runningBatch](failed);
     } finally {
       setPipelineRunning(false);
@@ -297,7 +326,7 @@ function TestPage() {
       const { checks, ms, raw } = await fn();
       set({ status: "done", checks, ms, raw });
     } catch (e) {
-      set({ status: "error", checks: [], error: e instanceof Error ? e.message : String(e) });
+      set({ status: "error", checks: [], error: errorMessage(e) });
     }
   }
 
