@@ -779,18 +779,42 @@ export async function runLiveMarketResearch(
   };
 }> {
   const { scrapeSite } = await import("./scrape.server");
-  const { searchVolumeFor } = await import("./dataforseo.server");
-  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand } = await import("./relevance.server");
+  const { searchVolumeFor, keywordIdeas, cleanKeywordForDataForSeo } = await import("./dataforseo.server");
+  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand, productSeeds, isOnTopicForProfile } = await import("./relevance.server");
 
   const opts = localeOpts(input.locale, input.targetCountry ?? null);
   const keywordLimit = input.keywordLimit ?? 30;
   const site = await scrapeSite(input.website);
-  const proposed = await candidateKeywords(biz, site.landing ?? null, TARGET_CANDIDATES);
+  const [proposed, seeds] = await Promise.all([
+    candidateKeywords(biz, site.landing ?? null, TARGET_CANDIDATES),
+    productSeeds(biz, 8),
+  ]);
   if (!proposed.length) {
     throw new Error("Could not derive qualified buyer queries from the website landing page.");
   }
 
-  const measured = await searchVolumeFor(proposed, opts);
+  // Ground candidates in DataForSEO's own keyword graph in addition to blind
+  // AI invention: keyword_ideas rows arrive with real search_volume/cpc/
+  // difficulty/intent already attached (no separate searchVolumeFor call
+  // needed for these), which is what actually fixes the low-yield problem —
+  // most AI-invented long-tail phrases simply don't exist in Google's index.
+  // isOnTopicForProfile is the deterministic guard against the exact failure
+  // this file's candidateKeywords docblock already warns about: keyword_ideas
+  // expanding a seed toward whatever has the biggest global volume, which is
+  // how a wholesaler's scan once filled up with consumer queries.
+  const ideaRowsRaw = seeds.length ? await keywordIdeas(seeds, opts, 40) : [];
+  const ideaRows = ideaRowsRaw
+    .filter((row) => isOnTopicForProfile(row.keyword, biz))
+    .map((row) => ({ ...row, origin: "seed" as const }));
+
+  // Never pay to measure an AI candidate that keyword_ideas already covered.
+  const ideaKeys = new Set(ideaRows.map((row) => cleanKeywordForDataForSeo(row.keyword).toLowerCase()));
+  const dedupedProposed = proposed.filter((k) => !ideaKeys.has(cleanKeywordForDataForSeo(k).toLowerCase()));
+  const measuredAi = dedupedProposed.length
+    ? (await searchVolumeFor(dedupedProposed, opts)).map((row) => ({ ...row, origin: "site" as const }))
+    : [];
+
+  const measured = [...ideaRows, ...measuredAi];
   if (!measured.length) {
     throw new Error("DataForSEO found no measurable demand for the qualified buyer queries.");
   }
@@ -811,7 +835,6 @@ export async function runLiveMarketResearch(
   const relevance = await scoreRelevance(biz, withDemand.map((row) => row.keyword));
   const scored = withDemand.map((row) => ({
     ...row,
-    origin: "seed" as const,
     relevance_score: relevance[row.keyword.toLowerCase()] ?? 0,
     intent: row.intent ?? classifyIntent(row.keyword),
   }));
@@ -819,14 +842,18 @@ export async function runLiveMarketResearch(
   // Logged unconditionally, before any throw below, so a hard-fail scan is
   // still diagnosable from server logs instead of only reporting its final
   // count with no way to tell which stage actually lost the keywords
-  // (DataForSEO demand vs. the relevance gate).
+  // (DataForSEO demand vs. the relevance gate). seedIdeaCount/aiCandidateCount
+  // split out so a yield regression in either source (keyword_ideas vs
+  // candidateKeywords) is visible without re-instrumenting.
   console.info("[market-research] stage breakdown", {
     website: input.website,
     proposed: proposed.length,
+    aiCandidateCount: dedupedProposed.length,
+    seedIdeaCount: ideaRows.length,
     measured: measured.length,
     withDemand: withDemand.length,
     relevancePassed: relevant.length,
-    withDemandKeywords: withDemand.map((r) => ({ keyword: r.keyword, search_volume: r.search_volume })),
+    withDemandKeywords: withDemand.map((r) => ({ keyword: r.keyword, search_volume: r.search_volume, origin: r.origin })),
     scoredBelowThreshold: scored.filter((r) => (r.relevance_score ?? 0) < MIN_RELEVANCE).map((r) => ({ keyword: r.keyword, relevance_score: r.relevance_score })),
   });
   const keywords = relevant
@@ -870,6 +897,8 @@ export async function runLiveMarketResearch(
   console.info("[market-research] completed", {
     website: input.website,
     proposed: proposed.length,
+    aiCandidateCount: dedupedProposed.length,
+    seedIdeaCount: ideaRows.length,
     measured: measured.length,
     withDemand: withDemand.length,
     relevancePassed: relevant.length,

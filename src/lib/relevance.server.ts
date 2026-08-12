@@ -421,7 +421,7 @@ export async function candidateKeywords(
       new Set(
         values
           .map((k) => cleanKeywordForDataForSeo(String(k)).toLowerCase())
-          .filter((k) => k.length > 2 && k.split(/\s+/).length <= 8),
+          .filter((k) => k.length > 2 && k.split(/\s+/).length <= 6),
       ),
     ).slice(0, max);
   };
@@ -455,6 +455,20 @@ Ground every query in the landing page above: the vocabulary, product names and 
 uses are what this business is findable for.
 Write them in the business's own language, exactly as a buyer would type them — never translated,
 never a normalised or agrammatical form.
+
+Real buyers type SHORT phrases, almost never full descriptive product names. Prefer 1-4 words per query;
+use 5+ words only for a genuine natural question ("how does X work", "how much does X cost"). Never chain
+two or more feature/product names together into one query, and never reproduce a marketing tagline or
+full product description as a search term — nobody searches for the business's own sentence about itself.
+
+BAD (do not produce queries shaped like these):
+- "generative search content automation platform" (a feature-name mashup, not a real search)
+- "ai powered seo and geo content generation software" (a product description, not a query)
+- "automated multi-channel content optimization suite" (marketing copy, not something a buyer types)
+
+GOOD shapes: the bare category ("project management software"), category + one buyer-intent modifier
+("project management software pricing", "best project management software"), or a real natural-language
+question ("how does project management software work").
 
 ${
   sellsToBusinesses
@@ -498,7 +512,7 @@ Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least
         json: true,
         maxTokens: 1600,
         system: "Return strict JSON only. You must derive buyer search queries from the supplied SEO title, page title, categories and landing-page copy.",
-        user: `${profileBlock(profile)}\n${landingBlock}\n\nYou already found these buyer queries — do not repeat any of them:\n${merged.length ? merged.map((k) => `- ${k}`).join("\n") : "(none yet)"}\n\nGenerate ${missing} additional, DISTINCT buyer queries in the site language, grounded in the evidence above. Return exactly {"keywords":["..."]}.`,
+        user: `${profileBlock(profile)}\n${landingBlock}\n\nYou already found these buyer queries — do not repeat any of them:\n${merged.length ? merged.map((k) => `- ${k}`).join("\n") : "(none yet)"}\n\nGenerate ${missing} additional, DISTINCT buyer queries in the site language, grounded in the evidence above. Keep them short (1-4 word) queries, not longer descriptive phrases — see the bad-example shapes above; do not repeat the pattern of your first batch if it produced long compound phrases. Return exactly {"keywords":["..."]}.`,
       });
       const retryCandidates = normaliseCandidates(retry);
       console.info("[keyword-candidates] AI retry response", { count: retryCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
@@ -512,6 +526,43 @@ Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least
     });
     return deterministicFallback();
   }
+}
+
+const GENERIC_TOPIC_WORDS = new Set([
+  "pour", "avec", "dans", "les", "des", "une", "and", "the", "for", "with", "your", "our",
+]);
+
+function significantTopicTerms(text: string): string[] {
+  return text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .split(" ")
+    .filter((word) => word.length > 3 && !GENERIC_TOPIC_WORDS.has(word));
+}
+
+/**
+ * Deterministic, no-cost safety net for `keyword_ideas`-sourced candidates
+ * (see runLiveMarketResearch): DataForSEO's keyword graph expands from a seed
+ * to whatever has the biggest global volume, which can drift off-topic in a
+ * way a seed alone doesn't guard against — this is the exact failure mode
+ * `candidateKeywords`'s docblock above describes from an earlier version of
+ * this pipeline ("a wholesaler's scan filled up with consumer queries").
+ * Requires real vocabulary overlap with the business's own confirmed
+ * products/services/industry before a result ever reaches the paid AI
+ * relevance-scoring call.
+ */
+export function isOnTopicForProfile(keyword: string, profile: BusinessProfile): boolean {
+  const keywordTerms = new Set(significantTopicTerms(keyword));
+  if (!keywordTerms.size) return false;
+  const vocabulary = [
+    ...(profile.products ?? []),
+    ...(profile.services ?? []),
+    profile.industry ?? "",
+  ].flatMap((term) => significantTopicTerms(term));
+  if (!vocabulary.length) return true; // nothing confirmed to check against — don't block on missing data
+  return vocabulary.some((term) => keywordTerms.has(term));
 }
 
 export async function productSeeds(profile: BusinessProfile, max = 12): Promise<string[]> {
