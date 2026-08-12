@@ -34,6 +34,116 @@ export type PipelineDiagnosticStage = {
   data: unknown;
 };
 
+type DiagnosticBatch = PipelineDiagnosticStage["id"];
+type DiagnosticContext = {
+  website: string;
+  site?: any;
+  profile?: any;
+  writingLocale?: string;
+  qualified?: any[];
+  competitors?: any[];
+  rivals?: any[];
+  calendar?: any[];
+};
+
+const diagnosticBatchInput = z.object({
+  website: z.string().min(3).max(300),
+  batch: z.enum(["landing", "profile", "keywords", "serp", "rivals", "calendar", "article"]),
+  context: z.unknown().optional(),
+});
+
+function diagnosticContext(website: string, value: unknown): DiagnosticContext {
+  const context = value && typeof value === "object" ? value as DiagnosticContext : { website };
+  if (context.website !== website) throw new Error("Diagnostic context belongs to a different website.");
+  return context;
+}
+
+function missingBatchInput(batch: DiagnosticBatch): never {
+  throw new Error(`Run the previous diagnostic batch before ${batch}.`);
+}
+
+/**
+ * The interactive full run deliberately makes one server request per batch.
+ * It prevents a 30-day article preview from keeping a DataForSEO/LLM request
+ * alive long enough to time out and preserves every successful result client-side.
+ */
+export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => diagnosticBatchInput.parse(input))
+  .handler(async ({ data }): Promise<{ stage: PipelineDiagnosticStage; context: DiagnosticContext }> => {
+    const context = diagnosticContext(data.website, data.context);
+    const started = Date.now();
+    const finish = (summary: string, result: unknown, next: DiagnosticContext) => ({
+      stage: { id: data.batch, ok: true, ms: Date.now() - started, summary, error: null, data: JSON.parse(JSON.stringify(result)) },
+      context: next,
+    });
+    try {
+      if (data.batch === "landing") {
+        const { scrapeSite } = await import("./scrape.server");
+        const site = await scrapeSite(data.website);
+        return finish(`${site.landing?.title ? "SEO title found" : "SEO title missing"}; ${site.landing?.bodyExcerpt.length ?? 0} characters of page copy`, site, { website: data.website, site });
+      }
+      if (data.batch === "profile") {
+        if (!context.site) missingBatchInput(data.batch);
+        const { buildCanonicalProfile } = await import("./relevance.server");
+        const profile = await buildCanonicalProfile(context.site, { website_url: data.website });
+        if (!profile.reliable) throw new Error("The canonical profile did not find enough verified business evidence.");
+        return finish(`${profile.sales_model ?? "unknown sales model"}; ${profile.products?.length ?? 0} confirmed product categories`, profile, { ...context, profile });
+      }
+      if (data.batch === "keywords") {
+        if (!context.site || !context.profile) missingBatchInput(data.batch);
+        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE } = await import("./relevance.server");
+        const { searchVolumeFor } = await import("./dataforseo.server");
+        const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
+        await requireLiveDataForSeo();
+        const proposed = await candidateKeywords(context.profile, context.site.landing ?? null, 120);
+        if (!proposed.length) throw new Error("The AI returned no buyer-query candidates from this landing page.");
+        const writingLocale = marketLocale(data.website, context.site.landing?.lang);
+        const measured = await searchVolumeFor(proposed, localeOpts(writingLocale));
+        if (!measured.length) throw new Error("DataForSEO returned no measured search volume for the AI candidates.");
+        const scores = await scoreRelevance(context.profile, measured.map((row) => row.keyword));
+        const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE);
+        if (!qualified.length) throw new Error("Every measurable keyword failed the business-audience relevance gate.");
+        const result = { proposed, measured, qualified };
+        return finish(`${proposed.length} proposed; ${measured.length} measured; ${qualified.length} qualified`, result, { ...context, writingLocale, qualified });
+      }
+      if (data.batch === "serp") {
+        if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);
+        const { discoverCompetitorsFromSerp } = await import("./research.server");
+        const competitors = await discoverCompetitorsFromSerp(context.profile, context.writingLocale ?? "en", null, null, 8, context.qualified.slice(0, 1).map((row) => row.keyword), 5);
+        if (!competitors.length) throw new Error("No buyer-matched competitors were found in the representative SERP.");
+        return finish(`${competitors.length} buyer-matched competitors from Google, DataForSEO and SerpApi`, competitors, { ...context, competitors });
+      }
+      if (data.batch === "rivals") {
+        if (!context.competitors?.length) missingBatchInput(data.batch);
+        const { analyseCompetitorLandings } = await import("./research.server");
+        const rivals = await analyseCompetitorLandings(context.competitors.map((row) => row.domain), 5);
+        if (!rivals.length) throw new Error("No competitor landing pages could be read.");
+        return finish(`${rivals.length} rival landing pages read for article-generation context`, rivals, { ...context, rivals });
+      }
+      if (data.batch === "calendar") {
+        if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);
+        const { planWindow } = await import("./geo");
+        const { planTopics, validateCalendarTopic } = await import("./plan.server");
+        const brief = { name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: context.qualified.map((row) => row.keyword), locations: context.profile.locations ?? null };
+        const slots = planWindow(new Date(), 30).map((slot, index) => ({ ...slot, keyword: context.qualified![index % context.qualified!.length]?.keyword ?? null }));
+        const calendar = await planTopics(brief, slots);
+        const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.contentTypeAligned || !c.locationValid; });
+        if (invalid) throw new Error(`Calendar mismatch: \"${invalid.keyword}\" -> \"${invalid.topic}\"`);
+        return finish(`${calendar.length} planned topics derived from validated buyer keywords`, calendar, { ...context, calendar });
+      }
+      if (!context.profile || !context.calendar?.length || !context.rivals?.length) missingBatchInput(data.batch);
+      const { writeArticle } = await import("./plan.server");
+      const first = context.calendar[0]!;
+      const article = await writeArticle({ name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: [context.qualified?.[0]?.keyword ?? ""] }, { content_type: first.type, topic: first.topic }, { profile: context.profile, competitors: context.rivals });
+      return finish(`Article preview generated: ${article.title}`, article, context);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[pipeline-diagnostic] batch failed", { id: data.batch, website: data.website, error: message, stack: error instanceof Error ? error.stack : undefined });
+      return { stage: { id: data.batch, ok: false, ms: Date.now() - started, summary: "Failed", error: message, data: null }, context };
+    }
+  });
+
 /**
  * One URL, one complete run. Each dependency is recorded independently so a
  * failure such as a blocked page, malformed AI response or DataForSEO outage

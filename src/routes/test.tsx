@@ -7,7 +7,7 @@ import {
   probeCandidates,
   probeSerpAi,
   probeRivals,
-  runPipelineDiagnostic,
+  runPipelineDiagnosticBatch,
 } from "@/lib/diagnostics.functions";
 
 /**
@@ -150,7 +150,8 @@ function TestPage() {
   const runCandidates = useServerFn(probeCandidates);
   const runSerp = useServerFn(probeSerpAi);
   const runRivals = useServerFn(probeRivals);
-  const runFullDiagnostic = useServerFn(runPipelineDiagnostic);
+  const runDiagnosticBatch = useServerFn(runPipelineDiagnosticBatch);
+  const [pipelineRunning, setPipelineRunning] = useState(false);
   // The diagnostic endpoint is the authority for authentication. The client
   // must not hide /test because a just-restored local session briefly reads as
   // null. It also must never reveal a calendar/article until every gate has
@@ -166,32 +167,38 @@ function TestPage() {
     : null;
 
   async function runCompleteDiagnostic() {
-    const running: StageState = { status: "running", checks: [] };
-    setS1(running); setS2(running); setS3(running); setS4(running); setS5(running); setS6(running); setS7(running);
+    if (pipelineRunning) return;
+    setPipelineRunning(true);
+    setS1(IDLE); setS2(IDLE); setS3(IDLE); setS4(IDLE); setS5(IDLE); setS6(IDLE); setS7(IDLE);
+    const setters = {
+      landing: setS1, profile: setS2, keywords: setS3, serp: setS4,
+      rivals: setS5, calendar: setS6, article: setS7,
+    } as const;
+    const batches = ["landing", "profile", "keywords", "serp", "rivals", "calendar", "article"] as const;
+    let context: unknown = undefined;
     try {
-      const result = await runFullDiagnostic({ data: { website } });
-      const byId = new Map(result.stages.map((stage) => [stage.id, stage]));
-      const stateFor = (id: "landing" | "profile" | "keywords" | "serp" | "rivals" | "calendar" | "article"): StageState => {
-        const stage = byId.get(id);
-        if (!stage) return { status: "error", checks: [], error: "Blocked by an earlier pipeline stage." };
-        return {
+      for (const batch of batches) {
+        setters[batch]({ status: "running", checks: [] });
+        const result = await runDiagnosticBatch({ data: { website, batch, context } }) as {
+          stage: { ok: boolean; summary: string; error: string | null; ms: number; data: unknown };
+          context: unknown;
+        };
+        const stage = result.stage;
+        setters[batch]({
           status: stage.ok ? "done" : "error",
-          checks: [{ label: stage.summary, ok: stage.ok, detail: stage.error ?? undefined }],
-          error: stage.error ?? undefined,
+          checks: [{ label: stage.summary, ok: stage.ok, ...(stage.error ? { detail: stage.error } : {}) }],
+          ...(stage.error ? { error: stage.error } : {}),
           ms: stage.ms,
           raw: stage.data,
-        };
-      };
-      setS1(stateFor("landing"));
-      setS2(stateFor("profile"));
-      setS3(stateFor("keywords"));
-      setS4(stateFor("serp"));
-      setS5(stateFor("rivals"));
-      setS6(stateFor("calendar"));
-      setS7(stateFor("article"));
+        });
+        if (!stage.ok) break;
+        context = result.context;
+      }
     } catch (error) {
       const failed = { status: "error" as const, checks: [], error: error instanceof Error ? error.message : String(error) };
-      setS1(failed); setS2(failed); setS3(failed); setS4(failed); setS5(failed); setS6(failed); setS7(failed);
+      setS1((current) => current.status === "running" ? failed : current);
+    } finally {
+      setPipelineRunning(false);
     }
   }
 
@@ -245,12 +252,12 @@ function TestPage() {
         </label>
         <button
           onClick={() => void runCompleteDiagnostic()}
-          disabled={s1.status === "running"}
+          disabled={pipelineRunning}
           className="sm:col-span-3 rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
         >
-          {s1.status === "running" ? "Running full pipeline..." : "Run full pipeline"}
+          {pipelineRunning ? "Running successive batches..." : "Run full pipeline"}
         </button>
-        <p className="sm:col-span-3 text-[11px] text-muted-foreground">One URL only. Every diagnostic stage runs in sequence and keeps its own error report.</p>
+        <p className="sm:col-span-3 text-[11px] text-muted-foreground">One URL only. Seven successive batches: every stage keeps its result and stops only at the failing batch.</p>
       </div>
 
       <Stage
