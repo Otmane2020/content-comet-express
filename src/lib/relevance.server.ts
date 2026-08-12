@@ -235,7 +235,7 @@ Return JSON:
   "description": "one sentence: sales model + products + audience + geography",
   "sales_model": "wholesale" | "retail" | "service" | "marketplace" | "manufacturer" | "other",
   "products": ["product category 1", "product category 2"],
-  "services": ["service 1"],
+  "services": ["service 1", "service 2", "service 3", "..."],
   "locations": ["France", "Belgium"],
   "audience": "who buys this",
   "canonical": "one sentence canonical profile",
@@ -247,7 +247,7 @@ Return JSON:
 
 Rules:
 - "products": only product categories the site actually sells. Empty array if unclear.
-- "services": only services the site actually offers. Empty array for pure sellers.
+- "services": list EVERY distinct capability, feature or offering described on the page as its own array item — do not fold them into one summary sentence. For a SaaS/software product this means each major feature separately (e.g. "keyword research", "competitor analysis", "AI content generation", "image generation", "CMS publishing", "Google Business Profile posting", "Search Console integration" — not one item like "content platform"). For a service business, list each distinct service offered. Include named integrations, platforms or destinations the page states it works with (e.g. "WordPress", "Shopify", "WooCommerce") as their own items when they are a real, distinguishable part of what's offered, not marketing filler. Empty array only for a pure product seller with no services at all.
 - "locations": only geographic areas mentioned on the site. Empty array if national/online with no area stated.
 - "reliable": false if you cannot determine what the company actually sells with confidence.
 - "canonical": e.g. "Grossiste et vendeur de meubles en ligne: canapés, tables, chaises, mobilier de maison en France."
@@ -273,11 +273,11 @@ Rules:
   // whole scan outright, the same resilience candidateKeywords already has.
   let p: Partial<CanonicalBusinessProfile>;
   try {
-    const raw = await callOpenRouter({ json: true, maxTokens: 1400, system, user: buildPrompt() });
+    const raw = await callOpenRouter({ json: true, maxTokens: 1800, system, user: buildPrompt() });
     p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
   } catch (error) {
     console.error("[canonical-profile] first attempt failed", error instanceof Error ? error.message : error);
-    const raw = await callOpenRouter({ json: true, maxTokens: 1400, system, user: buildPrompt() });
+    const raw = await callOpenRouter({ json: true, maxTokens: 1800, system, user: buildPrompt() });
     p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
   }
   const products = Array.isArray(p.products) ? p.products.map((s) => String(s).trim()).filter(Boolean).slice(0, 20) : [];
