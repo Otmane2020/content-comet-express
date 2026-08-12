@@ -1,4 +1,5 @@
 import { callOpenRouter, parseJsonLoose } from "./ai.server";
+import { cleanKeywordForDataForSeo } from "./dataforseo.server";
 
 /**
  * Canonical business profile — the single source of truth for what a company
@@ -347,7 +348,7 @@ export async function candidateKeywords(
     return Array.from(
       new Set(
         values
-          .map((k) => String(k).trim().toLowerCase())
+          .map((k) => cleanKeywordForDataForSeo(String(k)).toLowerCase())
           .filter((k) => k.length > 2 && k.split(/\s+/).length <= 8),
       ),
     ).slice(0, max);

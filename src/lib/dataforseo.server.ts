@@ -63,6 +63,21 @@ const loc = (o: LocationOpts) => ({
 });
 
 /**
+ * Keep only a buyer's actual query before sending it to Google Ads. LLMs
+ * occasionally append editorial notes such as "(if mentioned)"; one such
+ * value makes DataForSEO reject the entire batch, not only that row.
+ */
+export function cleanKeywordForDataForSeo(value: string) {
+  return value
+    .normalize("NFC")
+    .replace(/[\(\[\{][^\)\]\}]{0,100}[\)\]\}]/g, " ")
+    .replace(/[^\p{L}\p{N}\s'’\-]/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 80);
+}
+
+/**
  * Real Google Ads metrics for keywords WE chose, in one batched request.
  *
  * This is the direction the research runs in: the AI reads the landing page and
@@ -84,7 +99,7 @@ export async function searchVolumeFor(
   // The endpoint accepts up to 1000 keywords per task; the quota caps us far
   // below that, so one request is always enough.
   const batch = Array.from(
-    new Set(keywords.map((k) => k.trim().toLowerCase()).filter((k) => k.length > 1 && k.length <= 80)),
+    new Set(keywords.map((k) => cleanKeywordForDataForSeo(k).toLowerCase()).filter((k) => k.length > 1)),
   ).slice(0, 700);
   if (!batch.length) return [];
   // Google Ads Search Volume differs from Labs endpoints: `result` itself is
