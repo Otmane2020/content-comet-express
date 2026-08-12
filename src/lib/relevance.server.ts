@@ -122,16 +122,13 @@ STRICT INTENT RULES — score 0 regardless of volume when any of these apply:
   products.`;
 
 async function scoreBatch(profile: BusinessProfile, list: string[]): Promise<Record<string, number>> {
-  // Never accept an unverified domain by default. A fail-open score made a
-  // temporary model/API failure look like a valid competitor list, especially
-  // harmful for B2B wholesalers sharing broad consumer product keywords.
-  const fallback = () => Object.fromEntries(list.map((domain) => [domain, 0]));
-  const raw = await callOpenRouter({
-    json: true,
-    maxTokens: 1400,
-    system:
-      "You score how relevant a search keyword is to a specific business's buyers. You never invent search volume, CPC or difficulty. Answer with strict JSON only.",
-    user: `${profileBlock(profile)}
+  const call = () =>
+    callOpenRouter({
+      json: true,
+      maxTokens: 2000,
+      system:
+        "You score how relevant a search keyword is to a specific business's buyers. You never invent search volume, CPC or difficulty. Answer with strict JSON only.",
+      user: `${profileBlock(profile)}
 
 ${SCORING_RULES}
 
@@ -139,8 +136,20 @@ Keywords:
 ${list.map((k) => `- ${k}`).join("\n")}
 
 Return JSON: {"scores":[{"keyword":"...","score":0-100}]}`,
-  });
-  const parsed = parseJsonLoose<{ scores?: { keyword: string; score: number }[] }>(raw);
+    });
+  // scoreRelevance deliberately re-throws a batch failure rather than masking
+  // it as "0 relevant keywords" (see below) — but a truncated-JSON response is
+  // not a real failure, it is this same call succeeding with an answer cut
+  // short of its closing brace (see buildCanonicalProfile for the identical
+  // bug). One retry absorbs that case; a second genuine failure still throws,
+  // which is the behaviour scoreRelevance's callers rely on.
+  let parsed: { scores?: { keyword: string; score: number }[] };
+  try {
+    parsed = parseJsonLoose<{ scores?: { keyword: string; score: number }[] }>(await call());
+  } catch (error) {
+    console.error("[relevance] scoring batch response was truncated, retrying once", error instanceof Error ? error.message : error);
+    parsed = parseJsonLoose<{ scores?: { keyword: string; score: number }[] }>(await call());
+  }
   const out: Record<string, number> = {};
   for (const s of parsed.scores ?? []) {
     if (!s?.keyword) continue;
