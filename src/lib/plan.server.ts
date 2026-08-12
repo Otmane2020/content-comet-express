@@ -13,6 +13,16 @@ export type ProjectBrief = {
   locations?: string[] | null;
 };
 
+/** The six publishing templates. Content type selects structure, never topic. */
+export const CONTENT_TEMPLATES = {
+  geo: "H1 → direct answer (50-90 words) → verified key facts → question-led sections → 5 FAQs → concise CTA.",
+  seo: "SEO title/meta → natural H1 → intent-led introduction → semantic H2/H3 coverage → useful FAQ → CTA.",
+  aeo: "Exact-question H1 → direct answer (40-70 words) → 3-5 quick facts → concise steps → related questions.",
+  local_aeo: "Local-intent H1 → direct local answer → verified local facts → availability, area, process and local FAQ.",
+  gbp: "Short Google Business Profile post: local benefit, verified offer/service, proof, location when verified and CTA.",
+  commercial: "Product/service/software answer → verified facts → suitability → features/selection → real related offers → FAQ and CTA.",
+} as const;
+
 const META_MARKETING = /\b(?:geo|seo|aeo|chatgpt|gemini|perplexity|ai visibility|generative engines?|moteurs? g[ée]n[ée]ratifs?|optimis.{0,12}(?:ia|geo|chatgpt))\b/i;
 const MARKETING_QUERY = /\b(?:geo|seo|aeo|marketing|r[ée]f[ée]rencement|chatgpt|gemini|perplexity|visibilit[ée]\s+ia)\b/i;
 
@@ -279,6 +289,10 @@ export async function writeArticle(
     shopping:
       "Shopping assistant format: comparison table in markdown, buying criteria, price ranges, pros/cons, and a clear recommendation.",
   };
+  guidance.seo = "SEO template: provide a natural search-result title and a 140-160 character excerpt. Start with a 100-150 word intent-led introduction; cover definition, who it is for, how to choose or use it, 3-4 decision criteria, a useful secondary topic, mistakes to avoid, verified conditions only when supplied, and a factual brand section. Use semantic H2/H3 coverage, never keyword stuffing.";
+  guidance.aeo = "AEO template: H1 is the exact buyer question. Begin with a 40-70 word direct answer, then 3-5 quick facts, a concise how-it-works section, criteria or steps, a factual brand section when relevant, and related buyer questions. Do NOT write an FAQ section in the body; the FAQ is returned separately as structured data.";
+  guidance.local_aeo = "Local AEO template: activate only for real local intent. Begin with a 40-80 word local answer covering what, for whom, where and verified availability. Then use local facts, availability in that area, selection criteria, served area and the real order/contact process. Never invent a city, address, hours or service area. Do NOT write an FAQ section in the body; the FAQ is returned separately as structured data.";
+  guidance.shopping = "Commercial/Shopping template: use product, service or software facts depending on the verified entity. Start with a direct answer, then factual attributes (price, material, dimensions, features, integrations, availability, process or delivery only if supplied), suitability, selection criteria, real related products/services, buyer FAQ and a clear CTA. A comparison table is allowed only when real comparable catalogue data exists.";
 
   // What the pages already ranking (and already cited by the AI answer) for
   // these queries actually put on the page. Given as ground to beat, never as
@@ -397,4 +411,32 @@ export function freshenYears(text: string): string {
   const year = new Date().getUTCFullYear();
   const stale = Array.from({ length: 6 }, (_, i) => year - 1 - i);
   return text.replace(/\b(20\d{2})\b/g, (m, y) => (stale.includes(Number(y)) ? String(year) : m));
+}
+
+/** Google Business Profile is a short local post, never a recycled article. */
+export async function writeGmbPost(
+  project: ProjectBrief,
+  topic: string,
+  extras?: { profile?: CanonicalProfileFacts | null; localInfo?: LocalInfo },
+) {
+  const year = new Date().getUTCFullYear();
+  const raw = await callOpenRouter({
+    json: true,
+    maxTokens: 700,
+    system: `You write concise Google Business Profile posts. Today is ${year}. Return strict JSON only.`,
+    user: `${briefLine(project)}
+
+Template: Google Business Profile post, not an article. Choose a suitable type among update, product, service, offer or event based only on verified context. Write a short benefit-led title and an 80-180 word summary: opening benefit, verified product/service, who it helps, verified local context only when supplied, one concrete verified fact, then a natural CTA (call, book, order, request a quote, learn more or visit). Never mention SEO, GEO, AI, competitors, invented price, stock, availability, address, hours, review or delivery promise.
+Topic: ${topic}${profileFactsBlock(extras?.profile)}${extras?.localInfo ? `\nVerified local details: ${[extras.localInfo.address, extras.localInfo.city, extras.localInfo.country, extras.localInfo.phone].filter(Boolean).join(" | ")}` : ""}
+
+Return JSON: {"type":"update|product|service|offer|event","title":"...","summary":"80-180 words","cta":"CALL|BOOK|ORDER|QUOTE|LEARN_MORE|VISIT"}`,
+  });
+  const parsed = parseJsonLoose<{ type?: string; title?: string; summary?: string; cta?: string }>(raw);
+  if (!parsed.summary?.trim()) throw new Error("The model returned no Google Business Profile summary.");
+  return {
+    type: ["update", "product", "service", "offer", "event"].includes(parsed.type ?? "") ? parsed.type! : "update",
+    title: freshenYears(parsed.title?.trim() || topic).slice(0, 58),
+    summary: freshenYears(parsed.summary.trim()).slice(0, 1200),
+    cta: ["CALL", "BOOK", "ORDER", "QUOTE", "LEARN_MORE", "VISIT"].includes(parsed.cta ?? "") ? parsed.cta! : "LEARN_MORE",
+  };
 }

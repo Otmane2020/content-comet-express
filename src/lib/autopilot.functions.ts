@@ -304,11 +304,17 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
         .single();
 
       if (localItem) {
-        const local = await write(localItem.id, "local_aeo", localItem.topic, localItem.target_keyword);
-        const summary = [local.title, local.excerpt ?? local.body_md.replace(/[#*`>]/g, "").slice(0, 900)]
-          .filter(Boolean)
-          .join("\n\n");
         try {
+          const { writeGmbPost } = await import("./plan.server");
+          const gmbPost = await writeGmbPost(ctx, localItem.topic, { profile: project.business_profile as never });
+          await supabase.from("content_items").update({
+            title: gmbPost.title,
+            excerpt: gmbPost.summary,
+            body_md: gmbPost.summary,
+            model: DEFAULT_MODEL,
+            status: "draft",
+          } as never).eq("id", localItem.id);
+          const summary = [gmbPost.title, gmbPost.summary].join("\n\n");
           const { accessTokenFor, createGmbPost } = await import("./google.server");
           const token = await accessTokenFor(conn.id);
           await createGmbPost(token, conn.resource_id, { summary, url: project.website_url ?? null });
@@ -320,11 +326,11 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
             .from("google_connections")
             .update({ last_error: null, status: "connected" })
             .eq("id", conn.id);
-          gmb = { posted: true, title: local.title, error: null };
+          gmb = { posted: true, title: gmbPost.title, error: null };
         } catch (e) {
           const message = e instanceof Error ? e.message : "Google post failed";
           await supabase.from("google_connections").update({ last_error: message, status: "error" }).eq("id", conn.id);
-          gmb = { posted: false, title: local.title, error: message };
+          gmb = { posted: false, title: null, error: message };
         }
       }
     }
