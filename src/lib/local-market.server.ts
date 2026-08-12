@@ -99,6 +99,14 @@ export async function researchLocalMarket(input: {
     ),
   );
   const rows = mapBatches.flat();
+  console.info("[local-market] Google Maps scan", {
+    targetCountry: opts.locationName,
+    language: opts.languageCode,
+    queries,
+    mapLocations,
+    batches: mapBatches.map((batch) => batch.length),
+    results: rows.length,
+  });
   const totalQueries = queries.length * mapLocations.length;
   const grouped = new Map<string, GoogleMapsResult[]>();
   for (const row of rows) {

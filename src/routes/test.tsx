@@ -228,6 +228,9 @@ function TestPage() {
               ok: true,
               detail: [business.city, business.category].filter(Boolean).join(" · ") || "Local Pack result",
             })),
+            ...(batch === "rivals" && stage.ok && localPack.length === 0
+              ? [{ label: "Google Maps Local Pack", ok: true, detail: "No Maps business was returned for the tested buyer queries; see the raw result for the exact queries." }]
+              : []),
           ],
           ...(stage.error ? { error: stage.error } : {}),
           ms: stage.ms,
