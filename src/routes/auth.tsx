@@ -3,7 +3,6 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useServerFn } from "@tanstack/react-start";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
 import { useAuth } from "@/hooks/useAuth";
 import { createCheckout } from "@/lib/billing.functions";
 import { takeCheckoutIntent } from "@/lib/checkoutIntent";
@@ -80,18 +79,25 @@ function AuthPage() {
     try {
       // Ask for Search Console + Business Profile access right after sign-in.
       sessionStorage.setItem("ranki:google-scopes", "1");
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: `${window.location.origin}/auth/callback`,
+      // Supabase's own OAuth redirect (Google credentials configured in the
+      // Supabase project's Auth > Providers settings) works on any host. The
+      // previous Lovable-managed flow redirected through a `/~oauth/initiate`
+      // path that only Lovable's own hosting intercepts — production is
+      // deployed elsewhere, so that path 404s.
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: `${window.location.origin}/auth/callback` },
       });
-      if (result.error) {
-        toast.error(result.error.message ?? "Google sign-in failed");
+      if (error) {
+        sessionStorage.removeItem("ranki:google-scopes");
+        toast.error(error.message ?? "Google sign-in failed");
+        setGoogleBusy(false);
         return;
       }
-      if (result.redirected) return;
-      navigate({ to: "/app", replace: true });
+      // Success navigates the browser away to Google immediately; nothing left to do here.
     } catch (err) {
+      sessionStorage.removeItem("ranki:google-scopes");
       toast.error(err instanceof Error ? err.message : "Google sign-in failed");
-    } finally {
       setGoogleBusy(false);
     }
   }

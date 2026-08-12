@@ -22,6 +22,22 @@ export type BusinessProfile = {
   /** Geographic areas confirmed on the site. */
   locations?: string[] | null;
   /**
+   * What the commercial format should render for this business: physical or
+   * shippable goods, a SaaS/app/platform, a professional or manual service,
+   * or a marketplace of other sellers' listings. Drives which commercial
+   * content template is used — never a product comparison for a business
+   * with nothing to catalogue.
+   */
+  primary_entity?: "product" | "software" | "service" | "marketplace" | null;
+  /** True only when the site shows a real street address or storefront. */
+  has_physical_location?: boolean | null;
+  /**
+   * True only when the site states it serves a bounded local area (a city, a
+   * region, or "we cover X and Y") — false for a national or worldwide/
+   * online-only business even if it names a country it ships to.
+   */
+  has_service_area?: boolean | null;
+  /**
    * The merchant's own positioning, verbatim: the SEO <title> and meta
    * description of the landing page. These are the words the business chose to
    * describe itself, already in its language and already aimed at its real
@@ -222,7 +238,10 @@ Return JSON:
   "locations": ["France", "Belgium"],
   "audience": "who buys this",
   "canonical": "one sentence canonical profile",
-  "reliable": true/false
+  "reliable": true/false,
+  "primary_entity": "product" | "software" | "service" | "marketplace",
+  "has_physical_location": true/false,
+  "has_service_area": true/false
 }
 
 Rules:
@@ -231,7 +250,10 @@ Rules:
 - "locations": only geographic areas mentioned on the site. Empty array if national/online with no area stated.
 - "reliable": false if you cannot determine what the company actually sells with confidence.
 - "canonical": e.g. "Grossiste et vendeur de meubles en ligne: canapés, tables, chaises, mobilier de maison en France."
-- NEVER include craft trades (menuisier, ébéniste, tapissier, décorateur) as services unless the site explicitly offers them.`,
+- NEVER include craft trades (menuisier, ébéniste, tapissier, décorateur) as services unless the site explicitly offers them.
+- "primary_entity": the thing actually sold. "product" for physical/shippable goods, "software" for a SaaS/app/platform/tool (e.g. an AI content or SEO automation product), "service" for a professional or manual service performed for the buyer, "marketplace" for a platform that lists other sellers' offers.
+- "has_physical_location": true only if a real street address or storefront appears on the site.
+- "has_service_area": true only if the site states it serves a bounded local area (a city, a region, or "we cover X and Y"). A national or worldwide/online-only business is false even when it names a country it ships to or operates in.`,
   });
   const p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
   const products = Array.isArray(p.products) ? p.products.map((s) => String(s).trim()).filter(Boolean).slice(0, 20) : [];
@@ -249,6 +271,19 @@ Rules:
   const modelSaysB2B = ["wholesale", "manufacturer"].includes((p.sales_model ?? "").trim().toLowerCase());
   const sales_model =
     landing?.sellsToBusinesses && !modelSaysB2B ? "wholesale" : (p.sales_model?.toString().slice(0, 40) ?? null);
+  const PRIMARY_ENTITIES = new Set(["product", "software", "service", "marketplace"]);
+  // A safety net for malformed model output only — the model is asked to
+  // classify this directly. Defaults to "service", the most generic template,
+  // rather than presuming a product catalogue or software that isn't there.
+  const primary_entity: "product" | "software" | "service" | "marketplace" = PRIMARY_ENTITIES.has(
+    (p.primary_entity ?? "").toString(),
+  )
+    ? (p.primary_entity as "product" | "software" | "service" | "marketplace")
+    : products.length > 0
+      ? "product"
+      : sales_model === "marketplace"
+        ? "marketplace"
+        : "service";
   return {
     name: p.name?.toString().slice(0, 120) ?? hints?.name ?? site.title,
     website_url: hints?.website_url ?? null,
@@ -260,6 +295,9 @@ Rules:
     services,
     locations,
     positioning: landing?.positioning || null,
+    primary_entity,
+    has_physical_location: Boolean(p.has_physical_location),
+    has_service_area: Boolean(p.has_service_area),
     canonical,
     reliable,
   };

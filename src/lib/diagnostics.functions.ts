@@ -87,9 +87,15 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       if (data.batch === "profile") {
         if (!context.site) missingBatchInput(data.batch);
         const { buildCanonicalProfile } = await import("./relevance.server");
+        const { getEligibleFormats } = await import("./geo");
         const profile = await buildCanonicalProfile(context.site, { website_url: data.website });
         if (!profile.reliable) throw new Error("The canonical profile did not find enough verified business evidence.");
-        return finish(`${profile.sales_model ?? "unknown sales model"}; ${profile.products?.length ?? 0} confirmed product categories`, profile, { ...context, profile });
+        const eligible = getEligibleFormats(profile);
+        return finish(
+          `${profile.sales_model ?? "unknown sales model"}; ${profile.products?.length ?? 0} confirmed product categories; entity=${profile.primary_entity ?? "n/a"}; eligible formats=${eligible.join(", ")}`,
+          profile,
+          { ...context, profile },
+        );
       }
       if (data.batch === "keywords") {
         if (!context.site || !context.profile) missingBatchInput(data.batch);
@@ -145,14 +151,15 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       }
       if (data.batch === "calendar") {
         if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);
-        const { planWindow } = await import("./geo");
+        const { planWindow, getEligibleFormats } = await import("./geo");
         const { planTopics, validateCalendarTopic } = await import("./plan.server");
-        const brief = { name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: context.qualified.map((row) => row.keyword), locations: context.profile.locations ?? null };
-        const slots = planWindow(new Date(), 30).map((slot, index) => ({ ...slot, keyword: context.qualified![index % context.qualified!.length]?.keyword ?? null }));
+        const brief = { name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: context.qualified.map((row) => row.keyword), locations: context.profile.locations ?? null, profile: context.profile };
+        const eligible = getEligibleFormats(context.profile);
+        const slots = planWindow(new Date(), 30, eligible).map((slot, index) => ({ ...slot, keyword: context.qualified![index % context.qualified!.length]?.keyword ?? null }));
         const calendar = await planTopics(brief, slots);
         const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.contentTypeAligned || !c.locationValid; });
         if (invalid) throw new Error(`Calendar mismatch: \"${invalid.keyword}\" -> \"${invalid.topic}\"`);
-        return finish(`${calendar.length} planned topics derived from validated buyer keywords`, calendar, { ...context, calendar });
+        return finish(`${calendar.length} planned topics — eligible formats: ${eligible.join(", ")}`, calendar, { ...context, calendar });
       }
       if (!context.profile || !context.calendar?.length || !context.rivals?.length) missingBatchInput(data.batch);
       const { writeArticle } = await import("./plan.server");
@@ -272,44 +279,31 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
 
     // Preview only: plan the next 30 days from the validated market output.
     // No project, content item, article or external destination is written.
-    const { planWindow } = await import("./geo");
+    const { planWindow, getEligibleFormats } = await import("./geo");
     const { planTopics, validateCalendarTopic, writeArticle } = await import("./plan.server");
+    const eligibleFormats = getEligibleFormats(profile);
     const calendar = await take("calendar", async () => {
-      const slots = planWindow(new Date(), 30).map((slot, index) => ({
+      const slots = planWindow(new Date(), 30, eligibleFormats).map((slot, index) => ({
         ...slot,
         keyword: keywordStage.qualified[index % keywordStage.qualified.length]?.keyword ?? null,
       }));
-      const planned = await planTopics(
-        {
-          name: profile.name ?? new URL(data.website).hostname,
-          website_url: data.website,
-          industry: profile.industry ?? null,
-          audience: profile.audience ?? null,
-          tone: "expert",
-          locale: writingLocale,
-          keywords: keywordStage.qualified.map((row) => row.keyword),
-          locations: profile.locations ?? null,
-        },
-        slots,
-      );
+      const brief = {
+        name: profile.name ?? new URL(data.website).hostname,
+        website_url: data.website,
+        industry: profile.industry ?? null,
+        audience: profile.audience ?? null,
+        tone: "expert",
+        locale: writingLocale,
+        keywords: keywordStage.qualified.map((row) => row.keyword),
+        locations: profile.locations ?? null,
+        profile,
+      };
+      const planned = await planTopics(brief, slots);
       const validation = planned.map((item) => ({
         targetKeyword: item.keyword ?? "",
         contentType: item.type,
         topic: item.topic,
-        ...validateCalendarTopic(
-          {
-            name: profile.name ?? new URL(data.website).hostname,
-            website_url: data.website,
-            industry: profile.industry ?? null,
-            audience: profile.audience ?? null,
-            tone: "expert",
-            locale: writingLocale,
-            keywords: keywordStage.qualified.map((row) => row.keyword),
-            locations: profile.locations ?? null,
-          },
-          item,
-          item.topic,
-        ),
+        ...validateCalendarTopic(brief, item, item.topic),
       }));
       console.info("[pipeline-diagnostic] calendar target alignment", validation);
       const invalid = validation.find((item) => !item.keywordAligned || !item.contentTypeAligned || !item.locationValid);

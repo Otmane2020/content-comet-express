@@ -4,7 +4,8 @@
  * never reuses a keyword twice in the same window, and stores the keyword it
  * planned on so the writer targets it.
  */
-import { planWindow, type ContentType } from "./geo";
+import { getEligibleFormats, planWindow, type ContentType } from "./geo";
+import type { CanonicalProfileFacts } from "./plan.server";
 
 type Sb = { from: (t: string) => any };
 
@@ -18,7 +19,12 @@ export type RotationProject = {
   tone: string | null;
   locale: string | null;
   keywords: string[] | null;
-  business_profile?: { locations?: string[] | null } | null;
+  business_profile?:
+    | (CanonicalProfileFacts & {
+        has_physical_location?: boolean | null;
+        has_service_area?: boolean | null;
+      })
+    | null;
 };
 
 export type PickedKeyword = { id: string; keyword: string; intent?: string | null; origin?: string | null };
@@ -69,7 +75,12 @@ export async function ensureWindow(
 ): Promise<{ created: number; keywords: number; researched: boolean }> {
   const { planTopics } = await import("./plan.server");
 
-  const window = planWindow(new Date(), days);
+  // The rotation only ever offers formats this business is eligible for: a
+  // globally-sold SaaS or service never gets a Local AEO day, and the
+  // commercial slot renders as software/service content instead of a product
+  // comparison when there is no catalogue (see writeArticle).
+  const eligible = getEligibleFormats(project.business_profile ?? {});
+  const window = planWindow(new Date(), days, eligible);
   const { data: existing } = await supabase
     .from("content_items")
     .select("scheduled_date")
@@ -103,6 +114,7 @@ export async function ensureWindow(
     locale: project.locale,
     keywords: picked.length ? picked.map((k) => k.keyword) : (project.keywords ?? []),
     locations: project.business_profile?.locations ?? null,
+    profile: project.business_profile ?? null,
   };
 
   // One keyword per day, and never the same one twice in a window. The list

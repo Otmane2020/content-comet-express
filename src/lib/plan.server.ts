@@ -11,6 +11,9 @@ export type ProjectBrief = {
   locale: string | null;
   keywords: string[];
   locations?: string[] | null;
+  /** Verified business signals used to keep topics and formats grounded in
+   * what this business actually is — never a generic industry guess. */
+  profile?: CanonicalProfileFacts | null;
 };
 
 /** The six publishing templates. Content type selects structure, never topic. */
@@ -79,9 +82,33 @@ export function briefLine(project: ProjectBrief) {
  * article title, so it has to read like one: the previous form emitted the
  * internal debug label `GEO — meubles t v (Sweet Deco)`.
  */
+/**
+ * Wording for the commercial ("shopping") slot, keyed by what this business
+ * actually sells. This is the sole reason "buying criteria for
+ * professionals" used to appear under a SaaS keyword: the old fallback had
+ * one shopping template for every business, product catalogue or not.
+ */
+function commercialFallbackTopic(seed: string, entity: ReturnType<typeof resolveCommercialEntity>, fr: boolean): string {
+  if (fr) {
+    return {
+      product: `${seed} : modèles, prix et comment choisir`,
+      software: `${seed} : combien ça coûte et que faut-il regarder ?`,
+      service: `${seed} : ce que ça comprend et comment choisir un prestataire`,
+      marketplace: `${seed} : comment comparer les offres`,
+    }[entity];
+  }
+  return {
+    product: `${seed}: models, prices and how to choose`,
+    software: `${seed}: how much it costs and what to look for`,
+    service: `${seed}: what's included and how to choose a provider`,
+    marketplace: `${seed}: how to compare offers`,
+  }[entity];
+}
+
 export function fallbackTopics(project: ProjectBrief, slots: { date: string; type: ContentType; keyword?: string | null }[]) {
   const seeds = project.keywords.length ? project.keywords : [project.industry ?? project.name];
   const fr = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr";
+  const entity = resolveCommercialEntity(project.profile, false);
   return slots.map((slot, i) => {
     // A slot's target is authoritative. Falling back to a modulo-indexed seed
     // used to create a valid title for the *next* keyword, while storing the
@@ -89,18 +116,18 @@ export function fallbackTopics(project: ProjectBrief, slots: { date: string; typ
     const seed = slot.keyword ?? seeds[i % seeds.length] ?? project.name;
     const formats: Record<ContentType, string> = fr
       ? {
-          geo: `Quel ${seed} choisir pour son activité ?`,
-          seo: `${seed} : guide pour les acheteurs professionnels`,
-          aeo: `Comment choisir ${seed} ?`,
-          local_aeo: `${seed} : comment trouver le bon fournisseur près de chez vous ?`,
-          shopping: `${seed} : modèles et critères pour professionnels`,
+          geo: `Qu'est-ce que ${seed} et comment ça fonctionne ?`,
+          seo: `${seed} : le guide complet`,
+          aeo: `Comment fonctionne ${seed} ?`,
+          local_aeo: `${seed} près de chez vous : comment bien choisir`,
+          shopping: commercialFallbackTopic(seed, entity, true),
         }
       : {
-          geo: `Which ${seed} should your business choose?`,
-          seo: `${seed}: a guide for professional buyers`,
-          aeo: `How do you choose ${seed}?`,
-          local_aeo: `${seed}: how to find the right supplier near you`,
-          shopping: `${seed}: models and buying criteria for professionals`,
+          geo: `What is ${seed} and how does it work?`,
+          seo: `${seed}: the complete guide`,
+          aeo: `How does ${seed} work?`,
+          local_aeo: `${seed} near you: how to choose the right option`,
+          shopping: commercialFallbackTopic(seed, entity, false),
         };
     return {
       ...slot,
@@ -139,13 +166,21 @@ export function validateCalendarTopic(project: ProjectBrief, slot: { type: Conte
   const injectedLocationOutsideLocal =
     slot.type !== "local_aeo" && hasConfirmedLocation && !keywordRequestsLocation;
   const localIntent = /\b(pr[èe]s|proximite|zone|local|near|nearby|area)\b/i.test(topic);
+  // The commercial slot only owes a catalogue vocabulary (models, dimensions,
+  // finishes…) when it is actually rendering a product comparison. A SaaS or
+  // service commercial topic is judged on general commercial intent instead —
+  // requiring catalogue wording there is what forced "buying criteria for
+  // professionals" onto every business regardless of what it sells.
+  const commercialEntity = resolveCommercialEntity(project.profile, false);
   const contentTypeAligned =
     slot.type === "local_aeo"
       ? hasConfirmedLocation || localIntent
       : slot.type === "aeo"
         ? /\?|^(comment|quel|quelle|quels|quelles|ou|where|which|how)\b/i.test(topic.trim())
         : slot.type === "shopping"
-          ? /\b(mod[eè]les?|selection|dimensions?|finitions?|catalogue|models?|selection|dimensions?|finishes|products?)\b/i.test(topic)
+          ? commercialEntity === "product"
+            ? /\b(mod[eè]les?|selection|dimensions?|finitions?|catalogue|models?|selection|dimensions?|finishes|products?)\b/i.test(topic)
+            : /\b(co[uû]te?|prix|tarifs?|abonnement|fonctionnalit|inclus|prestataire|offres?|comparer|choisir|logiciel|plateforme|outil|service|cost|price|pricing|plan|feature|include|provider|offer|compare|choose|software|platform|tool|subscription)\b/i.test(topic)
           : true;
   return { keywordAligned, contentTypeAligned, locationValid: !hasUnknownCity && !injectedLocationOutsideLocal };
 }
@@ -162,6 +197,13 @@ export async function planTopics(
     )
     .join("\n");
   const year = new Date().getUTCFullYear();
+  const commercialEntity = resolveCommercialEntity(project.profile, false);
+  const commercialRule: Record<ReturnType<typeof resolveCommercialEntity>, string> = {
+    product: `This business sells physical or cataloguable products. Shopping topics must use catalogue categories plus models, dimensions, finishes or selection language; never a generic "best offers" comparison.`,
+    software: `This business sells software (a SaaS/app/platform), not a physical catalogue. Shopping-slot topics must be about pricing, plans, features, integrations or how to choose this kind of software — never invent a product catalogue, "models" or "dimensions" it does not have.`,
+    service: `This business sells a service, not a physical catalogue. Shopping-slot topics must be about what the service includes, pricing, or how to choose a provider — never invent a product catalogue, "models" or "dimensions" it does not have.`,
+    marketplace: `This business is a marketplace of other sellers' offers, not its own catalogue. Shopping-slot topics must be about how offers/listings compare or what to check before choosing one — never invent a specific product line it does not sell itself.`,
+  };
 
   try {
     const raw = await callOpenRouter({
@@ -180,7 +222,9 @@ CRITICAL AUDIENCE RULE: never turn the target business into the reader. If the c
 
 CONTENT TYPE RULE: GEO, SEO, AEO, Local AEO and Shopping describe HOW Ranki structures content. They are never the subject by themselves. Do not put GEO, SEO, AEO, AI visibility, ChatGPT, generative engines or "how to rank" in a title unless the target keyword is explicitly about marketing/search.
 
-For commercial or transactional keywords, choose supplier-selection questions, product/category offers, comparisons, buying guides or buyer FAQs. Shopping topics must use catalogue categories plus models, dimensions, finishes or selection language; never a generic "best offers" comparison. Local topics need a real place/service-area signal and must use ONLY the confirmed locations below. Never invent Paris, Lyon, Marseille, Bordeaux, Lille or any other city.
+NO RIGID FORMULAS: never reuse the same sentence template across topics (e.g. always "Which X should you choose?", always "X: a guide for professional buyers", always "How do you choose X?"). Build each title from the keyword's real search intent, this business's model and audience, and the slot's format — a direct question for AEO, a natural search-friendly phrase for SEO, a definitional or comparative angle for GEO. Vary sentence structure across the list.
+
+For commercial or transactional keywords, choose supplier-selection questions, product/category offers, comparisons, buying guides or buyer FAQs. ${commercialRule[commercialEntity]} Local topics need a real place/service-area signal and must use ONLY the confirmed locations below. Never invent Paris, Lyon, Marseille, Bordeaux, Lille or any other city.
 Confirmed locations: ${(project.locations ?? []).join(", ") || "none — use only a generic near-me/local intent, never a city"}.
 
 Slots:
@@ -250,7 +294,27 @@ export type CanonicalProfileFacts = {
   products?: string[] | null;
   services?: string[] | null;
   locations?: string[] | null;
+  primary_entity?: "product" | "software" | "service" | "marketplace" | null;
 };
+
+/**
+ * What the commercial ("shopping") slot should actually render for this
+ * business. A verified product catalogue always wins (real catalogue data
+ * beats a stale profile guess); otherwise the profile's own classification is
+ * used, falling back to "service" — the most generic template — rather than
+ * presuming a product catalogue or software that isn't there.
+ */
+export function resolveCommercialEntity(
+  profile: CanonicalProfileFacts | null | undefined,
+  hasCatalog: boolean,
+): "product" | "software" | "service" | "marketplace" {
+  if (hasCatalog) return "product";
+  if (profile?.primary_entity) return profile.primary_entity;
+  if ((profile?.products?.length ?? 0) > 0) return "product";
+  if (profile?.sales_model === "marketplace") return "marketplace";
+  if (profile?.sales_model === "service" || (profile?.services?.length ?? 0) > 0) return "service";
+  return "service";
+}
 
 function profileFactsBlock(profile: CanonicalProfileFacts | null | undefined) {
   if (!profile) return "";
@@ -280,19 +344,31 @@ export async function writeArticle(
   const products = extras?.products ?? [];
   const links = extras?.links ?? [];
   const wantsFaq = item.content_type === "geo" || FAQ_TYPES.has(item.content_type);
+  // The commercial slot renders a different template depending on what this
+  // business actually sells — a product catalogue only when one is verified,
+  // never a comparison table invented for a SaaS or service.
+  const commercialEntity = resolveCommercialEntity(extras?.profile, products.length > 0);
+  const COMMERCIAL_GUIDANCE: Record<ReturnType<typeof resolveCommercialEntity>, string> = {
+    product:
+      "Shopping/product template: start with a direct answer, then factual attributes (price, material, dimensions, features, availability only if supplied), suitability, selection criteria, real related products, buyer FAQ and a clear CTA. Build the comparison table only from the real catalogue supplied below; never invent a product.",
+    software:
+      "Software commercial template: start with a direct answer to the buyer's question, then software facts only (what it automates, core features, integrations, pricing model, who it's for) taken strictly from the verified context — never invent a price, plan name or integration that isn't supplied. Cover selection criteria for this category of software, suitability, a factual brand section, buyer FAQ and a clear CTA. No product comparison table.",
+    service:
+      "Service commercial template: start with a direct answer, then what the service includes, how it works, who it's for, selection criteria for choosing a provider, verified proof points only when supplied, buyer FAQ and a clear CTA. Never invent pricing, delivery times or availability that isn't supplied. No product comparison table.",
+    marketplace:
+      "Marketplace/offer template: start with a direct answer, then how offers or listings work on this platform, what to check before choosing one, verified categories or sellers only when supplied, buyer FAQ and a clear CTA. Never invent a specific listing, seller or price.",
+  };
   const guidance: Record<ContentType, string> = {
     geo: "GEO is an invisible writing method, never the subject. Return a standalone 50-80 word answer_block first: answer the buyer query directly and connect the business name, audience, verified product categories and verified market/location only when supplied. Then return 4-6 key_facts taken strictly from the verified context. The article must use independently understandable, question-led sections. Do not discuss GEO, AI visibility, ChatGPT or how the business should rank unless the topic explicitly asks about them.",
     seo: "Write a classic long-form SEO article: match search intent, open the first 100 words around the primary keyword, use an H2/H3 structure, and keep a keyword-rich but natural style.",
     aeo: "Answer-engine format: a direct 40-60 word answer first, then supporting sections. Do NOT write an FAQ section in the body — the FAQ is returned separately as structured data.",
     local_aeo:
       "Local answer-engine format: near-me and city intent, local proof points. Do NOT write an FAQ section in the body — the FAQ is returned separately as structured data.",
-    shopping:
-      "Shopping assistant format: comparison table in markdown, buying criteria, price ranges, pros/cons, and a clear recommendation.",
+    shopping: COMMERCIAL_GUIDANCE[commercialEntity],
   };
   guidance.seo = "SEO template: provide a natural search-result title and a 140-160 character excerpt. Start with a 100-150 word intent-led introduction; cover definition, who it is for, how to choose or use it, 3-4 decision criteria, a useful secondary topic, mistakes to avoid, verified conditions only when supplied, and a factual brand section. Use semantic H2/H3 coverage, never keyword stuffing.";
   guidance.aeo = "AEO template: H1 is the exact buyer question. Begin with a 40-70 word direct answer, then 3-5 quick facts, a concise how-it-works section, criteria or steps, a factual brand section when relevant, and related buyer questions. Do NOT write an FAQ section in the body; the FAQ is returned separately as structured data.";
   guidance.local_aeo = "Local AEO template: activate only for real local intent. Begin with a 40-80 word local answer covering what, for whom, where and verified availability. Then use local facts, availability in that area, selection criteria, served area and the real order/contact process. Never invent a city, address, hours or service area. Do NOT write an FAQ section in the body; the FAQ is returned separately as structured data.";
-  guidance.shopping = "Commercial/Shopping template: use product, service or software facts depending on the verified entity. Start with a direct answer, then factual attributes (price, material, dimensions, features, integrations, availability, process or delivery only if supplied), suitability, selection criteria, real related products/services, buyer FAQ and a clear CTA. A comparison table is allowed only when real comparable catalogue data exists.";
 
   // What the pages already ranking (and already cited by the AI answer) for
   // these queries actually put on the page. Given as ground to beat, never as
@@ -302,7 +378,7 @@ export async function writeArticle(
     ? `\n\nPages currently winning these queries, read from their own landing pages:\n${rivals
         .slice(0, 5)
         .map((r) => `${r.domain} — ${r.positioning.slice(0, 180)}${r.headings.length ? ` | sections: ${r.headings.slice(0, 6).join(", ")}` : ""}`)
-        .join("\n")}\n\nCompetitor research is PRIVATE context. Cover what they cover, then go further using only the merchant's verified facts. NEVER mention competitor names, brands, domains, URLs, claims or numbers in the published content.`
+        .join("\n")}\n\nCompetitor research is PRIVATE context, research_only — never source material. Cover what they cover, then go further using only the merchant's verified facts. NEVER mention competitor names, brands, domains, URLs, claims or numbers in the published content, and NEVER copy a competitor's features, services, prices, locations, claims or products into this business's own claims. Every brand-specific commercial statement about this business must come from its own verified facts above, never from competitor research.`
     : "";
 
   const catalogBlock = products.length
@@ -340,6 +416,14 @@ export async function writeArticle(
   const faqRule = wantsFaq
     ? `\nReturn exactly 5 FAQ pairs in "faq": real, specific questions a buyer would ask, with concise 40-80 word standalone answers. Do not repeat the FAQ content inside body_md.`
     : "";
+  // GEO/AEO/Local AEO are answer-first formats for AI assistants and answer
+  // engines: a "why this matters" standfirst before the answer is exactly the
+  // SEO-style throat-clearing they exist to avoid. Only SEO and the
+  // commercial slot get the magazine-style editorial opening.
+  const ANSWER_FIRST_TYPES = new Set<ContentType>(["geo", "aeo", "local_aeo"]);
+  const editorialFormat = ANSWER_FIRST_TYPES.has(item.content_type)
+    ? `Editorial format: this is an answer-first format for AI assistants and answer engines. Do NOT open with a standfirst, context, history or a "why this matters" paragraph — go straight from the direct answer into the next concrete, question-led section. Short readable paragraphs, independently understandable subheadings, concrete factual detail. Keep the article buyer-focused and natural in the site's language.`
+    : `Editorial format: write this as a polished specialist-magazine article, not a keyword list or a dry report. Start with a short compelling standfirst (2-3 sentences) that answers why the buyer should care. Use a clear editorial angle, short readable paragraphs, useful ##/### subheadings, concrete selection advice and a confident but factual closing. Keep the article buyer-focused and natural in the site's language.`;
 
   const raw = await callOpenRouter({
     json: true,
@@ -353,7 +437,7 @@ Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
 ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock}${catalogBlock}${linksBlock}${localBlock}
 
-Editorial format: write this as a polished specialist-magazine article, not a keyword list or a dry report. Start with a short compelling standfirst (2-3 sentences) that answers why the buyer should care. Use a clear editorial angle, short readable paragraphs, useful ##/### subheadings, concrete selection advice and a confident but factual closing. Keep the article buyer-focused and natural in the site's language.
+${editorialFormat}
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists where they genuinely clarify), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Audience safety: write for the person searching the target keyword. Never teach this business how to market, rank, use AI, GEO, SEO or advertising unless that is explicitly the search topic.
 Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above. Competitor research is private and competitor names must never appear in title, excerpt, article or FAQ.
