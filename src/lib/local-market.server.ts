@@ -54,6 +54,18 @@ function localQueries(business: LocalBusiness, buyerKeywords: string[], country:
   ]).slice(0, 9);
 }
 
+function mapsLocations(business: LocalBusiness, country: string) {
+  const confirmed = locationTerms(business, country);
+  // DataForSEO Maps geolocates from `location_name`. Country-only is a valid
+  // fallback, but a confirmed city/region must be queried independently — a
+  // Paris Local Pack is not the same market as France-wide organic results.
+  return confirmed.length
+    ? confirmed.map((location) =>
+        location.toLowerCase().includes(country.toLowerCase()) ? location : `${location}, ${country}`,
+      )
+    : [country];
+}
+
 function categoryMatch(row: GoogleMapsResult, business: LocalBusiness) {
   const haystack = `${row.name} ${row.category ?? ""}`.toLowerCase();
   const terms = [business.industry ?? "", ...(business.products ?? []), ...(business.services ?? [])]
@@ -78,9 +90,16 @@ export async function researchLocalMarket(input: {
   const queries = localQueries(input.business, input.buyerKeywords, opts.locationName);
   if (!queries.length) return { queries: [], competitors: [], opportunities: [] };
 
-  const mapBatches = await Promise.all(queries.map((query) => googleMapsSearch(query, opts).catch(() => [])));
+  const mapLocations = mapsLocations(input.business, opts.locationName);
+  // For Local GEO, the top three Maps/GBP results for each real location are
+  // the signal. Fetching ten results adds noise and weakens recurrence.
+  const mapBatches = await Promise.all(
+    mapLocations.flatMap((locationName) =>
+      queries.map((query) => googleMapsSearch(query, { languageCode: opts.languageCode, locationName }, 3).catch(() => [])),
+    ),
+  );
   const rows = mapBatches.flat();
-  const totalQueries = queries.length;
+  const totalQueries = queries.length * mapLocations.length;
   const grouped = new Map<string, GoogleMapsResult[]>();
   for (const row of rows) {
     const identity = (row.placeId || row.domain || `${row.name}|${row.city ?? ""}`).toLowerCase();
@@ -89,7 +108,7 @@ export async function researchLocalMarket(input: {
   const competitors = [...grouped.entries()]
     .map(([identity, found]): LocalCompetitor => {
       const first = found[0]!;
-      const recurrence = new Set(found.map((row) => row.keyword)).size / totalQueries;
+      const recurrence = found.length / totalQueries;
       const averagePosition = found.reduce((sum, row) => sum + row.position, 0) / found.length;
       const positionScore = Math.max(0, 1 - (averagePosition - 1) / 9);
       const reviewAuthority = Math.min(1, Math.log10((first.reviewCount ?? 0) + 1) / 4);
