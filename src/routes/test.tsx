@@ -189,9 +189,19 @@ function TestPage() {
           context: unknown;
         };
         const stage = result.stage;
+        const localPack = batch === "rivals" && stage.data && typeof stage.data === "object" && "localPack" in stage.data
+          ? (stage.data as { localPack?: { name?: string; city?: string | null; category?: string | null; localPackPositions?: number[] }[] }).localPack ?? []
+          : [];
         setters[batch]({
           status: stage.ok ? "done" : "error",
-          checks: [{ label: stage.summary, ok: stage.ok, ...(stage.error ? { detail: stage.error } : {}) }],
+          checks: [
+            { label: stage.summary, ok: stage.ok, ...(stage.error ? { detail: stage.error } : {}) },
+            ...localPack.map((business) => ({
+              label: `Google Maps #${business.localPackPositions?.[0] ?? "—"} — ${business.name ?? "Unknown business"}`,
+              ok: true,
+              detail: [business.city, business.category].filter(Boolean).join(" · ") || "Local Pack result",
+            })),
+          ],
           ...(stage.error ? { error: stage.error } : {}),
           ms: stage.ms,
           raw: stage.data,
@@ -425,7 +435,7 @@ function TestPage() {
       <Stage
         n={5}
         title="Landing pages concurrentes — matière pour la génération"
-        cost="free"
+        cost="billed"
         state={s5}
         fullPipelineRun={() => void runCompleteDiagnostic()}
         onRun={() =>
