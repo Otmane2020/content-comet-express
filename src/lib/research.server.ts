@@ -1,11 +1,12 @@
+import { defaultCountryForLanguage } from "./industries";
+
 /**
  * Language and target market are two different things: a French business can
  * publish in English. `targetCountry` wins over the language default.
  */
 export function localeOpts(locale: string | null, targetCountry?: string | null) {
   const lang = (locale ?? "fr-FR").slice(0, 2).toLowerCase();
-  const byLang: Record<string, string> = { fr: "France", en: "United States", es: "Spain", de: "Germany", it: "Italy", nl: "Netherlands", pt: "Portugal" };
-  return { languageCode: lang, locationName: targetCountry?.trim() || byLang[lang] || "France" };
+  return { languageCode: lang, locationName: targetCountry?.trim() || defaultCountryForLanguage(lang) };
 }
 
 export type KwRow = {

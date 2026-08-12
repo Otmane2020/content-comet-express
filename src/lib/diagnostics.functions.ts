@@ -124,30 +124,45 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       if (data.batch === "rivals") {
         if (!context.competitors?.length || !context.profile || !context.qualified?.length) missingBatchInput(data.batch);
         const { analyseCompetitorLandings } = await import("./research.server");
-        const { researchLocalMarket } = await import("./local-market.server");
+        const { isLocalEligible } = await import("./geo");
+        const { defaultCountryForLanguage } = await import("./industries");
         const organicRivals = await analyseCompetitorLandings(context.competitors.map((row) => row.domain), 5);
-        const countryByLocale: Record<string, string> = { fr: "France", es: "Spain", de: "Germany", it: "Italy", nl: "Netherlands", pt: "Portugal" };
-        const localMarket = await researchLocalMarket({
-          business: context.profile,
-          locale: context.writingLocale ?? "en",
-          targetCountry: countryByLocale[context.writingLocale ?? ""] ?? "United States",
-          buyerKeywords: context.qualified.slice(0, 5).map((row) => row.keyword),
-          limit: 3,
-        });
-        const localPack = localMarket.competitors.slice(0, 3);
+        // A Google Maps local-pack search is meaningless for a business with no
+        // confirmed location — running it anyway for Ranki.ai (locations: [])
+        // is what surfaced "Content Creation Studios" in Lewisville and an NYC
+        // SEO agency as its "rivals", and was also the single slowest stage
+        // (~27s) because of the extra SerpApi Maps round trip.
+        const locallyEligible = isLocalEligible(context.profile);
+        let localMarket: Awaited<ReturnType<typeof import("./local-market.server").researchLocalMarket>> | null = null;
+        if (locallyEligible) {
+          const { researchLocalMarket } = await import("./local-market.server");
+          localMarket = await researchLocalMarket({
+            business: context.profile,
+            locale: context.writingLocale ?? "en",
+            targetCountry: defaultCountryForLanguage(context.writingLocale),
+            buyerKeywords: context.qualified.slice(0, 5).map((row) => row.keyword),
+            limit: 3,
+          });
+        }
+        const localPack = localMarket?.competitors.slice(0, 3) ?? [];
         const localDomains = localPack.map((row) => row.domain).filter((domain): domain is string => Boolean(domain));
         const localRivals = localDomains.length ? await analyseCompetitorLandings(localDomains, 3) : [];
         const rivals = Array.from(new Map([...organicRivals, ...localRivals].map((row) => [row.domain, row])).values());
-        if (!rivals.length && !localPack.length) throw new Error("No competitor landing pages or Local Pack businesses could be read.");
+        if (!rivals.length && !localPack.length && locallyEligible) throw new Error("No competitor landing pages or Local Pack businesses could be read.");
+        if (!rivals.length && !locallyEligible) throw new Error("No competitor landing pages could be read, and this business has no confirmed location to search Google Maps for.");
         const result = {
           organicLandingPages: organicRivals,
-          localLocation: localMarket.location,
+          locallyEligible,
+          localLocation: localMarket?.location ?? null,
           localPack,
           localLandingPages: localRivals,
-          localQueries: localMarket.localQueries,
-          localGaps: localMarket.gaps,
+          localQueries: localMarket?.localQueries ?? [],
+          localGaps: localMarket?.gaps ?? [],
         };
-        return finish(`${organicRivals.length} organic rival pages + ${localPack.length} top Google Maps businesses`, result, { ...context, rivals, localCompetitors: localPack });
+        const summary = locallyEligible
+          ? `${organicRivals.length} organic rival pages + ${localPack.length} top Google Maps businesses`
+          : `${organicRivals.length} organic rival pages — Google Maps skipped, no confirmed location`;
+        return finish(summary, result, { ...context, rivals, localCompetitors: localPack });
       }
       if (data.batch === "calendar") {
         if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);

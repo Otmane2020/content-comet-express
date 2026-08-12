@@ -1,4 +1,5 @@
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
 
 export const DEFAULT_MODEL = "deepseek/deepseek-chat";
@@ -32,10 +33,70 @@ async function callDeepSeek(opts: {
   return content;
 }
 
+async function callGemini(opts: {
+  system: string;
+  user: string;
+  json?: boolean;
+  maxTokens?: number;
+}): Promise<string> {
+  const apiKey = process.env["GEMINI_API_KEY"];
+  if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
+
+  const res = await fetch(GEMINI_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify({
+      system_instruction: { parts: [{ text: opts.system }] },
+      contents: [{ role: "user", parts: [{ text: opts.user }] }],
+      generationConfig: {
+        temperature: 0.6,
+        maxOutputTokens: opts.maxTokens ?? 2600,
+        ...(opts.json ? { responseMimeType: "application/json" } : {}),
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    throw new Error(`Gemini failed [${res.status}]: ${(await res.text()).slice(0, 300)}`);
+  }
+
+  const data = (await res.json()) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const content = data.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? "")
+    .join("")
+    .trim();
+  if (!content) throw new Error("Gemini returned an empty response");
+  return content;
+}
+
+async function callGeminiThenDeepSeek(
+  opts: { system: string; user: string; json?: boolean; maxTokens?: number },
+  openRouterFailure?: string,
+): Promise<string> {
+  try {
+    return await callGemini(opts);
+  } catch (geminiError) {
+    try {
+      return await callDeepSeek(opts);
+    } catch (deepSeekError) {
+      const failures = [
+        openRouterFailure && `OpenRouter: ${openRouterFailure}`,
+        `Gemini: ${geminiError instanceof Error ? geminiError.message : String(geminiError)}`,
+        `DeepSeek: ${deepSeekError instanceof Error ? deepSeekError.message : String(deepSeekError)}`,
+      ].filter(Boolean);
+      throw new Error(`All AI providers failed. ${failures.join("; ")}`);
+    }
+  }
+}
+
 /**
- * Calls DeepSeek through OpenRouter, and falls back to the DeepSeek API
- * directly when OpenRouter refuses (out of credits, rate limit, outage) so
- * the generation pipeline never stops on a billing hiccup.
+ * Uses OpenRouter first, then Gemini, then the direct DeepSeek API so a
+ * provider credit, quota, or availability issue cannot stop generation.
  */
 export async function callOpenRouter(opts: {
   system: string;
@@ -45,7 +106,7 @@ export async function callOpenRouter(opts: {
   maxTokens?: number;
 }): Promise<string> {
   const apiKey = process.env["OPENROUTER_API_KEY"];
-  if (!apiKey) return callDeepSeek(opts);
+  if (!apiKey) return callGeminiThenDeepSeek(opts, "OPENROUTER_API_KEY is not configured");
 
   const res = await fetch(OPENROUTER_URL, {
     method: "POST",
@@ -68,18 +129,14 @@ export async function callOpenRouter(opts: {
 
   if (!res.ok) {
     const body = await res.text();
-    try {
-      return await callDeepSeek(opts);
-    } catch {
-      throw new Error(`OpenRouter failed [${res.status}]: ${body.slice(0, 500)}`);
-    }
+    return callGeminiThenDeepSeek(opts, `failed [${res.status}]: ${body.slice(0, 300)}`);
   }
   const data = (await res.json()) as {
     choices?: { message?: { content?: string } }[];
     error?: { message?: string };
   };
   if (data.error?.message || !data.choices?.[0]?.message?.content) {
-    return callDeepSeek(opts);
+    return callGeminiThenDeepSeek(opts, data.error?.message ?? "returned no usable response");
   }
   const content = data.choices[0].message.content;
   return content;

@@ -30,6 +30,9 @@ const TONES = [
   { id: "direct", label: "Direct", hint: "Short, action-driven" },
 ];
 
+// The most-targeted markets for SEO/GEO research: every country a supported
+// content language defaults to (industries.ts's LANGUAGES), plus the other
+// large e-commerce economies merchants commonly target directly.
 const MARKET_COUNTRIES = [
   { value: "France", flag: "fr" },
   { value: "United States", flag: "us" },
@@ -42,13 +45,37 @@ const MARKET_COUNTRIES = [
   { value: "Italy", flag: "it" },
   { value: "Netherlands", flag: "nl" },
   { value: "Portugal", flag: "pt" },
+  { value: "Austria", flag: "at" },
+  { value: "Ireland", flag: "ie" },
+  { value: "Poland", flag: "pl" },
+  { value: "Sweden", flag: "se" },
+  { value: "Norway", flag: "no" },
+  { value: "Denmark", flag: "dk" },
+  { value: "Finland", flag: "fi" },
+  { value: "Romania", flag: "ro" },
+  { value: "Turkey", flag: "tr" },
+  { value: "Australia", flag: "au" },
+  { value: "Japan", flag: "jp" },
+  { value: "South Korea", flag: "kr" },
+  { value: "Brazil", flag: "br" },
+  { value: "Mexico", flag: "mx" },
+  { value: "India", flag: "in" },
+  { value: "United Arab Emirates", flag: "ae" },
+  { value: "Saudi Arabia", flag: "sa" },
 ];
 
 function normalizeMarketCountry(country: string | null | undefined) {
   const raw = country?.trim() ?? "";
   if (!raw) return "";
   const code = raw.toLowerCase();
-  const fromCode: Record<string, string> = { fr: "France", us: "United States", gb: "United Kingdom", uk: "United Kingdom", ca: "Canada", be: "Belgium", ch: "Switzerland", es: "Spain", de: "Germany", it: "Italy", nl: "Netherlands", pt: "Portugal" };
+  const fromCode: Record<string, string> = {
+    fr: "France", us: "United States", gb: "United Kingdom", uk: "United Kingdom",
+    ca: "Canada", be: "Belgium", ch: "Switzerland", es: "Spain", de: "Germany",
+    it: "Italy", nl: "Netherlands", pt: "Portugal", at: "Austria", ie: "Ireland",
+    pl: "Poland", se: "Sweden", no: "Norway", dk: "Denmark", fi: "Finland",
+    ro: "Romania", tr: "Turkey", au: "Australia", jp: "Japan", kr: "South Korea",
+    br: "Brazil", mx: "Mexico", in: "India", ae: "United Arab Emirates", sa: "Saudi Arabia",
+  };
   return fromCode[code] ?? raw;
 }
 
@@ -69,7 +96,7 @@ const STEPS = [
     title: "Your content profile",
     lead: "Set the voice of your autopilot",
     blurb:
-      "Confirm the industry, language, editorial tone and audience Ranki should use. These settings shape every article before we scan your market.",
+      "Confirm the industry, language and audience Ranki should use. These settings shape every article before we scan your market.",
   },
   {
     id: 2,
@@ -149,26 +176,51 @@ function previewCategory(
   const products = Array.isArray(profile?.["products"]) ? (profile["products"] as unknown[]) : [];
   const own = products.find((p): p is string => typeof p === "string" && p.trim().length > 2);
   if (own) return own.trim().toLowerCase();
+  const services = Array.isArray(profile?.["services"]) ? (profile["services"] as unknown[]) : [];
+  const service = services.find((s): s is string => typeof s === "string" && s.trim().length > 2);
+  if (service) return service.trim().toLowerCase();
   const label = industry.trim().toLowerCase();
   if (label) return label;
   return locale === "fr" ? "ce type de produit" : "this category";
 }
 
-function aiPreviewQuestion(category: string, locale: string): string {
-  // The fixed noun head ("site") carries the agreement, so the category can be
-  // plural, feminine or a mass noun without breaking the sentence. Inlining it
-  // as `le meilleur ${category}` produced "le meilleur meubles et décoration".
-  return locale === "fr"
-    ? `Quel est le meilleur site pour acheter ${category} ?`
-    : `Which site is best to buy ${category}?`;
+/**
+ * "Which site is best to buy X" and "compare delivery times" are e-commerce
+ * framing: correct for a furniture wholesaler, nonsensical for a SaaS —
+ * Ranki.ai itself rendered as "Which site is best to buy seo & geo software?
+ * Compare them on pricing, delivery times and range." Nobody "buys a
+ * software from a site" or checks its "delivery time". The two framings
+ * share nothing but the category noun, so this branches on sales_model
+ * rather than trying to write one sentence that fits both.
+ */
+function sellsPhysicalGoods(salesModel: string | null | undefined): boolean {
+  return ["wholesale", "retail", "manufacturer", "marketplace"].includes((salesModel ?? "").trim().toLowerCase());
+}
+
+function aiPreviewQuestion(category: string, locale: string, salesModel: string | null | undefined): string {
+  if (sellsPhysicalGoods(salesModel)) {
+    // The fixed noun head ("site") carries the agreement, so the category can
+    // be plural, feminine or a mass noun without breaking the sentence.
+    // Inlining it as `le meilleur ${category}` produced "le meilleur meubles
+    // et décoration".
+    return locale === "fr"
+      ? `Quel est le meilleur site pour acheter ${category} ?`
+      : `Which site is best to buy ${category}?`;
+  }
+  return locale === "fr" ? `Quel est le meilleur outil pour ${category} ?` : `What's the best tool for ${category}?`;
 }
 
 /** Uses only real, already-discovered competitor domains — never invented. */
-function aiPreviewAnswer(category: string, competitors: string[], locale: string): string {
+function aiPreviewAnswer(category: string, competitors: string[], locale: string, salesModel: string | null | undefined): string {
   const names = competitors.slice(0, 3).join(", ");
+  if (sellsPhysicalGoods(salesModel)) {
+    return locale === "fr"
+      ? `Pour ${category}, on cite souvent ${names}. Comparez leurs prix, délais de livraison et gamme de produits.`
+      : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
+  }
   return locale === "fr"
-    ? `Pour ${category}, on cite souvent ${names}. Comparez leurs prix, délais de livraison et gamme de produits.`
-    : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
+    ? `Pour ${category}, on cite souvent ${names}. Comparez leurs fonctionnalités, tarifs et facilité de mise en place.`
+    : `For ${category}, well-known options include ${names}. Compare them on features, pricing and ease of setup.`;
 }
 
 function audienceFieldCopy(locale: string) {
@@ -216,15 +268,25 @@ function aiPreviewOutcome(name: string, website: string, competitors: string[], 
     : `${name} isn't in that answer yet. That's exactly what your next 30 days of content change.`;
 }
 
-/** The preview shell stays English; only the illustrative buyer conversation
- * follows the writing language selected by the merchant. */
-function previewCopy(_locale: string) {
+/**
+ * This block renders an illustrative buyer conversation ("Quel est le
+ * meilleur site pour acheter tables ?" / the answer / the outcome line) — its
+ * chrome has to match, or a French question sits inside an English-labelled
+ * card with an English input placeholder, which reads as broken rather than
+ * as "the dashboard is in English". Keep this localized even though the rest
+ * of the dashboard chrome is not: this card's whole point is to look like a
+ * real conversation in the merchant's language.
+ */
+function previewCopy(locale: string) {
+  const fr = locale === "fr";
   return {
-    kicker: "Buyer-search preview",
-    badge: "Illustrative",
-    headline: "This is what buyers see today",
-    disclaimer: "Illustrative example, built from your own market scan — not a live AI query.",
-    placeholder: "Ask ChatGPT anything…",
+    kicker: fr ? "Aperçu des recherches acheteurs" : "Buyer-search preview",
+    badge: fr ? "Illustratif" : "Illustrative",
+    headline: fr ? "Ce que vos acheteurs voient aujourd’hui" : "This is what buyers see today",
+    disclaimer: fr
+      ? "Exemple illustratif, construit à partir de votre propre scan de marché — ce n’est pas une requête IA en direct."
+      : "Illustrative example, built from your own market scan — not a live AI query.",
+    placeholder: fr ? "Poser une question à ChatGPT…" : "Ask ChatGPT anything…",
   };
 }
 
@@ -1268,18 +1330,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                         </div>
                         <p className="mt-1.5 text-[11px] leading-5 text-muted-foreground">Used for Google results and Google Business Profile local visibility. It can differ from your content language.</p>
                       </div>
+                      {/* Editorial tone is picked by the AI from the business profile
+                          (see detectBusiness's `tone` field) — not a merchant choice,
+                          so no picker is shown here. */}
                       <div className="border-t border-border pt-5 sm:col-span-2">
-                        <Label className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">Editorial tone</Label>
-                        <div className="mt-1.5 grid grid-cols-2 gap-2 sm:grid-cols-4">
-                          {TONES.map((t) => (
-                            <button key={t.id} type="button" onClick={() => setForm((f) => ({ ...f, tone: t.id }))} className={`rounded-xl border px-3 py-2.5 text-left transition ${form.tone === t.id ? "border-primary bg-primary/5 ring-1 ring-primary/30" : "border-border hover:border-primary/40"}`}>
-                              <span className="block text-[12.5px] font-semibold">{t.label}</span>
-                              <span className="mt-0.5 block text-[11px] text-muted-foreground">{t.hint}</span>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <div className="sm:col-span-2">
                         <Label htmlFor="profile-audience" className="font-mono text-[11px] font-bold uppercase tracking-[0.08em] text-muted-foreground">{audienceCopy.label}</Label>
                         <Textarea id="profile-audience" value={form.audience} onChange={set("audience")} className="mt-1.5" rows={3} placeholder={audienceCopy.placeholder} />
                       </div>
@@ -1450,10 +1504,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                         </p>
                         <div className="relative mx-6 mt-7 space-y-5 sm:mx-8">
                           <div className="ml-auto max-w-[85%] rounded-3xl rounded-tr-sm border border-emerald-900/10 bg-[#eff8f4] px-4 py-3 text-[13px] shadow-sm">
-                            {aiPreviewQuestion(previewCategory(form.industry, form.locale, market.business_profile), form.locale)}
+                            {aiPreviewQuestion(previewCategory(form.industry, form.locale, market.business_profile), form.locale, (market.business_profile as { sales_model?: string | null } | null | undefined)?.sales_model)}
                           </div>
                           <div className="max-w-[90%] rounded-3xl rounded-tl-sm border border-border bg-background px-4 py-3 text-[13px] leading-relaxed text-foreground shadow-sm">
-                            {aiPreviewAnswer(previewCategory(form.industry, form.locale, market.business_profile), market.competitors, form.locale)}
+                            {aiPreviewAnswer(previewCategory(form.industry, form.locale, market.business_profile), market.competitors, form.locale, (market.business_profile as { sales_model?: string | null } | null | undefined)?.sales_model)}
                           </div>
                         </div>
                         <div className="relative mx-6 mt-6 flex items-center gap-2 rounded-2xl border border-border bg-muted/25 px-4 py-3 text-[12px] text-muted-foreground sm:mx-8">
