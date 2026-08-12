@@ -170,6 +170,30 @@ function TestPage() {
   const articlePreview = allStagesGreen
     ? (s7.raw as { title?: string; excerpt?: string; body_md?: string } | null)
     : null;
+  const [reportCopied, setReportCopied] = useState(false);
+  const diagnosticReport = {
+    generatedAt: new Date().toISOString(),
+    website,
+    status: allStagesGreen ? "complete" : "incomplete",
+    stages: [
+      ["landing", s1], ["profile", s2], ["keywords", s3], ["serp", s4],
+      ["rivals", s5], ["calendar", s6], ["article", s7],
+    ].map(([id, state]) => ({
+      id,
+      status: (state as StageState).status,
+      durationMs: (state as StageState).ms ?? null,
+      checks: (state as StageState).checks,
+      error: (state as StageState).error ?? null,
+      result: (state as StageState).raw ?? null,
+    })),
+  };
+  const reportJson = JSON.stringify(diagnosticReport, null, 2);
+
+  async function copyDiagnosticReport() {
+    await navigator.clipboard.writeText(reportJson);
+    setReportCopied(true);
+    window.setTimeout(() => setReportCopied(false), 2000);
+  }
 
   async function runCompleteDiagnostic() {
     if (pipelineRunning) return;
@@ -274,6 +298,28 @@ function TestPage() {
         </button>
         <p className="sm:col-span-3 text-[11px] text-muted-foreground">One URL only. Seven successive batches: every stage keeps its result and stops only at the failing batch.</p>
       </div>
+
+      {[s1, s2, s3, s4, s5, s6, s7].some((stage) => stage.status === "done" || stage.status === "error") && (
+        <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+          <div className="mr-auto">
+            <p className="text-sm font-semibold">JSON report</p>
+            <p className="text-xs text-muted-foreground">All diagnostic outputs, calendar and article preview in one copyable file.</p>
+          </div>
+          <button
+            onClick={() => void copyDiagnosticReport()}
+            className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+          >
+            {reportCopied ? "Copied" : "Copy JSON report"}
+          </button>
+          <a
+            href={`data:application/json;charset=utf-8,${encodeURIComponent(reportJson)}`}
+            download="ranki-pipeline-report.json"
+            className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+          >
+            Download JSON
+          </a>
+        </section>
+      )}
 
       <Stage
         n={1}

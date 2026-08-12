@@ -319,7 +319,8 @@ Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
 ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock}${catalogBlock}${linksBlock}${localBlock}
 
-Rules: 900-1400 words, markdown body (## and ### headings, bullet lists), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
+Editorial format: write this as a polished specialist-magazine article, not a keyword list or a dry report. Start with a short compelling standfirst (2-3 sentences) that answers why the buyer should care. Use a clear editorial angle, short readable paragraphs, useful ##/### subheadings, concrete selection advice and a confident but factual closing. Keep the article buyer-focused and natural in the site's language.
+Rules: 900-1400 words, markdown body (## and ### headings, bullet lists where they genuinely clarify), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Audience safety: write for the person searching the target keyword. Never teach this business how to market, rank, use AI, GEO, SEO or advertising unless that is explicitly the search topic.
 Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
