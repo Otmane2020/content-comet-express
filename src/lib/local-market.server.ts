@@ -14,12 +14,27 @@ export type LocalCompetitor = {
   queriesFoundFor: string[];
   localPackPositions: number[];
   recurrenceScore: number;
+  localScore?: number;
+  websiteAnalysis?: {
+    categories: string[];
+    topics: string[];
+    commercialTerms: string[];
+  };
+};
+
+export type LocalQuery = {
+  keyword: string;
+  location: string;
+  results: { name: string; domain: string | null; position: number }[];
 };
 
 export type LocalMarket = {
+  location: { country: string; city: string | null; source: "onboarding" | "website" | "country" };
   queries: string[];
+  localQueries: LocalQuery[];
   competitors: LocalCompetitor[];
   opportunities: KwRow[];
+  gaps: { topic: string; competitorCoverage: number }[];
 };
 
 type LocalBusiness = {
@@ -66,6 +81,21 @@ function mapsLocations(business: LocalBusiness, country: string) {
     : [country];
 }
 
+function resolveLocation(business: LocalBusiness, country: string) {
+  const city = locationTerms(business, country)[0] ?? null;
+  return { country, city, source: city ? "website" as const : "country" as const };
+}
+
+async function analyseLocalWebsite(domain: string) {
+  const { scrapeLandingProfile } = await import("./scrape.server");
+  const page = await scrapeLandingProfile(domain);
+  return {
+    categories: [...page.categoryLinks, ...page.schemaNames].slice(0, 20),
+    topics: [...page.h2, ...page.h3].slice(0, 20),
+    commercialTerms: page.b2bMarkers.slice(0, 12),
+  };
+}
+
 function categoryMatch(row: GoogleMapsResult, business: LocalBusiness) {
   const haystack = `${row.name} ${row.category ?? ""}`.toLowerCase();
   const terms = [business.industry ?? "", ...(business.products ?? []), ...(business.services ?? [])]
@@ -88,15 +118,17 @@ export async function researchLocalMarket(input: {
 }): Promise<LocalMarket> {
   const opts = localeOpts(input.locale, input.targetCountry);
   const queries = localQueries(input.business, input.buyerKeywords, opts.locationName);
-  if (!queries.length) return { queries: [], competitors: [], opportunities: [] };
+  const location = resolveLocation(input.business, opts.locationName);
+  if (!queries.length) return { location, queries: [], localQueries: [], competitors: [], opportunities: [], gaps: [] };
 
   const mapLocations = mapsLocations(input.business, opts.locationName);
   // For Local GEO, the top three Maps/GBP results for each real location are
   // the signal. Fetching ten results adds noise and weakens recurrence.
+  const mapTasks = mapLocations.flatMap((locationName) =>
+    queries.map((keyword) => ({ keyword, location: locationName })),
+  );
   const mapBatches = await Promise.all(
-    mapLocations.flatMap((locationName) =>
-      queries.map((query) => googleMapsSearch(query, { languageCode: opts.languageCode, locationName }, 3).catch(() => [])),
-    ),
+    mapTasks.map(({ keyword, location: locationName }) => googleMapsSearch(keyword, { languageCode: opts.languageCode, locationName }, 3).catch(() => [])),
   );
   const rows = mapBatches.flat();
   console.info("[local-market] Google Maps scan", {
@@ -113,6 +145,11 @@ export async function researchLocalMarket(input: {
     const identity = (row.placeId || row.domain || `${row.name}|${row.city ?? ""}`).toLowerCase();
     grouped.set(identity, [...(grouped.get(identity) ?? []), row]);
   }
+  const localQueryResults = mapTasks.map((task, index) => ({
+    keyword: task.keyword,
+    location: task.location,
+    results: mapBatches[index]!.map((row) => ({ name: row.name, domain: row.domain, position: row.position })),
+  }));
   const competitors = [...grouped.entries()]
     .map(([identity, found]): LocalCompetitor => {
       const first = found[0]!;
@@ -133,11 +170,39 @@ export async function researchLocalMarket(input: {
         reviewCount: first.reviewCount,
         queriesFoundFor: unique(found.map((row) => row.keyword)),
         localPackPositions: found.map((row) => row.position).sort((a, b) => a - b),
-        recurrenceScore: Number((score * 100).toFixed(2)),
+        recurrenceScore: Number((recurrence * 100).toFixed(2)),
+        localScore: Number((score * 100).toFixed(2)),
       };
     })
-    .sort((a, b) => b.recurrenceScore - a.recurrenceScore)
+    .sort((a, b) => (b.localScore ?? 0) - (a.localScore ?? 0))
     .slice(0, input.limit ?? 8);
+
+  // Read only the strongest local businesses. A Maps entry without a website
+  // remains valuable for recurrence/review evidence, but is never invented
+  // into a crawlable domain.
+  const enriched = await Promise.all(
+    competitors.slice(0, 5).map(async (competitor) => {
+      if (!competitor.domain) return competitor;
+      try {
+        return { ...competitor, websiteAnalysis: await analyseLocalWebsite(competitor.domain) };
+      } catch {
+        return competitor;
+      }
+    }),
+  );
+  const clientTerms = new Set([...(input.business.products ?? []), ...(input.business.services ?? [])].map((term) => term.toLowerCase()));
+  const gapCounts = new Map<string, number>();
+  for (const competitor of enriched) {
+    for (const topic of new Set(competitor.websiteAnalysis?.categories ?? [])) {
+      const key = topic.trim().toLowerCase();
+      if (key.length > 2 && !clientTerms.has(key)) gapCounts.set(topic, (gapCounts.get(topic) ?? 0) + 1);
+    }
+  }
+  const gaps = [...gapCounts.entries()]
+    .filter(([, competitorCoverage]) => competitorCoverage >= 2)
+    .map(([topic, competitorCoverage]) => ({ topic, competitorCoverage }))
+    .sort((a, b) => b.competitorCoverage - a.competitorCoverage)
+    .slice(0, 12);
 
   // Validate city/area variants before the calendar uses them. They become
   // `origin: local` only after a real Maps result has proved local demand.
@@ -146,5 +211,12 @@ export async function researchLocalMarket(input: {
     ...queries.filter((query) => locationTerms(input.business, opts.locationName).some((location) => query.toLowerCase().includes(location.toLowerCase()))),
   ]).slice(0, 15);
   const opportunities = localTerms.length ? await searchVolumeFor(localTerms, opts).catch(() => [] as KwRow[]) : [];
-  return { queries, competitors, opportunities: opportunities.map((row) => ({ ...row, origin: "local" as const })) };
+  return {
+    location,
+    queries,
+    localQueries: localQueryResults,
+    competitors: enriched,
+    opportunities: opportunities.map((row) => ({ ...row, origin: "local" as const })),
+    gaps,
+  };
 }

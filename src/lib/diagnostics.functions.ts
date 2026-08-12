@@ -133,7 +133,14 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const localRivals = localDomains.length ? await analyseCompetitorLandings(localDomains, 3) : [];
         const rivals = Array.from(new Map([...organicRivals, ...localRivals].map((row) => [row.domain, row])).values());
         if (!rivals.length && !localPack.length) throw new Error("No competitor landing pages or Local Pack businesses could be read.");
-        const result = { organicLandingPages: organicRivals, localPack, localLandingPages: localRivals, localQueries: localMarket.queries };
+        const result = {
+          organicLandingPages: organicRivals,
+          localLocation: localMarket.location,
+          localPack,
+          localLandingPages: localRivals,
+          localQueries: localMarket.localQueries,
+          localGaps: localMarket.gaps,
+        };
         return finish(`${organicRivals.length} organic rival pages + ${localPack.length} top Google Maps businesses`, result, { ...context, rivals, localCompetitors: localPack });
       }
       if (data.batch === "calendar") {
