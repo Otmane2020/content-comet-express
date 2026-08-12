@@ -425,12 +425,20 @@ export async function writeArticle(
     ? `Editorial format: this is an answer-first format for AI assistants and answer engines. Do NOT open with a standfirst, context, history or a "why this matters" paragraph — go straight from the direct answer into the next concrete, question-led section. Short readable paragraphs, independently understandable subheadings, concrete factual detail. Keep the article buyer-focused and natural in the site's language.`
     : `Editorial format: write this as a polished specialist-magazine article, not a keyword list or a dry report. Start with a short compelling standfirst (2-3 sentences) that answers why the buyer should care. Use a clear editorial angle, short readable paragraphs, useful ##/### subheadings, concrete selection advice and a confident but factual closing. Keep the article buyer-focused and natural in the site's language.`;
 
-  const raw = await callOpenRouter({
-    json: true,
-    maxTokens: 3200,
-    system:
-      `You are a senior content writer specialised in generative engine optimisation. Today is ${new Date().toISOString().slice(0, 10)} and the current year is ${year}. Your knowledge cutoff is older than today, so never present ${year - 1} or earlier as the current year, and never label trends with a past year. You answer with strict JSON only.`,
-    user: `${briefLine(project)}
+  const callWriter = () =>
+    callOpenRouter({
+      json: true,
+      // 900-1400 words of body_md, plus a title/excerpt, plus for GEO an
+      // answer_block+key_facts, plus for AEO/local_aeo/geo up to 5 FAQ pairs —
+      // this is the largest schema of any AI call in the pipeline, and the
+      // one call with no fallback if it fails: an article can't be templated
+      // the way a topic or a keyword score can. 3200 tokens routinely cut the
+      // response short of its closing brace on a full-length article with a
+      // full FAQ block (see buildCanonicalProfile for the same bug).
+      maxTokens: 4200,
+      system:
+        `You are a senior content writer specialised in generative engine optimisation. Today is ${new Date().toISOString().slice(0, 10)} and the current year is ${year}. Your knowledge cutoff is older than today, so never present ${year - 1} or earlier as the current year, and never label trends with a past year. You answer with strict JSON only.`,
+      user: `${briefLine(project)}
 
 Content type: ${TYPE_META[item.content_type].label}
 Topic: ${item.topic ?? "choose the most valuable topic for this business"}
@@ -444,16 +452,26 @@ Fact safety: use only facts supplied above about this business/catalogue. Never 
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
 
 Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${geoSchema}${faqSchema}}`,
-  });
+    });
 
-  const parsed = parseJsonLoose<{
+  type ArticleJson = {
     title?: string;
     excerpt?: string;
     body_md?: string;
     answer_block?: string;
     key_facts?: string[];
     faq?: { question?: string; answer?: string }[];
-  }>(raw);
+  };
+  let parsed: ArticleJson;
+  try {
+    parsed = parseJsonLoose<ArticleJson>(await callWriter());
+  } catch (error) {
+    // Truncated-but-successful is the common case here (see
+    // buildCanonicalProfile); retry once before giving up on the whole
+    // article, since there is nothing to gracefully degrade to.
+    console.error("[writeArticle] response was truncated, retrying once", error instanceof Error ? error.message : error);
+    parsed = parseJsonLoose<ArticleJson>(await callWriter());
+  }
   if (!parsed.body_md) throw new Error("The model returned no article body");
   const faq = wantsFaq
     ? (parsed.faq ?? [])
@@ -504,18 +522,26 @@ export async function writeGmbPost(
   extras?: { profile?: CanonicalProfileFacts | null; localInfo?: LocalInfo },
 ) {
   const year = new Date().getUTCFullYear();
-  const raw = await callOpenRouter({
-    json: true,
-    maxTokens: 700,
-    system: `You write concise Google Business Profile posts. Today is ${year}. Return strict JSON only.`,
-    user: `${briefLine(project)}
+  const callWriter = () =>
+    callOpenRouter({
+      json: true,
+      maxTokens: 700,
+      system: `You write concise Google Business Profile posts. Today is ${year}. Return strict JSON only.`,
+      user: `${briefLine(project)}
 
 Template: Google Business Profile post, not an article. Choose a suitable type among update, product, service, offer or event based only on verified context. Write a short benefit-led title and an 80-180 word summary: opening benefit, verified product/service, who it helps, verified local context only when supplied, one concrete verified fact, then a natural CTA (call, book, order, request a quote, learn more or visit). Never mention SEO, GEO, AI, competitors, invented price, stock, availability, address, hours, review or delivery promise.
 Topic: ${topic}${profileFactsBlock(extras?.profile)}${extras?.localInfo ? `\nVerified local details: ${[extras.localInfo.address, extras.localInfo.city, extras.localInfo.country, extras.localInfo.phone].filter(Boolean).join(" | ")}` : ""}
 
 Return JSON: {"type":"update|product|service|offer|event","title":"...","summary":"80-180 words","cta":"CALL|BOOK|ORDER|QUOTE|LEARN_MORE|VISIT"}`,
-  });
-  const parsed = parseJsonLoose<{ type?: string; title?: string; summary?: string; cta?: string }>(raw);
+    });
+  type GmbJson = { type?: string; title?: string; summary?: string; cta?: string };
+  let parsed: GmbJson;
+  try {
+    parsed = parseJsonLoose<GmbJson>(await callWriter());
+  } catch (error) {
+    console.error("[writeGmbPost] response was truncated, retrying once", error instanceof Error ? error.message : error);
+    parsed = parseJsonLoose<GmbJson>(await callWriter());
+  }
   if (!parsed.summary?.trim()) throw new Error("The model returned no Google Business Profile summary.");
   return {
     type: ["update", "product", "service", "offer", "event"].includes(parsed.type ?? "") ? parsed.type! : "update",

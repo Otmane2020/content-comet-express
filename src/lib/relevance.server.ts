@@ -571,9 +571,9 @@ export async function scoreCompetitorDomains(
   const list = Array.from(new Set(domains.map((d) => d.trim().toLowerCase()).filter(Boolean))).slice(0, 40);
   if (!list.length) return {};
   const fallback = () => Object.fromEntries(list.map((domain) => [domain, MIN_COMPETITOR_RELEVANCE]));
-  const raw = await callOpenRouter({
+  const call = () => callOpenRouter({
     json: true,
-    maxTokens: 1200,
+    maxTokens: 1600,
     system:
       "You judge whether a website is a real business competitor of another company. Strict JSON only.",
     user: `${profileBlock(profile)}
@@ -593,12 +593,20 @@ Domains:
 ${list.map((d) => `- ${d}`).join("\n")}
 
 Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
-  }).catch((e) => {
-    console.error("[relevance] competitor domain scoring failed", e);
-    return null;
   });
-  if (!raw) return fallback();
-  const parsed = parseJsonLoose<{ scores?: { domain: string; score: number }[] }>(raw);
+  // A truncated-but-successful response (see buildCanonicalProfile) has to be
+  // retried before this falls back to a flat default score for every domain —
+  // otherwise a mid-JSON cutoff silently degrades competitor discovery instead
+  // of ever getting a real answer.
+  let parsed: { scores?: { domain: string; score: number }[] } | null = null;
+  for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
+    try {
+      parsed = parseJsonLoose<{ scores?: { domain: string; score: number }[] }>(await call());
+    } catch (e) {
+      console.error("[relevance] competitor domain scoring failed", e);
+    }
+  }
+  if (!parsed) return fallback();
   const out: Record<string, number> = {};
   for (const s of parsed.scores ?? []) {
     if (!s?.domain) continue;
