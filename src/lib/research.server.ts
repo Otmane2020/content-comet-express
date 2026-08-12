@@ -780,12 +780,12 @@ export async function runLiveMarketResearch(
 }> {
   const { scrapeSite } = await import("./scrape.server");
   const { searchVolumeFor } = await import("./dataforseo.server");
-  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
+  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand } = await import("./relevance.server");
 
   const opts = localeOpts(input.locale, input.targetCountry ?? null);
   const keywordLimit = input.keywordLimit ?? 30;
   const site = await scrapeSite(input.website);
-  const proposed = await candidateKeywords(biz, site.landing ?? null, keywordLimit * 5);
+  const proposed = await candidateKeywords(biz, site.landing ?? null, TARGET_CANDIDATES);
   if (!proposed.length) {
     throw new Error("Could not derive qualified buyer queries from the website landing page.");
   }

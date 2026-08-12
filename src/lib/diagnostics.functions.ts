@@ -99,11 +99,11 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       }
       if (data.batch === "keywords") {
         if (!context.site || !context.profile) missingBatchInput(data.batch);
-        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
+        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand } = await import("./relevance.server");
         const { searchVolumeFor } = await import("./dataforseo.server");
         const { localeOpts, requireLiveDataForSeo, classifyIntent } = await import("./research.server");
         await requireLiveDataForSeo();
-        const proposed = await candidateKeywords(context.profile, context.site.landing ?? null, 120);
+        const proposed = await candidateKeywords(context.profile, context.site.landing ?? null, TARGET_CANDIDATES);
         if (!proposed.length) throw new Error("The AI returned no buyer-query candidates from this landing page.");
         const writingLocale = marketLocale(data.website, context.site.landing?.lang);
         const measured = (await searchVolumeFor(proposed, localeOpts(writingLocale))).map((row) => ({
@@ -276,7 +276,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
     });
     if (!site) return { stages };
 
-    const { buildCanonicalProfile, candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
+    const { buildCanonicalProfile, candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand } = await import("./relevance.server");
     const profile = await take("profile", () => buildCanonicalProfile(site, { website_url: data.website }), (value) =>
       `${value.sales_model ?? "unknown sales model"}; ${value.products?.length ?? 0} confirmed product categories`,
     );
@@ -289,7 +289,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
     const { localeOpts, discoverCompetitorsFromSerp, analyseCompetitorLandings, requireLiveDataForSeo } = await import("./research.server");
     const keywordStage = await take("keywords", async () => {
       await requireLiveDataForSeo();
-      const proposed = await candidateKeywords(profile, site.landing ?? null, 120);
+      const proposed = await candidateKeywords(profile, site.landing ?? null, TARGET_CANDIDATES);
       if (!proposed.length) throw new Error("The AI returned no buyer-query candidates from this landing page.");
       const locale = marketLocale(data.website, site.landing?.lang);
       const opts = localeOpts(locale);
@@ -424,14 +424,14 @@ export const probeCandidates = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => siteInput.extend({ locale: z.string().max(8).optional() }).parse(input))
   .handler(async ({ data }) => {
     const { scrapeSite } = await import("./scrape.server");
-    const { buildCanonicalProfile, candidateKeywords } = await import("./relevance.server");
+    const { buildCanonicalProfile, candidateKeywords, TARGET_CANDIDATES } = await import("./relevance.server");
     const { searchVolumeFor } = await import("./dataforseo.server");
     const { localeOpts } = await import("./research.server");
     const started = Date.now();
 
     const site = await scrapeSite(data.website);
     const profile = await buildCanonicalProfile(site, { website_url: data.website });
-    const proposed = await candidateKeywords(profile, site.landing ?? null, 60);
+    const proposed = await candidateKeywords(profile, site.landing ?? null, TARGET_CANDIDATES);
 
     const opts = localeOpts(data.locale ?? marketLocale(data.website, site.landing?.lang));
     let measured: { keyword: string; search_volume: number | null }[] = [];

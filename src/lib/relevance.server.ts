@@ -651,6 +651,16 @@ export function compositeScore(k: ScorableKeyword, relevance: number): number {
   return (relevance * 0.6 + secondary * (relevance / 100)) * (0.35 + confidence * 0.65);
 }
 
+/**
+ * How many buyer-query candidates to request from the AI per scan. A run
+ * that requested 120 candidates timed out at Vercel's 300s function limit
+ * measuring all of them through DataForSEO in one go — 40 is enough headroom
+ * to clear MIN_QUALIFIED_KEYWORDS even when only a fraction have real
+ * Google Ads volume, without the cost or latency of scoring/measuring three
+ * times that many candidates that were always going to be discarded.
+ */
+export const TARGET_CANDIDATES = 40;
+
 /** Keywords below this relevance are dropped (competitor noise, wrong industry). */
 export const MIN_RELEVANCE = 60;
 
