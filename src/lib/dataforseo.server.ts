@@ -414,6 +414,12 @@ export async function serpWithAiSignals(
     });
   } catch (error) {
     const { hasSerpApi, serpApiGoogle } = await import("./serpapi.server");
+    console.error("[serp] DataForSEO request failed", {
+      keyword,
+      location: opts.locationName ?? "France",
+      error: error instanceof Error ? error.message : String(error),
+      serpApiFallback: hasSerpApi(),
+    });
     if (!hasSerpApi()) throw error;
     const organic = await serpApiGoogle(keyword, opts, depth);
     console.info("[serp] DataForSEO unavailable; used SerpApi fallback", { keyword, results: organic.length });

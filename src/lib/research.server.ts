@@ -489,6 +489,7 @@ export async function discoverCompetitorsFromSerp(
   city?: string | null,
   limit = 5,
   buyerQueries?: string[],
+  landingProfileLimit = 20,
 ): Promise<SerpCompetitor[]> {
   const { serpWithAiSignals, competitorDomains } = await import("./dataforseo.server");
   const { dedupeDomains, isRealCompetitor } = await import("./quotas");
@@ -642,7 +643,7 @@ export async function discoverCompetitorsFromSerp(
   // furniture retailers can rank for the same generic categories while selling
   // to an entirely different buyer. Verify the candidate's own landing page
   // with the same deterministic B2B extractor used for the merchant.
-  const landingProfiles = b2bMerchant ? await analyseCompetitorLandings(shortlist, 20) : [];
+  const landingProfiles = b2bMerchant ? await analyseCompetitorLandings(shortlist, landingProfileLimit) : [];
   const b2bDomains = new Set(landingProfiles.filter((p) => p.sellsToBusinesses).map((p) => p.domain.toLowerCase()));
   const buyerMatched = b2bMerchant ? shortlist.filter((domain) => b2bDomains.has(domain.toLowerCase())) : shortlist;
   if (!buyerMatched.length) {

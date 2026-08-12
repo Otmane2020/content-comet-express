@@ -124,10 +124,11 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
         null,
         null,
         8,
-        // /test is an interactive diagnostic, not the production batch. Four
-        // high-confidence queries give enough SERP evidence without making
-        // one browser click fan out into 8 DataForSEO + SerpApi calls.
-        keywordStage.qualified.slice(0, 4).map((row) => row.keyword),
+        // /test is an interactive diagnostic, not a production batch. One
+        // representative buyer query plus five landing profiles prevents a
+        // single server request from timing out before it can report a stage.
+        keywordStage.qualified.slice(0, 1).map((row) => row.keyword),
+        5,
       ),
     (value) => `${value.length} buyer-matched competitors from Google, DataForSEO and SerpApi`);
     if (!competitors?.length) return { stages };
@@ -254,8 +255,17 @@ export const probeSerpAi = createServerFn({ method: "POST" })
     const { serpWithAiSignals } = await import("./dataforseo.server");
     const { localeOpts } = await import("./research.server");
     const started = Date.now();
-    const { organic, ai } = await serpWithAiSignals(data.keyword, localeOpts(data.locale ?? null), 20);
-    return { ai, topOrganic: organic.slice(0, 5), ms: Date.now() - started };
+    try {
+      const { organic, ai } = await serpWithAiSignals(data.keyword, localeOpts(data.locale ?? null), 20);
+      return { ai, topOrganic: organic.slice(0, 5), error: null, ms: Date.now() - started };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error("[pipeline-diagnostic] standalone SERP failed", { keyword: data.keyword, message, stack: error instanceof Error ? error.stack : undefined });
+      return {
+        ai: { keyword: data.keyword, hasAiOverview: false, aiOverviewText: null, citedDomains: [], hasFeaturedSnippet: false, hasPeopleAlsoAsk: false, featureTypes: [] },
+        topOrganic: [], error: message, ms: Date.now() - started,
+      };
+    }
   });
 
 /** Stage 6 — rival landing pages. No API cost: one HTTP GET each. */
