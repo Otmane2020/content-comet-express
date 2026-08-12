@@ -40,6 +40,75 @@ export function normalizeUrl(input: string) {
   return /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
 }
 
+const BROWSER_HEADERS = {
+  // Many storefront CDNs drop a request made by an obvious crawler UA. This
+  // still identifies Ranki in the URL, while looking like a normal document
+  // navigation at the HTTP layer.
+  "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0 Safari/537.36 Ranki.ai/1.0 (+https://www.ranki.ai)",
+  accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+  "accept-language": "fr-FR,fr;q=0.9,en;q=0.8",
+  "cache-control": "no-cache",
+};
+
+type FetchedHtml = { html: string; url: string };
+
+function fetchCandidates(url: string) {
+  const candidates = [url];
+  const parsed = new URL(url);
+  // Some hosts publish only one of apex/www. Trying the other canonical host
+  // is safe and frequently recovers a storefront behind an older CDN.
+  if (!parsed.hostname.startsWith("www.")) {
+    parsed.hostname = `www.${parsed.hostname}`;
+    candidates.push(parsed.toString());
+  }
+  return candidates;
+}
+
+function fetchErrorDetail(error: unknown) {
+  if (error instanceof DOMException && error.name === "AbortError") return "request timed out";
+  const cause = error && typeof error === "object" && "cause" in error ? (error as { cause?: unknown }).cause : undefined;
+  if (cause && typeof cause === "object" && "code" in cause) return String((cause as { code?: unknown }).code);
+  return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Fetch a public landing page without allowing an intermittent network error
+ * to take down the complete research pipeline. The final error deliberately
+ * includes the attempted hosts and error codes: it is actionable in /test.
+ */
+async function fetchHtml(input: string): Promise<FetchedHtml> {
+  const attempts: string[] = [];
+  for (const candidate of fetchCandidates(input)) {
+    for (let retry = 0; retry < 2; retry += 1) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10_000);
+      try {
+        const response = await fetch(candidate, {
+          headers: BROWSER_HEADERS,
+          redirect: "follow",
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          attempts.push(`${new URL(candidate).hostname}: HTTP ${response.status}`);
+          break;
+        }
+        const html = (await response.text()).slice(0, 400_000);
+        if (!html.trim()) {
+          attempts.push(`${new URL(candidate).hostname}: empty response`);
+          break;
+        }
+        return { html, url: response.url || candidate };
+      } catch (error) {
+        attempts.push(`${new URL(candidate).hostname}: ${fetchErrorDetail(error)}`);
+        if (retry === 0) await new Promise((resolve) => setTimeout(resolve, 350));
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+  }
+  throw new Error(`Could not reach this public website after retrying (${attempts.join("; ")}). Check that the site allows HTTPS requests from Ranki.`);
+}
+
 /** Parses one already-fetched HTML document into the signals we reuse everywhere (single scan + crawl). */
 export function extractPageSignals(html: string, pageUrl: string): PageSignals {
   const headings = Array.from(html.matchAll(/<h[1-3][^>]*>([\s\S]*?)<\/h[1-3]>/gi))
@@ -321,30 +390,15 @@ export function extractLandingProfile(html: string, pageUrl: string): LandingPro
 /** Fetches the landing page and returns everything it states about itself. */
 export async function scrapeLandingProfile(input: string): Promise<LandingProfile> {
   const url = normalizeUrl(input);
-  const res = await fetch(url, {
-    headers: {
-      "user-agent": "Mozilla/5.0 (compatible; Ranki.ai/1.0; +https://www.ranki.ai)",
-      accept: "text/html,application/xhtml+xml",
-    },
-    redirect: "follow",
-  });
-  if (!res.ok) throw new Error(`Could not read ${url} (HTTP ${res.status})`);
-  return extractLandingProfile((await res.text()).slice(0, 400_000), url);
+  const page = await fetchHtml(url);
+  return extractLandingProfile(page.html, page.url);
 }
 
 export async function scrapeSite(input: string): Promise<SiteSnapshot> {
   const url = normalizeUrl(input);
-  const res = await fetch(url, {
-    headers: {
-      "user-agent": "Mozilla/5.0 (compatible; Ranki.ai/1.0; +https://www.ranki.ai)",
-      accept: "text/html,application/xhtml+xml",
-    },
-    redirect: "follow",
-  });
-  if (!res.ok) throw new Error(`Could not read ${url} (HTTP ${res.status})`);
-  const html = (await res.text()).slice(0, 400_000);
-  const signals = extractPageSignals(html, url);
+  const page = await fetchHtml(url);
+  const signals = extractPageSignals(page.html, page.url);
 
   // Parsed from the same fetch, so the richer landing signals cost nothing.
-  return { url, ...signals, landing: extractLandingProfile(html, url) };
+  return { url: page.url, ...signals, landing: extractLandingProfile(page.html, page.url) };
 }
