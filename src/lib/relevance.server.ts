@@ -643,12 +643,18 @@ export const MIN_RELEVANCE = 60;
 export const MIN_COMPETITOR_RELEVANCE = 55;
 
 /**
- * A calendar built from fewer distinct keywords than this repeats the same
- * 2-3 topics for the rest of the 30-day window. DataForSEO returning
- * `search_volume: null` for every candidate (no Google Ads data at all, not
- * "zero searches") used to still count as "measured" and pass straight
- * through the relevance gate, so a handful of unmeasurable AI guesses could
- * silently become the entire keyword pool for a month of content.
+ * Below this, a scan is a hard failure — there is essentially no market
+ * signal to plan anything from.
+ */
+export const MIN_USABLE_KEYWORDS = 2;
+
+/**
+ * The comfortable target: a calendar built from at least this many distinct
+ * keywords never has to reuse a (type, keyword) pair more than ~4 times in a
+ * 30-day window. Below it the scan still proceeds — planTopics'
+ * FALLBACK_ANGLES/dedupeTopics were built precisely to keep 30 topics unique
+ * even from a handful of keywords — but the caller gets a warning so a thin
+ * scan is visible instead of looking identical to a healthy one.
  */
 export const MIN_QUALIFIED_KEYWORDS = 8;
 

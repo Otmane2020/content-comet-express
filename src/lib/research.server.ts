@@ -768,11 +768,19 @@ export async function runLiveMarketResearch(
 ): Promise<{
   keywords: KwRow[];
   competitors: SerpCompetitor[];
-  diagnostics: { proposed: number; measured: number; qualified: number; serps: number };
+  diagnostics: {
+    proposed: number;
+    measured: number;
+    withDemand: number;
+    relevancePassed: number;
+    qualified: number;
+    serps: number;
+    warning: string | null;
+  };
 }> {
   const { scrapeSite } = await import("./scrape.server");
   const { searchVolumeFor } = await import("./dataforseo.server");
-  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
+  const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
 
   const opts = localeOpts(input.locale, input.targetCountry ?? null);
   const keywordLimit = input.keywordLimit ?? 30;
@@ -787,31 +795,55 @@ export async function runLiveMarketResearch(
     throw new Error("DataForSEO found no measurable demand for the qualified buyer queries.");
   }
 
-  const relevance = await scoreRelevance(biz, measured.map((row) => row.keyword));
-  const keywords = measured
-    .map((row) => ({
-      ...row,
-      origin: "seed" as const,
-      relevance_score: relevance[row.keyword.toLowerCase()] ?? 0,
-      intent: row.intent ?? classifyIntent(row.keyword),
-    }))
-    .filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row))
+  // Score relevance only for keywords DataForSEO actually returned demand
+  // data for — a null-volume keyword is unusable regardless of how relevant
+  // it reads, so scoring it first wasted an AI call on candidates that were
+  // always going to be dropped. This also gives a clean breakdown of WHERE
+  // keywords were lost (no market data vs. off-topic) instead of one opaque
+  // "measured -> qualified" drop.
+  const withDemand = measured.filter(hasMeasurableDemand);
+  if (!withDemand.length) {
+    throw new Error(
+      `DataForSEO returned ${measured.length} measured keyword(s) but none had real search-volume data (all null) — this business's AI-proposed queries don't match anything Google Ads has demand data for.`,
+    );
+  }
+
+  const relevance = await scoreRelevance(biz, withDemand.map((row) => row.keyword));
+  const scored = withDemand.map((row) => ({
+    ...row,
+    origin: "seed" as const,
+    relevance_score: relevance[row.keyword.toLowerCase()] ?? 0,
+    intent: row.intent ?? classifyIntent(row.keyword),
+  }));
+  const relevant = scored.filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE);
+  const keywords = relevant
     .sort((a, b) =>
       compositeScore(b, b.relevance_score ?? 0) - compositeScore(a, a.relevance_score ?? 0) ||
       (b.search_volume ?? 0) - (a.search_volume ?? 0),
     )
     .slice(0, keywordLimit);
   if (!keywords.length) {
-    throw new Error("The measurable queries did not match this business's buyer profile.");
-  }
-  // Fewer than this and the 30-day calendar has no choice but to repeat the
-  // same handful of topics for the rest of the month — surface it as a scan
-  // failure instead of silently shipping a thin, repetitive month.
-  if (keywords.length < MIN_QUALIFIED_KEYWORDS) {
     throw new Error(
-      `Only ${keywords.length} keyword${keywords.length === 1 ? "" : "s"} had real, measurable demand for this business — need at least ${MIN_QUALIFIED_KEYWORDS} to plan a non-repetitive 30-day calendar. Try again once the site has more distinct buyer-facing pages/copy for the AI to draw candidates from.`,
+      `${withDemand.length} keyword(s) had real search-volume data, but none matched this business's buyer profile (relevance gate) — the AI's candidate queries may be off-topic.`,
     );
   }
+  // Below MIN_USABLE_KEYWORDS there's essentially no market signal to plan a
+  // month from — a genuine failure. Below the larger MIN_QUALIFIED_KEYWORDS
+  // "ideal" the scan still proceeds: FALLBACK_ANGLES/dedupeTopics in
+  // plan.server.ts exist specifically to keep 30 calendar topics unique even
+  // from a handful of keywords. It used to hard-fail here at 8, which turned
+  // "this business has a thin market" into an indistinguishable-from-broken
+  // FAIL every time DataForSEO's Google Ads data was sparse for a niche or
+  // new product category.
+  if (keywords.length < MIN_USABLE_KEYWORDS) {
+    throw new Error(
+      `Only ${keywords.length} keyword${keywords.length === 1 ? "" : "s"} had real, measurable demand and passed the relevance gate — not enough reliable search data to plan from.`,
+    );
+  }
+  const warning =
+    keywords.length < MIN_QUALIFIED_KEYWORDS
+      ? `Only ${keywords.length} qualified keyword${keywords.length === 1 ? "" : "s"} (ideal is ${MIN_QUALIFIED_KEYWORDS}+) — the 30-day calendar will diversify angles per keyword instead of drawing from a wide pool.`
+      : null;
 
   const competitors = await discoverCompetitorsFromSerp(
     biz,
@@ -826,12 +858,23 @@ export async function runLiveMarketResearch(
     website: input.website,
     proposed: proposed.length,
     measured: measured.length,
+    withDemand: withDemand.length,
+    relevancePassed: relevant.length,
     qualified: keywords.length,
     competitors: competitors.length,
+    warning,
   });
   return {
     keywords,
     competitors,
-    diagnostics: { proposed: proposed.length, measured: measured.length, qualified: keywords.length, serps: competitors.length },
+    diagnostics: {
+      proposed: proposed.length,
+      measured: measured.length,
+      withDemand: withDemand.length,
+      relevancePassed: relevant.length,
+      qualified: keywords.length,
+      serps: competitors.length,
+      warning,
+    },
   };
 }

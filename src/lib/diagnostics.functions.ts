@@ -99,7 +99,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       }
       if (data.batch === "keywords") {
         if (!context.site || !context.profile) missingBatchInput(data.batch);
-        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
+        const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
         const { searchVolumeFor } = await import("./dataforseo.server");
         const { localeOpts, requireLiveDataForSeo, classifyIntent } = await import("./research.server");
         await requireLiveDataForSeo();
@@ -111,16 +111,40 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
           intent: row.intent ?? classifyIntent(row.keyword),
         }));
         if (!measured.length) throw new Error("DataForSEO returned no measured search volume for the AI candidates.");
-        const scores = await scoreRelevance(context.profile, measured.map((row) => row.keyword));
-        const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row));
-        if (!qualified.length) throw new Error("Every measurable keyword failed the business-audience relevance gate.");
-        if (qualified.length < MIN_QUALIFIED_KEYWORDS) {
+        // Score relevance only for keywords that actually have search-volume
+        // data — a null-volume keyword can't be used regardless of how
+        // relevant it reads, and this makes the drop-off between stages
+        // (no market data vs. off-topic) visible instead of one opaque
+        // "measured -> qualified" number.
+        const withDemand = measured.filter(hasMeasurableDemand);
+        if (!withDemand.length) throw new Error(`${measured.length} candidate(s) measured, but none had real search-volume data (all null).`);
+        const scores = await scoreRelevance(context.profile, withDemand.map((row) => row.keyword));
+        const scored = withDemand.map((row) => ({ ...row, relevance_score: scores[row.keyword.toLowerCase()] ?? 0 }));
+        const relevant = scored.filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE);
+        if (!relevant.length) throw new Error(`${withDemand.length} keyword(s) had real search-volume data, but none matched this business's buyer profile (relevance gate).`);
+        const qualified = relevant;
+        if (qualified.length < MIN_USABLE_KEYWORDS) {
           throw new Error(
-            `Only ${qualified.length} keyword(s) had real, measurable demand (not null) and passed the relevance gate — need at least ${MIN_QUALIFIED_KEYWORDS} to plan a non-repetitive 30-day calendar.`,
+            `Only ${qualified.length} keyword(s) had real, measurable demand and passed the relevance gate — not enough reliable search data to plan from.`,
           );
         }
-        const result = { proposed, measured, qualified };
-        return finish(`${proposed.length} proposed; ${measured.length} measured; ${qualified.length} qualified`, result, { ...context, writingLocale, qualified });
+        const warning =
+          qualified.length < MIN_QUALIFIED_KEYWORDS
+            ? `Only ${qualified.length} qualified keyword(s) (ideal is ${MIN_QUALIFIED_KEYWORDS}+) — the calendar will diversify angles per keyword instead of drawing from a wide pool.`
+            : null;
+        // Every rejected candidate with why, so a thin scan is diagnosable
+        // instead of a single opaque count: was it no market data at all
+        // (no_volume) or genuinely off-topic (irrelevant)?
+        const rejected = [
+          ...measured.filter((row) => !hasMeasurableDemand(row)).map((row) => ({ keyword: row.keyword, reason: "no_volume" as const })),
+          ...scored.filter((row) => (row.relevance_score ?? 0) < MIN_RELEVANCE).map((row) => ({ keyword: row.keyword, reason: "irrelevant" as const })),
+        ];
+        const result = { proposed, measured, withDemand: withDemand.length, relevancePassed: relevant.length, qualified, rejected, warning };
+        return finish(
+          `${proposed.length} proposed; ${measured.length} measured; ${withDemand.length} with volume; ${relevant.length} relevant; ${qualified.length} qualified${warning ? ` — ${warning}` : ""}`,
+          result,
+          { ...context, writingLocale, qualified },
+        );
       }
       if (data.batch === "serp") {
         if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);
