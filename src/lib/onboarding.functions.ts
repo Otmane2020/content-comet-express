@@ -150,7 +150,24 @@ export const saveMarketResearch = createServerFn({ method: "POST" })
     // This server action is shared by Shopify and Stripe onboarding. The
     // Maps branch reuses validated buyer terms and never changes billing.
     const { data: project } = await supabase.from("projects").select("locale, target_country, business_profile").eq("id", data.projectId).single();
-    if (project?.target_country && data.keywords.length) {
+    const { isLocalEligible } = await import("./geo");
+    const { isFresh } = await import("./quotas");
+    // `target_country` alone used to gate this: it's a Google/DataForSEO
+    // market setting a merchant can set for ANY business, including a global
+    // SaaS with no physical presence, so it never actually protected against
+    // running a Google Maps local-pack search (up to ~27 DataForSEO calls by
+    // itself) for a business with nothing local to find. isLocalEligible
+    // checks the confirmed profile signal instead. A freshness check on the
+    // last scan avoids re-buying the same Maps search if onboarding retries.
+    const { data: recentLocal } = await supabase
+      .from("local_competitors" as never)
+      .select("last_checked_at")
+      .eq("project_id" as never, data.projectId)
+      .order("last_checked_at" as never, { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const alreadyFresh = isFresh((recentLocal as { last_checked_at?: string } | null)?.last_checked_at ?? null);
+    if (project?.target_country && data.keywords.length && isLocalEligible(project.business_profile as never) && !alreadyFresh) {
       try {
         const { researchLocalMarket } = await import("./local-market.server");
         const local = await researchLocalMarket({ business: (project.business_profile ?? {}) as never, locale: project.locale, targetCountry: project.target_country, buyerKeywords: data.keywords.map((keyword) => keyword.keyword) });

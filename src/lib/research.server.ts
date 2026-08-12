@@ -181,7 +181,20 @@ export async function runResearch(supabase: Sb, userId: string, projectId: strin
   // added to the shared opportunity pool, while Google Maps businesses live in
   // their own table because many have no organic website to store as a rival.
   let localCompetitors = 0;
-  if (project.target_country) {
+  // researchLocalMarket can fire up to ~27 DataForSEO Google Maps calls by
+  // itself (one query x one location, looped) — the most expensive single
+  // function in this codebase, and it used to run every time `force: true`
+  // bypassed runResearch's own cache guard above. Give it its own freshness
+  // check on `local_competitors.last_checked_at` so a "Refresh" click doesn't
+  // re-buy a Maps scan that is still within the research cache window.
+  const { data: recentLocal } = await supabase
+    .from("local_competitors")
+    .select("last_checked_at")
+    .eq("project_id", projectId)
+    .order("last_checked_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (project.target_country && !isFresh(recentLocal?.last_checked_at ?? null)) {
     const { researchLocalMarket } = await import("./local-market.server");
     const local = await researchLocalMarket({
       business: biz,

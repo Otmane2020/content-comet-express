@@ -157,13 +157,23 @@ function TestPage() {
   const runRivals = useServerFn(probeRivals);
   const runDiagnosticBatch = useServerFn(runPipelineDiagnosticBatch);
   const [pipelineRunning, setPipelineRunning] = useState(false);
+  // Carries each batch's accumulated context across separate button clicks so
+  // a re-run can resume from the first incomplete stage instead of re-billing
+  // every DataForSEO call the earlier stages already paid for.
+  const [pipelineContext, setPipelineContext] = useState<unknown>(undefined);
   // The diagnostic endpoint is the authority for authentication. The client
   // must not hide /test because a just-restored local session briefly reads as
   // null. It also must never reveal a calendar/article until every gate has
   // succeeded in the same complete run.
-  const allStagesGreen = [s1, s2, s3, s4, s5, s6, s7].every(
-    (stage) => stage.status === "done" && stage.checks.length > 0 && stage.checks.every((check) => check.ok),
-  );
+  const stageStates = { landing: s1, profile: s2, keywords: s3, serp: s4, rivals: s5, calendar: s6, article: s7 } as const;
+  const batchOrder = ["landing", "profile", "keywords", "serp", "rivals", "calendar", "article"] as const;
+  const stageDone = (st: StageState) => st.status === "done" && st.checks.length > 0 && st.checks.every((c) => c.ok);
+  const allStagesGreen = [s1, s2, s3, s4, s5, s6, s7].every(stageDone);
+  // Where a click would resume from: 0 unless the cached context still
+  // matches the current URL and at least the first stage already passed.
+  const contextMatchesWebsite = (pipelineContext as { website?: string } | undefined)?.website === website;
+  const firstIncompleteStage = batchOrder.findIndex((batch) => !stageDone(stageStates[batch]));
+  const resumePoint = contextMatchesWebsite && firstIncompleteStage > 0 ? firstIncompleteStage : 0;
   const calendarPreview = allStagesGreen && Array.isArray(s6.raw)
     ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null }[])
     : [];
@@ -201,15 +211,29 @@ function TestPage() {
   async function runCompleteDiagnostic() {
     if (pipelineRunning) return;
     setPipelineRunning(true);
-    setS1(IDLE); setS2(IDLE); setS3(IDLE); setS4(IDLE); setS5(IDLE); setS6(IDLE); setS7(IDLE);
     const setters = {
       landing: setS1, profile: setS2, keywords: setS3, serp: setS4,
       rivals: setS5, calendar: setS6, article: setS7,
     } as const;
-    const batches = ["landing", "profile", "keywords", "serp", "rivals", "calendar", "article"] as const;
-    let context: unknown = undefined;
+    // Every click used to wipe all seven stages and restart from "landing",
+    // so a developer probing stage 5 alone still paid for the SERP/DataForSEO
+    // work stages 3-4 already did successfully seconds earlier — the actual
+    // driver of a debugging session burning far more than "one pipeline run"
+    // in DataForSEO cost. Resume from the first stage that isn't already a
+    // clean pass, on the same website (resumePoint, computed above from the
+    // same stage states this closure captured at click time), and reuse its
+    // accumulated context instead of re-billing everything before it.
+    const startIndex = resumePoint;
+    if (startIndex === 0) {
+      setS1(IDLE); setS2(IDLE); setS3(IDLE); setS4(IDLE); setS5(IDLE); setS6(IDLE); setS7(IDLE);
+    } else {
+      for (const batch of batchOrder.slice(startIndex)) setters[batch](IDLE);
+    }
+    let context: unknown = startIndex === 0 ? undefined : pipelineContext;
+    let runningBatch: (typeof batchOrder)[number] = batchOrder[startIndex]!;
     try {
-      for (const batch of batches) {
+      for (const batch of batchOrder.slice(startIndex)) {
+        runningBatch = batch;
         setters[batch]({ status: "running", checks: [] });
         const result = await runDiagnosticBatch({ data: { website, batch, context } }) as {
           stage: { ok: boolean; summary: string; error: string | null; ms: number; data: unknown };
@@ -238,10 +262,14 @@ function TestPage() {
         });
         if (!stage.ok) break;
         context = result.context;
+        setPipelineContext(context);
       }
     } catch (error) {
+      // Previously always blamed stage 1 regardless of which batch actually
+      // threw — a genuine mid-loop exception on a later stage silently
+      // vanished if stage 1 had already finished, leaving no visible error.
       const failed = { status: "error" as const, checks: [], error: error instanceof Error ? error.message : String(error) };
-      setS1((current) => current.status === "running" ? failed : current);
+      setters[runningBatch](failed);
     } finally {
       setPipelineRunning(false);
     }
@@ -295,14 +323,35 @@ function TestPage() {
             className="mt-1 w-full rounded border border-border bg-background px-2 py-1.5 text-sm"
           />
         </label>
-        <button
-          onClick={() => void runCompleteDiagnostic()}
-          disabled={pipelineRunning}
-          className="sm:col-span-3 rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-        >
-          {pipelineRunning ? "Running successive batches..." : "Run full pipeline"}
-        </button>
-        <p className="sm:col-span-3 text-[11px] text-muted-foreground">One URL only. Seven successive batches: every stage keeps its result and stops only at the failing batch.</p>
+        <div className="sm:col-span-3 flex gap-2">
+          <button
+            onClick={() => void runCompleteDiagnostic()}
+            disabled={pipelineRunning}
+            className="flex-1 rounded bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+          >
+            {pipelineRunning
+              ? "Running successive batches..."
+              : resumePoint > 0
+                ? `Resume from stage ${resumePoint + 1} (skips ${resumePoint} already-billed stage${resumePoint > 1 ? "s" : ""})`
+                : "Run full pipeline"}
+          </button>
+          {resumePoint > 0 && !pipelineRunning && (
+            <button
+              onClick={() => {
+                setS1(IDLE); setS2(IDLE); setS3(IDLE); setS4(IDLE); setS5(IDLE); setS6(IDLE); setS7(IDLE);
+                setPipelineContext(undefined);
+              }}
+              className="rounded border border-border px-3 py-2 text-xs font-medium hover:bg-muted"
+              title="Clear every stage and pay for a full run from scratch"
+            >
+              Start over
+            </button>
+          )}
+        </div>
+        <p className="sm:col-span-3 text-[11px] text-muted-foreground">
+          One URL only. A stage already marked done is never re-billed — the button resumes from the first
+          incomplete stage. Changing the URL, or "Start over", forces a fresh run from stage 1.
+        </p>
       </div>
 
       <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
