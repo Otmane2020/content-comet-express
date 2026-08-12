@@ -44,6 +44,36 @@ const INTENT_FIT: Record<ContentType, string[]> = {
   local_aeo: ["commercial", "transactional", "navigational", "informational"],
 };
 
+/**
+ * Pairs each slot with the best-fitting unused keyword from `pool` (a
+ * transactional term on a Shopping day, a question on an AEO day), never
+ * reusing a keyword twice in the same window. Falls back to plain order when
+ * a slot's format has no intent-matching keyword left. Shared by the daily
+ * rotation (ensureWindow, below) and the /test calendar diagnostic so both
+ * exercise the same pairing instead of /test's own naive
+ * `index % pool.length`, which is what mechanically paired an informational
+ * "how to rank on ChatGPT" query with a Shopping pricing template.
+ */
+export function assignKeywordsToSlots(
+  pool: { keyword: string; intent?: string | null; origin?: string | null }[],
+  slots: { date: string; type: ContentType }[],
+) {
+  const normalised = pool.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase(), origin: k.origin ?? "" }));
+  const claimed = new Set<number>();
+  const takeFor = (type: ContentType) => {
+    const fits = INTENT_FIT[type] ?? [];
+    let index = type === "local_aeo"
+      ? normalised.findIndex((k, i) => !claimed.has(i) && k.origin === "local")
+      : -1;
+    if (index < 0) index = normalised.findIndex((k, i) => !claimed.has(i) && k.intent && fits.includes(k.intent));
+    if (index < 0) index = normalised.findIndex((_, i) => !claimed.has(i));
+    if (index < 0) return null;
+    claimed.add(index);
+    return normalised[index]!.keyword;
+  };
+  return slots.map((slot) => ({ ...slot, keyword: takeFor(slot.type) }));
+}
+
 /** Unused keywords for this project, most business-relevant first. */
 export async function pickKeywords(
   supabase: Sb,
@@ -121,32 +151,13 @@ export async function ensureWindow(
   // used to rotate modulo-style when there were fewer keywords than days,
   // which planned several near-identical articles on the same term — and marked
   // it `used` only once. Days past the end are planned from the brief instead.
-  //
-  // Within that, each day takes the best-fitting unused keyword for its format
-  // (a transactional term on a Shopping day, a question on an AEO day). Falls
-  // back to plain order when the intent is unknown, which is the case for every
-  // keyword captured during onboarding.
   const pool: { keyword: string; intent: string; origin: string }[] = picked.length
     ? picked.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase(), origin: k.origin ?? "" }))
     : brief.keywords.map((keyword) => ({ keyword, intent: "", origin: "" }));
-  const claimed = new Set<number>();
-  const takeFor = (type: ContentType) => {
-    const fits = INTENT_FIT[type] ?? [];
-    let index = type === "local_aeo"
-      ? pool.findIndex((k, i) => !claimed.has(i) && k.origin === "local")
-      : -1;
-    if (index < 0) index = pool.findIndex((k, i) => !claimed.has(i) && k.intent && fits.includes(k.intent));
-    if (index < 0) index = pool.findIndex((_, i) => !claimed.has(i));
-    if (index < 0) return null;
-    claimed.add(index);
-    return pool[index]!.keyword;
-  };
-
-  const slots = missing.map((m) => ({
-    date: m.date,
-    type: m.type as ContentType,
-    keyword: takeFor(m.type as ContentType),
-  }));
+  const slots = assignKeywordsToSlots(
+    pool,
+    missing.map((m) => ({ date: m.date, type: m.type as ContentType })),
+  );
 
   const topics = await planTopics(brief, slots);
   const byDate = new Map(slots.map((s) => [s.date, s.keyword]));
@@ -166,8 +177,9 @@ export async function ensureWindow(
 
   // Mark exactly the keywords that were claimed above. Marking a prefix of the
   // list was wrong once assignment stopped being sequential.
-  if (picked.length && claimed.size) {
-    const usedIds = [...claimed].map((i) => picked[i]?.id).filter((id): id is string => Boolean(id));
+  if (picked.length) {
+    const usedKeywords = new Set(slots.map((s) => s.keyword).filter((k): k is string => Boolean(k)));
+    const usedIds = picked.filter((k) => usedKeywords.has(k.keyword)).map((k) => k.id);
     if (usedIds.length) {
       await supabase.from("keyword_research").update({ used: true }).in("id", usedIds);
     }

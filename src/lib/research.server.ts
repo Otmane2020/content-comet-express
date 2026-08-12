@@ -9,6 +9,28 @@ export function localeOpts(locale: string | null, targetCountry?: string | null)
   return { languageCode: lang, locationName: targetCountry?.trim() || defaultCountryForLanguage(lang) };
 }
 
+/**
+ * Cheap, no-cost intent tag from the query's own phrasing — no extra AI call.
+ * rotation.server.ts's INTENT_FIT already pairs a keyword's intent with the
+ * content format it fits (a "how to" question on an AEO day, a "best X"
+ * comparison on a Shopping day), but searchVolumeFor's Google Ads endpoint
+ * never returns intent, so every qualified keyword arrived with intent: null
+ * and that matching silently degraded to plain list order for every scan —
+ * which is what mechanically paired "how to rank on ChatGPT" with a Shopping
+ * pricing template. Order matters: check navigational/transactional patterns
+ * before the broader question-word check, since "buy X" and "how much does X
+ * cost" both start like a question but are not informational.
+ */
+export function classifyIntent(keyword: string): "informational" | "transactional" | "commercial" | "navigational" {
+  const k = keyword.trim().toLowerCase();
+  if (/^(how to|how do|how does|why|what is|what are|comment|pourquoi|qu'est-ce)/.test(k)) return "informational";
+  if (/\b(buy|purchase|order|sign up|login|log in|acheter|commander|s'inscrire|se connecter)\b/.test(k)) return "transactional";
+  if (/\b(price|pricing|cost|cheap|discount|coupon|deal|prix|tarif|co[uû]t|promo)\b/.test(k)) return "transactional";
+  if (/\b(best|top|vs|versus|compare|comparison|alternative|review|meilleur|comparatif|avis|alternative)\b/.test(k)) return "commercial";
+  if (/\?$/.test(k)) return "informational";
+  return "commercial";
+}
+
 export type KwRow = {
   keyword: string;
   search_volume: number | null;
@@ -767,7 +789,12 @@ export async function runLiveMarketResearch(
 
   const relevance = await scoreRelevance(biz, measured.map((row) => row.keyword));
   const keywords = measured
-    .map((row) => ({ ...row, origin: "seed" as const, relevance_score: relevance[row.keyword.toLowerCase()] ?? 0 }))
+    .map((row) => ({
+      ...row,
+      origin: "seed" as const,
+      relevance_score: relevance[row.keyword.toLowerCase()] ?? 0,
+      intent: row.intent ?? classifyIntent(row.keyword),
+    }))
     .filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row))
     .sort((a, b) =>
       compositeScore(b, b.relevance_score ?? 0) - compositeScore(a, a.relevance_score ?? 0) ||

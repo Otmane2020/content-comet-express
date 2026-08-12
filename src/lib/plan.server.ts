@@ -78,61 +78,161 @@ export function briefLine(project: ProjectBrief) {
 }
 
 /**
- * Used when the topic-planning call fails. It still ships as the published
- * article title, so it has to read like one: the previous form emitted the
- * internal debug label `GEO — meubles t v (Sweet Deco)`.
+ * Used when the topic-planning call fails or produces an invalid/duplicate
+ * topic. It still ships as the published article title, so it has to read
+ * like one: the previous form emitted the internal debug label
+ * `GEO — meubles t v (Sweet Deco)`.
+ *
+ * Several phrasings per (type, language) so a keyword that recurs across the
+ * month — inevitable once the calendar has more days than qualified
+ * keywords — gets a different angle each time instead of the exact same
+ * template ("X: the complete guide" twice, or "How does how to rank on
+ * ChatGPT work?" from blindly reapplying the AEO template to an
+ * already-question-shaped keyword). Each angle still satisfies
+ * validateCalendarTopic's content-type check (an AEO angle ends in "?", a
+ * shopping/software angle contains "pricing"/"plan"/etc.).
  */
+const FALLBACK_ANGLES: Record<Exclude<ContentType, "shopping">, { en: ((seed: string) => string)[]; fr: ((seed: string) => string)[] }> = {
+  geo: {
+    en: [
+      (seed) => `What is ${seed} and how does it work?`,
+      (seed) => `${seed} explained: what it actually does`,
+      (seed) => `Everything to know before you choose ${seed}`,
+      (seed) => `${seed}: what changes once you use it`,
+    ],
+    fr: [
+      (seed) => `Qu'est-ce que ${seed} et comment ça fonctionne ?`,
+      (seed) => `${seed} expliqué : ce que ça change concrètement`,
+      (seed) => `Tout savoir avant de choisir ${seed}`,
+      (seed) => `${seed} : ce que ça change au quotidien`,
+    ],
+  },
+  seo: {
+    en: [
+      (seed) => `${seed}: the complete guide`,
+      (seed) => `${seed}: what to know before you start`,
+      (seed) => `A practical guide to ${seed}`,
+      (seed) => `${seed} explained for beginners and pros`,
+    ],
+    fr: [
+      (seed) => `${seed} : le guide complet`,
+      (seed) => `${seed} : ce qu'il faut savoir avant de commencer`,
+      (seed) => `Guide pratique de ${seed}`,
+      (seed) => `${seed} expliqué simplement`,
+    ],
+  },
+  aeo: {
+    en: [
+      (seed) => `How does ${seed} work?`,
+      (seed) => `What mistakes should you avoid with ${seed}?`,
+      (seed) => `What's the fastest way to get started with ${seed}?`,
+      (seed) => `Is ${seed} worth it?`,
+    ],
+    fr: [
+      (seed) => `Comment fonctionne ${seed} ?`,
+      (seed) => `Quelles erreurs éviter avec ${seed} ?`,
+      (seed) => `Comment démarrer rapidement avec ${seed} ?`,
+      (seed) => `${seed} vaut-il le coup ?`,
+    ],
+  },
+  local_aeo: {
+    en: [
+      (seed) => `${seed} near you: how to choose the right option`,
+      (seed) => `Finding ${seed} in your area: what to check first`,
+      (seed) => `${seed} near me: a local buyer's checklist`,
+    ],
+    fr: [
+      (seed) => `${seed} près de chez vous : comment bien choisir`,
+      (seed) => `Trouver ${seed} dans votre zone : ce qu'il faut vérifier`,
+      (seed) => `${seed} près de chez vous : la checklist de l'acheteur`,
+    ],
+  },
+};
+
 /**
  * Wording for the commercial ("shopping") slot, keyed by what this business
  * actually sells. This is the sole reason "buying criteria for
  * professionals" used to appear under a SaaS keyword: the old fallback had
- * one shopping template for every business, product catalogue or not.
+ * one shopping template for every business, product catalogue or not. Each
+ * entity gets several angles for the same anti-duplication reason as
+ * FALLBACK_ANGLES above.
  */
-function commercialFallbackTopic(seed: string, entity: ReturnType<typeof resolveCommercialEntity>, fr: boolean): string {
-  if (fr) {
-    return {
-      product: `${seed} : modèles, prix et comment choisir`,
-      software: `${seed} : combien ça coûte et que faut-il regarder ?`,
-      service: `${seed} : ce que ça comprend et comment choisir un prestataire`,
-      marketplace: `${seed} : comment comparer les offres`,
-    }[entity];
-  }
-  return {
-    product: `${seed}: models, prices and how to choose`,
-    software: `${seed}: how much it costs and what to look for`,
-    service: `${seed}: what's included and how to choose a provider`,
-    marketplace: `${seed}: how to compare offers`,
-  }[entity];
+const COMMERCIAL_ANGLES: Record<ReturnType<typeof resolveCommercialEntity>, { en: ((seed: string) => string)[]; fr: ((seed: string) => string)[] }> = {
+  product: {
+    en: [
+      (seed) => `${seed}: models, prices and how to choose`,
+      (seed) => `${seed}: dimensions, finishes and selection guide`,
+      (seed) => `${seed}: catalogue highlights and how to choose`,
+    ],
+    fr: [
+      (seed) => `${seed} : modèles, prix et comment choisir`,
+      (seed) => `${seed} : dimensions, finitions et guide de sélection`,
+      (seed) => `${seed} : sélection du catalogue et comment choisir`,
+    ],
+  },
+  software: {
+    en: [
+      (seed) => `${seed}: how much it costs and what to look for`,
+      (seed) => `${seed}: features, pricing and how to choose a plan`,
+      (seed) => `${seed}: how to pick the right software`,
+    ],
+    fr: [
+      (seed) => `${seed} : combien ça coûte et que faut-il regarder ?`,
+      (seed) => `${seed} : fonctionnalités, prix et comment choisir un abonnement`,
+      (seed) => `${seed} : comment choisir le bon logiciel`,
+    ],
+  },
+  service: {
+    en: [
+      (seed) => `${seed}: what's included and how to choose a provider`,
+      (seed) => `${seed}: pricing and what to expect`,
+      (seed) => `${seed}: how to compare providers`,
+    ],
+    fr: [
+      (seed) => `${seed} : ce que ça comprend et comment choisir un prestataire`,
+      (seed) => `${seed} : tarifs et à quoi s'attendre`,
+      (seed) => `${seed} : comment comparer les prestataires`,
+    ],
+  },
+  marketplace: {
+    en: [
+      (seed) => `${seed}: how to compare offers`,
+      (seed) => `${seed}: what to check before choosing an offer`,
+      (seed) => `${seed}: a buyer's guide to comparing offers`,
+    ],
+    fr: [
+      (seed) => `${seed} : comment comparer les offres`,
+      (seed) => `${seed} : ce qu'il faut vérifier avant de choisir une offre`,
+      (seed) => `${seed} : le guide de l'acheteur pour comparer les offres`,
+    ],
+  },
+};
+
+function anglesFor(type: ContentType, entity: ReturnType<typeof resolveCommercialEntity>, lang: "en" | "fr") {
+  return type === "shopping" ? COMMERCIAL_ANGLES[entity][lang] : FALLBACK_ANGLES[type][lang];
 }
 
+/**
+ * One topic per slot, picking a different angle each time a (type, keyword)
+ * pair recurs — inevitable once the calendar has more days than qualified
+ * keywords — instead of reapplying the exact same template and shipping a
+ * literal duplicate.
+ */
 export function fallbackTopics(project: ProjectBrief, slots: { date: string; type: ContentType; keyword?: string | null }[]) {
   const seeds = project.keywords.length ? project.keywords : [project.industry ?? project.name];
-  const fr = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr";
+  const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
   const entity = resolveCommercialEntity(project.profile, false);
+  const pairOccurrence = new Map<string, number>();
   return slots.map((slot, i) => {
     // A slot's target is authoritative. Falling back to a modulo-indexed seed
     // used to create a valid title for the *next* keyword, while storing the
     // current target beside it in the calendar.
     const seed = slot.keyword ?? seeds[i % seeds.length] ?? project.name;
-    const formats: Record<ContentType, string> = fr
-      ? {
-          geo: `Qu'est-ce que ${seed} et comment ça fonctionne ?`,
-          seo: `${seed} : le guide complet`,
-          aeo: `Comment fonctionne ${seed} ?`,
-          local_aeo: `${seed} près de chez vous : comment bien choisir`,
-          shopping: commercialFallbackTopic(seed, entity, true),
-        }
-      : {
-          geo: `What is ${seed} and how does it work?`,
-          seo: `${seed}: the complete guide`,
-          aeo: `How does ${seed} work?`,
-          local_aeo: `${seed} near you: how to choose the right option`,
-          shopping: commercialFallbackTopic(seed, entity, false),
-        };
-    return {
-      ...slot,
-      topic: formats[slot.type],
-    };
+    const key = `${slot.type}:${normalise(seed)}`;
+    const occurrence = pairOccurrence.get(key) ?? 0;
+    pairOccurrence.set(key, occurrence + 1);
+    const angles = anglesFor(slot.type, entity, lang);
+    return { ...slot, topic: angles[occurrence % angles.length]!(seed) };
   });
 }
 
@@ -185,6 +285,56 @@ export function validateCalendarTopic(project: ProjectBrief, slot: { type: Conte
   return { keywordAligned, contentTypeAligned, locationValid: !hasUnknownCity && !injectedLocationOutsideLocal };
 }
 
+/**
+ * Final anti-duplication pass over the whole 30-slot list, run after either
+ * the AI response or the fallback template has already picked a topic per
+ * slot. With only ~8-14 qualified keywords for 30 days, the same
+ * (type, keyword) pair recurring is inevitable — this is what catches it
+ * regardless of which path produced the collision (the AI repeating itself
+ * across two different slots, or the fallback reapplying the same template)
+ * and swaps in the next unused angle instead of shipping a literal duplicate
+ * topic like "ai search optimization tool: the complete guide" twice.
+ */
+function dedupeTopics(
+  project: ProjectBrief,
+  planned: { date: string; type: ContentType; keyword?: string | null; topic: string }[],
+) {
+  const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
+  const entity = resolveCommercialEntity(project.profile, false);
+  const used = new Set<string>();
+  const pairSeen = new Map<string, number>();
+  return planned.map((item) => {
+    const seed = item.keyword ?? project.name;
+    const key = `${item.type}:${normalise(seed)}`;
+    const seenBefore = pairSeen.get(key) ?? 0;
+    pairSeen.set(key, seenBefore + 1);
+    let topic = item.topic;
+    let norm = normalise(topic);
+    if (used.has(norm)) {
+      const angles = anglesFor(item.type, entity, lang);
+      for (let offset = 0; offset < angles.length; offset++) {
+        const alt = freshenYears(angles[(seenBefore + offset) % angles.length]!(seed));
+        const altNorm = normalise(alt);
+        if (!used.has(altNorm)) {
+          topic = alt;
+          norm = altNorm;
+          break;
+        }
+      }
+    }
+    // Every angle exhausted (a keyword recurring far more than the angle
+    // library covers) — guarantee uniqueness rather than silently ship a
+    // duplicate; the date suffix keeps the title truthful about why it
+    // differs from the earlier one on the same topic.
+    if (used.has(norm)) {
+      topic = `${topic} (${item.date})`;
+      norm = normalise(topic);
+    }
+    used.add(norm);
+    return { ...item, topic };
+  });
+}
+
 export async function planTopics(
   project: ProjectBrief,
   slots: { date: string; type: ContentType; keyword?: string | null }[],
@@ -235,7 +385,7 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exa
     const parsed = parseJsonLoose<{ topics?: { date: string; keyword?: string; contentType?: string; topic: string }[] }>(raw);
     const byDate = new Map((parsed.topics ?? []).map((t) => [t.date, t]));
     const fallback = fallbackTopics(project, slots);
-    return slots.map((slot, i) => {
+    const planned = slots.map((slot, i) => {
       const generated = byDate.get(slot.date);
       const candidate = freshenYears(generated?.topic ?? fallback[i]!.topic);
       const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
@@ -250,8 +400,9 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exa
           : candidate,
       };
     });
+    return dedupeTopics(project, planned);
   } catch {
-    return fallbackTopics(project, slots);
+    return dedupeTopics(project, fallbackTopics(project, slots));
   }
 }
 
@@ -371,14 +522,20 @@ export async function writeArticle(
   guidance.local_aeo = "Local AEO template: activate only for real local intent. Begin with a 40-80 word local answer covering what, for whom, where and verified availability. Then use local facts, availability in that area, selection criteria, served area and the real order/contact process. Never invent a city, address, hours or service area. Do NOT write an FAQ section in the body; the FAQ is returned separately as structured data.";
 
   // What the pages already ranking (and already cited by the AI answer) for
-  // these queries actually put on the page. Given as ground to beat, never as
-  // material to copy.
+  // these queries actually cover, as TOPIC LABELS only — never their own
+  // descriptive prose. A competitor's `positioning` is a marketing sentence
+  // ("reads your live site to create on-brand pages that rank and convert");
+  // handing that sentence to the writer is what previously got paraphrased
+  // straight into this business's own claims. Section headings are
+  // structural ("what to cover"), not sentence-level material to copy, so
+  // only those are passed through.
   const rivals = extras?.competitors ?? [];
   const rivalsBlock = rivals.length
-    ? `\n\nPages currently winning these queries, read from their own landing pages:\n${rivals
+    ? `\n\nTopics already covered by pages currently winning these queries (topic labels only, not source material):\n${rivals
         .slice(0, 5)
-        .map((r) => `${r.domain} — ${r.positioning.slice(0, 180)}${r.headings.length ? ` | sections: ${r.headings.slice(0, 6).join(", ")}` : ""}`)
-        .join("\n")}\n\nCompetitor research is PRIVATE context, research_only — never source material. Cover what they cover, then go further using only the merchant's verified facts. NEVER mention competitor names, brands, domains, URLs, claims or numbers in the published content, and NEVER copy a competitor's features, services, prices, locations, claims or products into this business's own claims. Every brand-specific commercial statement about this business must come from its own verified facts above, never from competitor research.`
+        .filter((r) => r.headings.length)
+        .map((r) => `- ${r.headings.slice(0, 6).join(", ")}`)
+        .join("\n")}\n\nCompetitor research is PRIVATE context, research_only — never source material. Cover the same topic ground, then go further using only the merchant's verified facts. NEVER mention competitor names, brands, domains or URLs in the published content, and NEVER copy or paraphrase a competitor's wording, features, services, prices, locations, claims or products into this business's own claims — a sentence written about a competitor's product must not become a sentence about this one. Every brand-specific claim describing what this business does, offers or automates must be traceable word-for-word to "Verified facts about this business" above; if a capability, integration or process is not listed there, do not attribute it to this business even if a competitor covers something similar.`
     : "";
 
   const catalogBlock = products.length
@@ -448,7 +605,7 @@ ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock
 ${editorialFormat}
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists where they genuinely clarify), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Audience safety: write for the person searching the target keyword. Never teach this business how to market, rank, use AI, GEO, SEO or advertising unless that is explicitly the search topic.
-Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above. Competitor research is private and competitor names must never appear in title, excerpt, article or FAQ.
+Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above. Never invent a capability not listed in the verified facts — common failure modes to avoid specifically: claiming the product auto-updates or re-optimises already-published content, claiming "industry-standard" or unspecified security/compliance measures, claiming a support channel or response time, or claiming an industry-specific adaptation (healthcare, real estate, etc.) — unless each is explicitly present in the verified facts above. Competitor research is private and competitor names must never appear in title, excerpt, article or FAQ.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
 
 Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${geoSchema}${faqSchema}}`,

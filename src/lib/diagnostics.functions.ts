@@ -101,12 +101,15 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         if (!context.site || !context.profile) missingBatchInput(data.batch);
         const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_QUALIFIED_KEYWORDS, hasMeasurableDemand } = await import("./relevance.server");
         const { searchVolumeFor } = await import("./dataforseo.server");
-        const { localeOpts, requireLiveDataForSeo } = await import("./research.server");
+        const { localeOpts, requireLiveDataForSeo, classifyIntent } = await import("./research.server");
         await requireLiveDataForSeo();
         const proposed = await candidateKeywords(context.profile, context.site.landing ?? null, 120);
         if (!proposed.length) throw new Error("The AI returned no buyer-query candidates from this landing page.");
         const writingLocale = marketLocale(data.website, context.site.landing?.lang);
-        const measured = await searchVolumeFor(proposed, localeOpts(writingLocale));
+        const measured = (await searchVolumeFor(proposed, localeOpts(writingLocale))).map((row) => ({
+          ...row,
+          intent: row.intent ?? classifyIntent(row.keyword),
+        }));
         if (!measured.length) throw new Error("DataForSEO returned no measured search volume for the AI candidates.");
         const scores = await scoreRelevance(context.profile, measured.map((row) => row.keyword));
         const qualified = measured.filter((row) => (scores[row.keyword.toLowerCase()] ?? 0) >= MIN_RELEVANCE && hasMeasurableDemand(row));
@@ -173,9 +176,13 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);
         const { planWindow, getEligibleFormats } = await import("./geo");
         const { planTopics, validateCalendarTopic } = await import("./plan.server");
+        const { assignKeywordsToSlots } = await import("./rotation.server");
         const brief = { name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: context.qualified.map((row) => row.keyword), locations: context.profile.locations ?? null, profile: context.profile };
         const eligible = getEligibleFormats(context.profile);
-        const slots = planWindow(new Date(), 30, eligible).map((slot, index) => ({ ...slot, keyword: context.qualified![index % context.qualified!.length]?.keyword ?? null }));
+        const slots = assignKeywordsToSlots(
+          context.qualified.map((row) => ({ keyword: row.keyword, intent: row.intent, origin: row.origin })),
+          planWindow(new Date(), 30, eligible).map((slot) => ({ date: slot.date, type: slot.type })),
+        );
         const calendar = await planTopics(brief, slots);
         const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.contentTypeAligned || !c.locationValid; });
         if (invalid) throw new Error(`Calendar mismatch: \"${invalid.keyword}\" -> \"${invalid.topic}\"`);
