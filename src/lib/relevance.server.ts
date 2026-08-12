@@ -486,15 +486,19 @@ Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least
     // that also falls short still adds distinct candidates on top of it.
     const MIN_AI_CANDIDATES = 12;
     let merged = aiCandidates;
+    // Exactly one retry (never a third attempt — that just reintroduces the
+    // same cost/latency problem in a different shape) and it asks for
+    // exactly what's missing instead of redoing the whole request: a first
+    // batch of 17 is real, usable research, not something to discard because
+    // it fell short of the target. Telling the model what it already gave
+    // also stops it from re-deriving the same handful of obvious queries.
     if (merged.length < MIN_AI_CANDIDATES) {
-      // Ask the model to repair its own short/empty/mis-shaped answer, with
-      // the same verbatim SEO evidence. This is still AI-led research, not a
-      // hidden keyword-suggestion fallback.
+      const missing = Math.min(Math.max(MIN_AI_CANDIDATES - merged.length, 12), Math.max(max - merged.length, 1));
       const retry = await callOpenRouter({
         json: true,
         maxTokens: 1600,
         system: "Return strict JSON only. You must derive buyer search queries from the supplied SEO title, page title, categories and landing-page copy.",
-        user: `${profileBlock(profile)}\n${landingBlock}\n\nReturn at least 12 specific buyer queries in the site language. They must use the evidence above. Return exactly {"keywords":["..."]}.`,
+        user: `${profileBlock(profile)}\n${landingBlock}\n\nYou already found these buyer queries — do not repeat any of them:\n${merged.length ? merged.map((k) => `- ${k}`).join("\n") : "(none yet)"}\n\nGenerate ${missing} additional, DISTINCT buyer queries in the site language, grounded in the evidence above. Return exactly {"keywords":["..."]}.`,
       });
       const retryCandidates = normaliseCandidates(retry);
       console.info("[keyword-candidates] AI retry response", { count: retryCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
