@@ -188,6 +188,9 @@ function TestPage() {
     })),
   };
   const reportJson = JSON.stringify(diagnosticReport, null, 2);
+  const hasDiagnosticOutput = [s1, s2, s3, s4, s5, s6, s7].some(
+    (stage) => stage.status === "done" || stage.status === "error",
+  );
 
   async function copyDiagnosticReport() {
     await navigator.clipboard.writeText(reportJson);
@@ -299,27 +302,30 @@ function TestPage() {
         <p className="sm:col-span-3 text-[11px] text-muted-foreground">One URL only. Seven successive batches: every stage keeps its result and stops only at the failing batch.</p>
       </div>
 
-      {[s1, s2, s3, s4, s5, s6, s7].some((stage) => stage.status === "done" || stage.status === "error") && (
-        <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
+      <section className="flex flex-wrap items-center gap-3 rounded-lg border border-border bg-card px-4 py-3">
           <div className="mr-auto">
             <p className="text-sm font-semibold">JSON report</p>
-            <p className="text-xs text-muted-foreground">All diagnostic outputs, calendar and article preview in one copyable file.</p>
+            <p className="text-xs text-muted-foreground">
+              {hasDiagnosticOutput ? "All diagnostic outputs, calendar and article preview in one copyable file." : "Run at least one pipeline batch to generate the report."}
+            </p>
           </div>
           <button
             onClick={() => void copyDiagnosticReport()}
-            className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground"
+            disabled={!hasDiagnosticOutput}
+            className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
             {reportCopied ? "Copied" : "Copy JSON report"}
           </button>
           <a
             href={`data:application/json;charset=utf-8,${encodeURIComponent(reportJson)}`}
             download="ranki-pipeline-report.json"
-            className="rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            aria-disabled={!hasDiagnosticOutput}
+            onClick={(event) => { if (!hasDiagnosticOutput) event.preventDefault(); }}
+            className={`rounded border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted ${!hasDiagnosticOutput ? "pointer-events-none opacity-50" : ""}`}
           >
             Download JSON
           </a>
-        </section>
-      )}
+      </section>
 
       <Stage
         n={1}
