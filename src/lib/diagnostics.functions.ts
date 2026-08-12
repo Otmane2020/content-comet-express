@@ -141,13 +141,13 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
     // Preview only: plan the next 30 days from the validated market output.
     // No project, content item, article or external destination is written.
     const { planWindow } = await import("./geo");
-    const { planTopics, writeArticle } = await import("./plan.server");
+    const { planTopics, validateCalendarTopic, writeArticle } = await import("./plan.server");
     const calendar = await take("calendar", async () => {
       const slots = planWindow(new Date(), 30).map((slot, index) => ({
         ...slot,
         keyword: keywordStage.qualified[index % keywordStage.qualified.length]?.keyword ?? null,
       }));
-      return planTopics(
+      const planned = await planTopics(
         {
           name: profile.name ?? new URL(data.website).hostname,
           website_url: data.website,
@@ -156,9 +156,35 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
           tone: "expert",
           locale: writingLocale,
           keywords: keywordStage.qualified.map((row) => row.keyword),
+          locations: profile.locations ?? null,
         },
         slots,
       );
+      const validation = planned.map((item) => ({
+        targetKeyword: item.keyword ?? "",
+        contentType: item.type,
+        topic: item.topic,
+        ...validateCalendarTopic(
+          {
+            name: profile.name ?? new URL(data.website).hostname,
+            website_url: data.website,
+            industry: profile.industry ?? null,
+            audience: profile.audience ?? null,
+            tone: "expert",
+            locale: writingLocale,
+            keywords: keywordStage.qualified.map((row) => row.keyword),
+            locations: profile.locations ?? null,
+          },
+          item,
+          item.topic,
+        ),
+      }));
+      console.info("[pipeline-diagnostic] calendar target alignment", validation);
+      const invalid = validation.find((item) => !item.keywordAligned || !item.contentTypeAligned || !item.locationValid);
+      if (invalid) {
+        throw new Error(`Calendar mismatch: \"${invalid.targetKeyword}\" -> \"${invalid.topic}\"`);
+      }
+      return planned;
     }, (value) => `${value.length} planned topics derived from validated buyer keywords`);
     if (!calendar?.length) return { stages };
 

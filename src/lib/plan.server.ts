@@ -10,6 +10,7 @@ export type ProjectBrief = {
   tone: string | null;
   locale: string | null;
   keywords: string[];
+  locations?: string[] | null;
 };
 
 const META_MARKETING = /\b(?:geo|seo|aeo|chatgpt|gemini|perplexity|ai visibility|generative engines?|moteurs? g[ée]n[ée]ratifs?|optimis.{0,12}(?:ia|geo|chatgpt))\b/i;
@@ -68,24 +69,27 @@ export function briefLine(project: ProjectBrief) {
  * article title, so it has to read like one: the previous form emitted the
  * internal debug label `GEO — meubles t v (Sweet Deco)`.
  */
-export function fallbackTopics(project: ProjectBrief, slots: { date: string; type: ContentType }[]) {
+export function fallbackTopics(project: ProjectBrief, slots: { date: string; type: ContentType; keyword?: string | null }[]) {
   const seeds = project.keywords.length ? project.keywords : [project.industry ?? project.name];
   const fr = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr";
   return slots.map((slot, i) => {
-    const seed = seeds[i % seeds.length] ?? project.name;
+    // A slot's target is authoritative. Falling back to a modulo-indexed seed
+    // used to create a valid title for the *next* keyword, while storing the
+    // current target beside it in the calendar.
+    const seed = slot.keyword ?? seeds[i % seeds.length] ?? project.name;
     const formats: Record<ContentType, string> = fr
       ? {
           geo: `Quel ${seed} choisir pour son activité ?`,
           seo: `${seed} : guide pour les acheteurs professionnels`,
           aeo: `Comment choisir ${seed} ?`,
-          local_aeo: `${seed} : comment trouver le bon fournisseur ?`,
+          local_aeo: `${seed} : comment trouver le bon fournisseur près de chez vous ?`,
           shopping: `${seed} : modèles et critères pour professionnels`,
         }
       : {
           geo: `Which ${seed} should your business choose?`,
           seo: `${seed}: a guide for professional buyers`,
           aeo: `How do you choose ${seed}?`,
-          local_aeo: `${seed}: how to find the right supplier`,
+          local_aeo: `${seed}: how to find the right supplier near you`,
           shopping: `${seed}: models and buying criteria for professionals`,
         };
     return {
@@ -93,6 +97,47 @@ export function fallbackTopics(project: ProjectBrief, slots: { date: string; typ
       topic: formats[slot.type],
     };
   });
+}
+
+const CITY_WORDS = /\b(paris|lyon|marseille|bordeaux|lille|toulouse|nice|nantes|strasbourg|montpellier|rennes)\b/i;
+const GENERIC_KEYWORD_WORDS = new Set([
+  "acheter", "achat", "grossiste", "fournisseur", "professionnel", "professionnels", "pour", "avec", "dans", "des", "les", "une", "en", "gros", "france", "guide", "prix", "b2b",
+]);
+
+const normalise = (text: string) =>
+  text.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+function significantTerms(keyword: string) {
+  return normalise(keyword)
+    .split(" ")
+    .filter((word) => word.length > 3 && !GENERIC_KEYWORD_WORDS.has(word));
+}
+
+/** A generated title is accepted only if it still represents its exact slot. */
+export function validateCalendarTopic(project: ProjectBrief, slot: { type: ContentType; keyword?: string | null }, topic: string) {
+  const topicTerms = new Set(normalise(topic).split(" "));
+  const terms = significantTerms(slot.keyword ?? "");
+  const requiredMatches = terms.length <= 1 ? terms.length : Math.min(2, terms.length);
+  const keywordAligned = !terms.length || terms.filter((term) => topicTerms.has(term)).length >= requiredMatches;
+  const confirmedLocations = (project.locations ?? []).map(normalise).filter(Boolean);
+  const hasConfirmedLocation = confirmedLocations.some((location) => normalise(topic).includes(location));
+  const hasUnknownCity = CITY_WORDS.test(topic) && !hasConfirmedLocation;
+  const keywordRequestsLocation = confirmedLocations.some((location) => normalise(slot.keyword ?? "").includes(location));
+  // A city or region is useful on a Local AEO day. On every other day it
+  // creates an accidental local page unless the buyer's query itself asked
+  // for that place (for example, "grossiste meubles France").
+  const injectedLocationOutsideLocal =
+    slot.type !== "local_aeo" && hasConfirmedLocation && !keywordRequestsLocation;
+  const localIntent = /\b(pr[èe]s|proximite|zone|local|near|nearby|area)\b/i.test(topic);
+  const contentTypeAligned =
+    slot.type === "local_aeo"
+      ? hasConfirmedLocation || localIntent
+      : slot.type === "aeo"
+        ? /\?|^(comment|quel|quelle|quels|quelles|ou|where|which|how)\b/i.test(topic.trim())
+        : slot.type === "shopping"
+          ? /\b(mod[eè]les?|selection|dimensions?|finitions?|catalogue|models?|selection|dimensions?|finishes|products?)\b/i.test(topic)
+          : true;
+  return { keywordAligned, contentTypeAligned, locationValid: !hasUnknownCity && !injectedLocationOutsideLocal };
 }
 
 export async function planTopics(
@@ -125,22 +170,30 @@ CRITICAL AUDIENCE RULE: never turn the target business into the reader. If the c
 
 CONTENT TYPE RULE: GEO, SEO, AEO, Local AEO and Shopping describe HOW Ranki structures content. They are never the subject by themselves. Do not put GEO, SEO, AEO, AI visibility, ChatGPT, generative engines or "how to rank" in a title unless the target keyword is explicitly about marketing/search.
 
-For commercial or transactional keywords, choose supplier-selection questions, product/category offers, comparisons, buying guides or buyer FAQs. Shopping topics must use catalogue categories; Local topics need a real place or service-area signal.
+For commercial or transactional keywords, choose supplier-selection questions, product/category offers, comparisons, buying guides or buyer FAQs. Shopping topics must use catalogue categories plus models, dimensions, finishes or selection language; never a generic "best offers" comparison. Local topics need a real place/service-area signal and must use ONLY the confirmed locations below. Never invent Paris, Lyon, Marseille, Bordeaux, Lille or any other city.
+Confirmed locations: ${(project.locations ?? []).join(", ") || "none — use only a generic near-me/local intent, never a city"}.
 
 Slots:
 ${list}
 
-Return JSON: {"topics":[{"date":"YYYY-MM-DD","topic":"..."}]}`,
+Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exactly","contentType":"copy the slot type exactly","topic":"..."}]}`,
     });
-    const parsed = parseJsonLoose<{ topics?: { date: string; topic: string }[] }>(raw);
-    const byDate = new Map((parsed.topics ?? []).map((t) => [t.date, t.topic]));
+    const parsed = parseJsonLoose<{ topics?: { date: string; keyword?: string; contentType?: string; topic: string }[] }>(raw);
+    const byDate = new Map((parsed.topics ?? []).map((t) => [t.date, t]));
     const fallback = fallbackTopics(project, slots);
     return slots.map((slot, i) => {
-      const candidate = freshenYears(byDate.get(slot.date) ?? fallback[i]!.topic);
+      const generated = byDate.get(slot.date);
+      const candidate = freshenYears(generated?.topic ?? fallback[i]!.topic);
       const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
+      const checks = validateCalendarTopic(project, slot, candidate);
+      const identityAligned =
+        !generated ||
+        (normalise(generated.keyword ?? "") === normalise(slot.keyword ?? "") && generated.contentType === slot.type);
       return {
         ...slot,
-        topic: !isMarketingKeyword && META_MARKETING.test(candidate) ? fallback[i]!.topic : candidate,
+        topic: (!isMarketingKeyword && META_MARKETING.test(candidate)) || !identityAligned || !checks.keywordAligned || !checks.contentTypeAligned || !checks.locationValid
+          ? fallback[i]!.topic
+          : candidate,
       };
     });
   } catch {

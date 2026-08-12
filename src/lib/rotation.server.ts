@@ -18,6 +18,7 @@ export type RotationProject = {
   tone: string | null;
   locale: string | null;
   keywords: string[] | null;
+  business_profile?: { locations?: string[] | null } | null;
 };
 
 export type PickedKeyword = { id: string; keyword: string; intent?: string | null; origin?: string | null };
@@ -101,6 +102,7 @@ export async function ensureWindow(
     tone: project.tone,
     locale: project.locale,
     keywords: picked.length ? picked.map((k) => k.keyword) : (project.keywords ?? []),
+    locations: project.business_profile?.locations ?? null,
   };
 
   // One keyword per day, and never the same one twice in a window. The list
