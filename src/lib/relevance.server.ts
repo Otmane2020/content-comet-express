@@ -343,20 +343,18 @@ export async function candidateKeywords(
         .slice(0, 6)
         .join(" ")
         .toLowerCase();
-    const rawTerms = [
-      ...(profile.products ?? []),
-      ...(profile.services ?? []),
-      ...(landing?.categoryLinks ?? []),
-      // These are verbatim merchant-owned SEO signals, used only if product
-      // taxonomy is absent. A reliable profile should normally make this
-      // branch unnecessary, but it must never turn a rich landing page into
-      // an empty candidate list.
-      profile.positioning ?? "",
-      profile.description ?? "",
-      landing?.title ?? "",
-      landing?.pageTitle ?? "",
-      landing?.metaDescription ?? "",
-    ];
+    // Confirmed offering categories first: what this fallback is actually
+    // for. Marketing copy (title, meta description, positioning) is a last
+    // resort ONLY when there is no product/service data at all — it used to
+    // be mixed in unconditionally, so a business with one real service
+    // ("AI SEO & GEO automation") still got "ranki.ai", "rank higher on
+    // google & ai" and a meta-description fragment templated into fake
+    // buyer queries alongside it, because the SEO title is not a thing
+    // anyone shops for.
+    const offerings = [...(profile.products ?? []), ...(profile.services ?? []), ...(landing?.categoryLinks ?? [])];
+    const rawTerms = offerings.length
+      ? offerings
+      : [profile.positioning ?? "", profile.description ?? "", landing?.title ?? "", landing?.pageTitle ?? "", landing?.metaDescription ?? ""];
     const terms = Array.from(
       new Set(
         rawTerms
@@ -370,11 +368,23 @@ export async function candidateKeywords(
       /\b(grossiste|fournisseur|meuble|mobilier|professionnel|france)\b/i.test(
         [landing?.title, landing?.metaDescription, profile.positioning, profile.description].filter(Boolean).join(" "),
       );
+    // "Buy X" / "X price" is ecommerce framing — meaningless for a service or
+    // software business, which is exactly what turned "AI SEO & GEO
+    // automation" into "buy ai seo & geo automation". Mirrors the same
+    // sales_model branch already used for the onboarding preview card.
+    const isServiceOrSoftware = !["wholesale", "retail", "manufacturer", "marketplace"].includes(
+      (profile.sales_model ?? "").trim().toLowerCase(),
+    );
     const candidates = terms.flatMap((term) => {
       if (sellsToBusinesses) {
         return looksFrench
           ? [`grossiste ${term}`, `fournisseur ${term}`, `${term} professionnel`]
           : [`${term} wholesale`, `${term} supplier`, `${term} for professionals`];
+      }
+      if (isServiceOrSoftware) {
+        return looksFrench
+          ? [term, `comment fonctionne ${term}`, `${term} tarif`]
+          : [term, `how does ${term} work`, `${term} pricing`];
       }
       return looksFrench ? [term, `acheter ${term}`, `${term} prix`] : [term, `buy ${term}`, `${term} price`];
     });
