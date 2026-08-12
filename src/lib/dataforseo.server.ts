@@ -1,7 +1,16 @@
 const BASE = "https://api.dataforseo.com/v3";
 
-/** Checks whether the DataForSEO credentials are accepted (live data available). */
-export async function dfsPing(): Promise<{ live: boolean; reason: string | null }> {
+/**
+ * Checks whether the DataForSEO credentials are accepted (live data available).
+ *
+ * "missing" and "unreachable" used to collapse into the exact same generic
+ * "add your credentials" message — which is actively misleading when the
+ * variables are already configured (as they were in production here) and the
+ * real cause is a transient network failure or a non-401 error from
+ * DataForSEO (e.g. rate limiting). `detail` carries the actual status/body so
+ * the thrown error says what really happened instead of "add your login".
+ */
+export async function dfsPing(): Promise<{ live: boolean; reason: string | null; detail?: string }> {
   const login = process.env["DATAFORSEO_LOGIN"];
   const password = process.env["DATAFORSEO_PASSWORD"];
   if (!login || !password) return { live: false, reason: "missing" };
@@ -10,10 +19,17 @@ export async function dfsPing(): Promise<{ live: boolean; reason: string | null 
       headers: { Authorization: "Basic " + Buffer.from(`${login}:${password}`).toString("base64") },
     });
     if (res.status === 401) return { live: false, reason: "unauthorized" };
-    if (!res.ok) return { live: false, reason: "unreachable" };
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      return { live: false, reason: "unreachable", detail: `HTTP ${res.status}: ${body.slice(0, 200)}` };
+    }
     return { live: true, reason: null };
-  } catch {
-    return { live: false, reason: "unreachable" };
+  } catch (error) {
+    return {
+      live: false,
+      reason: "unreachable",
+      detail: error instanceof Error ? error.message : String(error),
+    };
   }
 }
 

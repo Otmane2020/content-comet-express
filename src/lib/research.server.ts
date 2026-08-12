@@ -31,16 +31,33 @@ export function hasDataForSeo() {
 export const DFS_REQUIRED =
   "Live SEO data is not connected. Add your DataForSEO API login and API password (DataForSEO dashboard › API access) — no estimated data is used.";
 
-/** Throws unless DataForSEO credentials are present and accepted. */
+/**
+ * Throws unless DataForSEO credentials are present and accepted.
+ *
+ * "missing" and "unreachable" used to share the same generic DFS_REQUIRED
+ * message ("add your login and password") — actively wrong when the
+ * variables are configured (as they were in production here, verified in
+ * Vercel's dashboard) and the real cause is a transient network failure or a
+ * non-401 error from DataForSEO. Only the genuinely-missing case gets the
+ * "add your credentials" message now; a reachability failure says so, with
+ * whatever detail dfsPing captured, so the next occurrence is diagnosable
+ * from the error message alone instead of pointing at the wrong fix.
+ */
 export async function requireLiveDataForSeo() {
   const { dfsPing } = await import("./dataforseo.server");
   const ping = await dfsPing();
   if (!ping.live) {
-    throw new Error(
-      ping.reason === "unauthorized"
-        ? "DataForSEO rejected your credentials. Use the API password from your DataForSEO account (API access), not your website login."
-        : DFS_REQUIRED,
-    );
+    if (ping.reason === "unauthorized") {
+      throw new Error(
+        "DataForSEO rejected your credentials. Use the API password from your DataForSEO account (API access), not your website login.",
+      );
+    }
+    if (ping.reason === "unreachable") {
+      throw new Error(
+        `DataForSEO could not be reached (credentials are configured, this is not a login problem): ${ping.detail ?? "unknown network error"}. This is usually transient — try again in a moment.`,
+      );
+    }
+    throw new Error(DFS_REQUIRED);
   }
 }
 
@@ -587,10 +604,30 @@ export async function discoverCompetitorsFromSerp(
   // and which domains DataForSEO's own index already treats as competing on
   // organic keyword overlap with this site (only useful once the site has
   // some ranking history — silently empty otherwise, never blocking).
-  const [batches, overlapDomains] = await Promise.all([
-    Promise.all(queries.map((q) => serpWithAiSignals(q, opts, 20))),
+  // Promise.all used to fail the whole competitor-discovery stage if a single
+  // one of these (up to 9) SERP queries threw — a single transient error
+  // (DataForSEO hiccup, or the SerpApi fallback returning its own "Internal
+  // SE Server Error") took out every other query's results with it, even
+  // when most of them would have succeeded. allSettled keeps whatever
+  // fulfilled; the existing "nothing came back at all" check below still
+  // catches a genuine total outage.
+  const [batchSettled, overlapDomains] = await Promise.all([
+    Promise.allSettled(queries.map((q) => serpWithAiSignals(q, opts, 20))),
     selfDomain ? competitorDomains(selfDomain, opts, 15).catch(() => []) : Promise.resolve([]),
   ]);
+  const failedQueries = batchSettled.filter((r) => r.status === "rejected").length;
+  if (failedQueries) {
+    console.warn("[competitors] some SERP queries failed and were skipped", {
+      failed: failedQueries,
+      of: batchSettled.length,
+      errors: batchSettled
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason))),
+    });
+  }
+  const batches = batchSettled
+    .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof serpWithAiSignals>>> => r.status === "fulfilled")
+    .map((r) => r.value);
   const allResults = batches.flatMap((b) => b.organic);
   // Who the AI assistant actually quotes when asked the buyer's question. For a
   // generative-engine product this outranks organic position: these are the
