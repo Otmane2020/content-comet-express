@@ -474,22 +474,33 @@ ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.j
 
 Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least 12 grounded buyer queries; never return an empty array.`,
     });
-    let aiCandidates = normaliseCandidates(raw);
+    const aiCandidates = normaliseCandidates(raw);
     console.info("[keyword-candidates] AI response", { count: aiCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
-    if (!aiCandidates.length) {
-      // Ask the model to repair its own empty/mis-shaped answer, with the same
-      // verbatim SEO evidence. This is still AI-led research, not a hidden
-      // keyword-suggestion fallback.
+    // The prompt itself demands "at least 12" — but that instruction was
+    // never enforced in code, only checked for the total-failure case
+    // (empty array). A response of 3 candidates passed straight through,
+    // silently becoming the entire keyword pool for a 30-day calendar (this
+    // is what produced Ranki.ai's "3 proposed" scans). Retry whenever the
+    // count is short of that floor, not just when it's zero, and keep BOTH
+    // batches (deduped) rather than discarding the first attempt — a retry
+    // that also falls short still adds distinct candidates on top of it.
+    const MIN_AI_CANDIDATES = 12;
+    let merged = aiCandidates;
+    if (merged.length < MIN_AI_CANDIDATES) {
+      // Ask the model to repair its own short/empty/mis-shaped answer, with
+      // the same verbatim SEO evidence. This is still AI-led research, not a
+      // hidden keyword-suggestion fallback.
       const retry = await callOpenRouter({
         json: true,
         maxTokens: 1600,
         system: "Return strict JSON only. You must derive buyer search queries from the supplied SEO title, page title, categories and landing-page copy.",
         user: `${profileBlock(profile)}\n${landingBlock}\n\nReturn at least 12 specific buyer queries in the site language. They must use the evidence above. Return exactly {"keywords":["..."]}.`,
       });
-      aiCandidates = normaliseCandidates(retry);
-      console.info("[keyword-candidates] AI retry response", { count: aiCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
+      const retryCandidates = normaliseCandidates(retry);
+      console.info("[keyword-candidates] AI retry response", { count: retryCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
+      merged = Array.from(new Set([...merged, ...retryCandidates])).slice(0, max);
     }
-    return aiCandidates.length ? aiCandidates : deterministicFallback();
+    return merged.length ? merged : deterministicFallback();
   } catch (error) {
     console.error("[keyword-candidates] AI candidate generation failed", {
       error: error instanceof Error ? error.message : String(error),
