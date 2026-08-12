@@ -206,15 +206,7 @@ export async function buildCanonicalProfile(
   hints?: { name?: string | null; industry?: string | null; website_url?: string | null; audience?: string | null },
 ): Promise<CanonicalBusinessProfile> {
   const landing = site.landing;
-  const raw = await callOpenRouter({
-    json: true,
-    maxTokens: 900,
-    system:
-      "You build a precise business profile from a company website. Return ONLY JSON. " +
-      "Never invent services, crafts, or locations that are not visible on the site. " +
-      "A furniture SELLER is not a carpenter, upholsterer, or repair service. " +
-      "Distinguish wholesale from retail from local service.",
-    user: `${landing?.positioning ? `How the business describes itself, verbatim (SEO title, site name, meta description) — trust this over your reading of the page body:\n${landing.positioning}\n` : ""}${
+  const buildPrompt = () => `${landing?.positioning ? `How the business describes itself, verbatim (SEO title, site name, meta description) — trust this over your reading of the page body:\n${landing.positioning}\n` : ""}${
       landing?.sellsToBusinesses
         ? `Wholesale/B2B wording on this page: ${(landing.b2bMarkers ?? []).join(", ") || "in the body copy"} — ${landing.b2bMentions ?? 0} mentions across the landing page. This business sells to other businesses: "sales_model" MUST be "wholesale" or "manufacturer", and "audience" must describe the professional buyer, not a consumer.\n`
         : ""
@@ -253,9 +245,32 @@ Rules:
 - NEVER include craft trades (menuisier, ébéniste, tapissier, décorateur) as services unless the site explicitly offers them.
 - "primary_entity": the thing actually sold. "product" for physical/shippable goods, "software" for a SaaS/app/platform/tool (e.g. an AI content or SEO automation product), "service" for a professional or manual service performed for the buyer, "marketplace" for a platform that lists other sellers' offers.
 - "has_physical_location": true only if a real street address or storefront appears on the site.
-- "has_service_area": true only if the site states it serves a bounded local area (a city, a region, or "we cover X and Y"). A national or worldwide/online-only business is false even when it names a country it ships to or operates in.`,
-  });
-  const p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
+- "has_service_area": true only if the site states it serves a bounded local area (a city, a region, or "we cover X and Y"). A national or worldwide/online-only business is false even when it names a country it ships to or operates in.`;
+
+  const system =
+    "You build a precise business profile from a company website. Return ONLY JSON. " +
+    "Never invent services, crafts, or locations that are not visible on the site. " +
+    "A furniture SELLER is not a carpenter, upholsterer, or repair service. " +
+    "Distinguish wholesale from retail from local service.";
+
+  // The schema below returns three fields (primary_entity, has_physical_location,
+  // has_service_area) on top of the original one, but the token budget was never
+  // raised to match — the model routinely got cut off mid-object writing
+  // "canonical"/"reliable" last, and parseJsonLoose threw "did not contain a
+  // complete JSON value" for every business, onboarding and /test alike (the
+  // HTTP call itself succeeds — only the JSON is truncated, so the failure has
+  // to be caught around parseJsonLoose, not just around the network call). One
+  // retry also absorbs an occasional truncated response instead of failing the
+  // whole scan outright, the same resilience candidateKeywords already has.
+  let p: Partial<CanonicalBusinessProfile>;
+  try {
+    const raw = await callOpenRouter({ json: true, maxTokens: 1400, system, user: buildPrompt() });
+    p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
+  } catch (error) {
+    console.error("[canonical-profile] first attempt failed", error instanceof Error ? error.message : error);
+    const raw = await callOpenRouter({ json: true, maxTokens: 1400, system, user: buildPrompt() });
+    p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
+  }
   const products = Array.isArray(p.products) ? p.products.map((s) => String(s).trim()).filter(Boolean).slice(0, 20) : [];
   const services = Array.isArray(p.services) ? p.services.map((s) => String(s).trim()).filter(Boolean).slice(0, 10) : [];
   const locations = Array.isArray(p.locations) ? p.locations.map((s) => String(s).trim()).filter(Boolean).slice(0, 10) : [];
