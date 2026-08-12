@@ -17,6 +17,13 @@ export async function dfsPing(): Promise<{ live: boolean; reason: string | null;
   try {
     const res = await fetch(`${BASE}/appendix/user_data`, {
       headers: { Authorization: "Basic " + Buffer.from(`${login}:${password}`).toString("base64") },
+      // A hung connection (DataForSEO accepting the TCP connection but never
+      // responding, rather than erroring) used to block this fetch forever —
+      // three consecutive /test "keywords" runs each burned the entire 300s
+      // Vercel function timeout here, before candidateKeywords' own AI call
+      // ever ran, with no log line and no diagnosable error. A ping has no
+      // reason to take longer than this.
+      signal: AbortSignal.timeout(15_000),
     });
     if (res.status === 401) return { live: false, reason: "unauthorized" };
     if (!res.ok) {
@@ -25,10 +32,11 @@ export async function dfsPing(): Promise<{ live: boolean; reason: string | null;
     }
     return { live: true, reason: null };
   } catch (error) {
+    const timedOut = error instanceof Error && error.name === "TimeoutError";
     return {
       live: false,
       reason: "unreachable",
-      detail: error instanceof Error ? error.message : String(error),
+      detail: timedOut ? "Ping to DataForSEO timed out after 15s (no response)." : error instanceof Error ? error.message : String(error),
     };
   }
 }
@@ -43,10 +51,15 @@ function authHeader() {
 }
 
 async function post<T>(path: string, payload: unknown): Promise<T> {
+  // Same reasoning as dfsPing's timeout: an unresponsive (not merely slow)
+  // DataForSEO connection must fail loudly well before Vercel's 300s function
+  // limit kills the whole batch with no error to show for it. 60s is well
+  // above this endpoint's normal response time even for a 40-keyword batch.
   const res = await fetch(`${BASE}${path}`, {
     method: "POST",
     headers: { Authorization: authHeader(), "Content-Type": "application/json" },
     body: JSON.stringify([payload]),
+    signal: AbortSignal.timeout(60_000),
   });
   const json = (await res.json()) as {
     status_code?: number;
