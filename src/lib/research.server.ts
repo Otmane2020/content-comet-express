@@ -816,6 +816,19 @@ export async function runLiveMarketResearch(
     intent: row.intent ?? classifyIntent(row.keyword),
   }));
   const relevant = scored.filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE);
+  // Logged unconditionally, before any throw below, so a hard-fail scan is
+  // still diagnosable from server logs instead of only reporting its final
+  // count with no way to tell which stage actually lost the keywords
+  // (DataForSEO demand vs. the relevance gate).
+  console.info("[market-research] stage breakdown", {
+    website: input.website,
+    proposed: proposed.length,
+    measured: measured.length,
+    withDemand: withDemand.length,
+    relevancePassed: relevant.length,
+    withDemandKeywords: withDemand.map((r) => ({ keyword: r.keyword, search_volume: r.search_volume })),
+    scoredBelowThreshold: scored.filter((r) => (r.relevance_score ?? 0) < MIN_RELEVANCE).map((r) => ({ keyword: r.keyword, relevance_score: r.relevance_score })),
+  });
   const keywords = relevant
     .sort((a, b) =>
       compositeScore(b, b.relevance_score ?? 0) - compositeScore(a, a.relevance_score ?? 0) ||

@@ -121,6 +121,19 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const scores = await scoreRelevance(context.profile, withDemand.map((row) => row.keyword));
         const scored = withDemand.map((row) => ({ ...row, relevance_score: scores[row.keyword.toLowerCase()] ?? 0 }));
         const relevant = scored.filter((row) => (row.relevance_score ?? 0) >= MIN_RELEVANCE);
+        // Logged unconditionally, before any throw below, so a hard-fail run
+        // is still diagnosable from server logs instead of only reporting
+        // its final count with no way to tell which stage actually lost
+        // the keywords (DataForSEO demand vs. the relevance gate).
+        console.info("[test:keywords] stage breakdown", {
+          website: data.website,
+          proposed: proposed.length,
+          measured: measured.length,
+          withDemand: withDemand.length,
+          relevancePassed: relevant.length,
+          withDemandKeywords: withDemand.map((r) => ({ keyword: r.keyword, search_volume: r.search_volume })),
+          scoredBelowThreshold: scored.filter((r) => (r.relevance_score ?? 0) < MIN_RELEVANCE).map((r) => ({ keyword: r.keyword, relevance_score: r.relevance_score })),
+        });
         if (!relevant.length) throw new Error(`${withDemand.length} keyword(s) had real search-volume data, but none matched this business's buyer profile (relevance gate).`);
         const qualified = relevant;
         if (qualified.length < MIN_USABLE_KEYWORDS) {
