@@ -209,6 +209,25 @@ export type LocalInfo = {
 };
 
 const FAQ_TYPES = new Set<ContentType>(["aeo", "local_aeo"]);
+const GEO_HEADINGS: Record<string, { answer: string; facts: string }> = {
+  fr: { answer: "Réponse directe", facts: "Points clés" },
+  en: { answer: "Direct answer", facts: "Key facts" },
+  es: { answer: "Respuesta directa", facts: "Puntos clave" },
+  de: { answer: "Direkte Antwort", facts: "Wichtige Fakten" },
+  it: { answer: "Risposta diretta", facts: "Punti chiave" },
+  nl: { answer: "Direct antwoord", facts: "Belangrijke punten" },
+  pt: { answer: "Resposta direta", facts: "Pontos principais" },
+};
+
+function removeCompetitorMentions(text: string, rivals: { domain: string }[]) {
+  const aliases = rivals.flatMap((rival) => {
+    const host = rival.domain.replace(/^www\./i, "").split(".")[0] ?? "";
+    return [rival.domain, host, host.replace(/[-_]+/g, " ")];
+  }).filter((name) => name.length > 2);
+  if (!aliases.length) return text;
+  const pattern = aliases.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+  return text.replace(new RegExp(`\\b(?:${pattern})\\b`, "gi"), "another supplier");
+}
 
 /**
  * The canonical profile the AI built from the merchant's own site. It already
@@ -250,9 +269,9 @@ export async function writeArticle(
 ) {
   const products = extras?.products ?? [];
   const links = extras?.links ?? [];
-  const wantsFaq = FAQ_TYPES.has(item.content_type);
+  const wantsFaq = item.content_type === "geo" || FAQ_TYPES.has(item.content_type);
   const guidance: Record<ContentType, string> = {
-    geo: "GEO is an invisible writing method, never the subject: start with a direct buyer answer, use clear independently understandable sections, named entities and only verifiable business facts. Do not discuss GEO, AI visibility, ChatGPT or how the business should rank unless the topic explicitly asks about them.",
+    geo: "GEO is an invisible writing method, never the subject. Return a standalone 50-80 word answer_block first: answer the buyer query directly and connect the business name, audience, verified product categories and verified market/location only when supplied. Then return 4-6 key_facts taken strictly from the verified context. The article must use independently understandable, question-led sections. Do not discuss GEO, AI visibility, ChatGPT or how the business should rank unless the topic explicitly asks about them.",
     seo: "Write a classic long-form SEO article: match search intent, open the first 100 words around the primary keyword, use an H2/H3 structure, and keep a keyword-rich but natural style.",
     aeo: "Answer-engine format: a direct 40-60 word answer first, then supporting sections. Do NOT write an FAQ section in the body — the FAQ is returned separately as structured data.",
     local_aeo:
@@ -269,7 +288,7 @@ export async function writeArticle(
     ? `\n\nPages currently winning these queries, read from their own landing pages:\n${rivals
         .slice(0, 5)
         .map((r) => `${r.domain} — ${r.positioning.slice(0, 180)}${r.headings.length ? ` | sections: ${r.headings.slice(0, 6).join(", ")}` : ""}`)
-        .join("\n")}\n\nCover what they cover, then go further: add the specifics they leave out. Never reuse their wording, their claims or their numbers.`
+        .join("\n")}\n\nCompetitor research is PRIVATE context. Cover what they cover, then go further using only the merchant's verified facts. NEVER mention competitor names, brands, domains, URLs, claims or numbers in the published content.`
     : "";
 
   const catalogBlock = products.length
@@ -302,9 +321,10 @@ export async function writeArticle(
       : "";
 
   const year = new Date().getUTCFullYear();
+  const geoSchema = item.content_type === "geo" ? `,"answer_block":"50-80 words","key_facts":["verified fact"]` : "";
   const faqSchema = wantsFaq ? `,"faq":[{"question":"...","answer":"..."}]` : "";
   const faqRule = wantsFaq
-    ? `\nReturn exactly 4 FAQ pairs in "faq": real, specific questions a buyer would ask, with concise (2-3 sentence) answers. Do not repeat the FAQ content inside body_md.`
+    ? `\nReturn exactly 5 FAQ pairs in "faq": real, specific questions a buyer would ask, with concise 40-80 word standalone answers. Do not repeat the FAQ content inside body_md.`
     : "";
 
   const raw = await callOpenRouter({
@@ -322,38 +342,49 @@ ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock
 Editorial format: write this as a polished specialist-magazine article, not a keyword list or a dry report. Start with a short compelling standfirst (2-3 sentences) that answers why the buyer should care. Use a clear editorial angle, short readable paragraphs, useful ##/### subheadings, concrete selection advice and a confident but factual closing. Keep the article buyer-focused and natural in the site's language.
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists where they genuinely clarify), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Audience safety: write for the person searching the target keyword. Never teach this business how to market, rank, use AI, GEO, SEO or advertising unless that is explicitly the search topic.
-Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above.
+Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above. Competitor research is private and competitor names must never appear in title, excerpt, article or FAQ.
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
 
-Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${faqSchema}}`,
+Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${geoSchema}${faqSchema}}`,
   });
 
   const parsed = parseJsonLoose<{
     title?: string;
     excerpt?: string;
     body_md?: string;
+    answer_block?: string;
+    key_facts?: string[];
     faq?: { question?: string; answer?: string }[];
   }>(raw);
   if (!parsed.body_md) throw new Error("The model returned no article body");
   const faq = wantsFaq
     ? (parsed.faq ?? [])
         .filter((f): f is { question: string; answer: string } => Boolean(f.question && f.answer))
-        .map((f) => ({ question: freshenYears(f.question), answer: freshenYears(f.answer) }))
+        .map((f) => ({ question: removeCompetitorMentions(freshenYears(f.question), rivals), answer: removeCompetitorMentions(freshenYears(f.answer), rivals) }))
         .slice(0, 6)
     : [];
 
+  const locale = (project.locale ?? "fr").slice(0, 2).toLowerCase();
+  const geoHeadings = GEO_HEADINGS[locale] ?? GEO_HEADINGS.en;
   let body_md = freshenYears(parsed.body_md);
+  if (item.content_type === "geo") {
+    const answer = freshenYears(parsed.answer_block?.trim() ?? "");
+    const facts = (parsed.key_facts ?? []).map((fact) => freshenYears(String(fact).trim())).filter(Boolean).slice(0, 6);
+    const directAnswer = answer || `This guide explains how professional buyers can evaluate ${item.topic ?? project.name} using verified business information.`;
+    const factBlock = facts.length ? `\n\n## ${geoHeadings.facts}\n\n${facts.map((fact) => `- ${fact}`).join("\n")}` : "";
+    body_md = `## ${geoHeadings.answer}\n\n${directAnswer}${factBlock}\n\n${body_md}`;
+  }
   if (faq.length) {
-    const heading = FAQ_HEADING[(project.locale ?? "fr").slice(0, 2).toLowerCase()] ?? FAQ_HEADING["en"];
+    const heading = FAQ_HEADING[locale] ?? FAQ_HEADING["en"];
     body_md += `\n\n## ${heading}\n\n${faq
       .map((f) => `### ${f.question}\n\n${f.answer}`)
       .join("\n\n")}`;
   }
 
   return {
-    title: freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")).slice(0, 70),
-    excerpt: freshenYears(parsed.excerpt?.trim() ?? ""),
-    body_md,
+    title: removeCompetitorMentions(freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")).slice(0, 70), rivals),
+    excerpt: removeCompetitorMentions(freshenYears(parsed.excerpt?.trim() ?? ""), rivals),
+    body_md: removeCompetitorMentions(body_md, rivals),
     faq: faq.length ? faq : null,
   };
 }
