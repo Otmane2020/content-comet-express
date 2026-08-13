@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "motion/react";
 import { useServerFn } from "@tanstack/react-start";
-import { ArrowLeft, ArrowRight, Bot, Building2, CalendarDays, Check, Globe2, Loader as Loader2, LogOut, Package, Plus, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Bot, Building2, CalendarDays, Check, Globe2, Loader as Loader2, LogOut, Package, Plus, Radar, RefreshCw, Rocket, Send, Sparkles, ShieldCheck, Tag, Wand as Wand2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
@@ -279,6 +279,78 @@ function audienceFieldCopy(locale: string) {
 
 const bareDomain = (value: string) =>
   value.trim().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "").toLowerCase();
+
+function TagEditor({
+  value,
+  onChange,
+  placeholder,
+  kind,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+  kind: "competitor" | "keyword";
+}) {
+  const [draft, setDraft] = useState("");
+  const items = value.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+  const commit = () => {
+    const candidates = draft.split(/[\n,]/).map((item) => item.trim()).filter(Boolean);
+    if (!candidates.length) return;
+    const next = [...items];
+    for (const item of candidates) {
+      if (!next.some((existing) => existing.toLowerCase() === item.toLowerCase())) next.push(item);
+    }
+    onChange(next.join(kind === "competitor" ? "\n" : ", "));
+    setDraft("");
+  };
+  const remove = (index: number) => {
+    const next = items.filter((_, itemIndex) => itemIndex !== index);
+    onChange(next.join(kind === "competitor" ? "\n" : ", "));
+  };
+  return (
+    <div className="mt-2 rounded-2xl border border-border bg-muted/20 p-3 focus-within:border-primary/45 focus-within:ring-2 focus-within:ring-primary/10">
+      <div className="flex min-h-9 flex-wrap gap-2">
+        {items.map((item, index) => (
+          <motion.span
+            key={`${item}-${index}`}
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11.5px] font-semibold shadow-sm ${
+              kind === "competitor"
+                ? "border-gold/30 bg-gold-soft/70 text-gold-foreground"
+                : "border-primary/20 bg-primary/[0.07] text-primary"
+            }`}
+          >
+            {kind === "competitor" && <WebsiteFavicon website={item} label={item} className="size-4" />}
+            <span className="max-w-[240px] truncate">{item}</span>
+            <button type="button" onClick={() => remove(index)} aria-label={`Remove ${item}`} className="rounded-full p-0.5 opacity-55 transition hover:bg-background hover:opacity-100">
+              <X className="size-3" />
+            </button>
+          </motion.span>
+        ))}
+      </div>
+      <div className="mt-2 flex items-center gap-2">
+        <Input
+          value={draft}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              commit();
+            }
+          }}
+          onBlur={commit}
+          className="h-9 border-0 bg-background text-[12px] shadow-none focus-visible:ring-0"
+          placeholder={placeholder}
+        />
+        <Button type="button" size="sm" variant="outline" onMouseDown={(event) => event.preventDefault()} onClick={commit} disabled={!draft.trim()} className="h-9 shrink-0 rounded-xl">
+          <Plus className="mr-1 size-3.5" /> Add
+        </Button>
+      </div>
+      <p className="mt-1.5 px-1 text-[10.5px] text-muted-foreground">Press Enter or comma to add a tag.</p>
+    </div>
+  );
+}
 
 /** The favicon confirms that the scan refers to a real website. A concise
  * initial is used when a storefront has no exposed favicon. */
@@ -1599,12 +1671,22 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       </summary>
                       <div className="space-y-4 border-t border-primary/15 bg-background p-4">
                         <div>
-                          <Label htmlFor="competitors" className="text-[12.5px]">Competitors (one domain per line)</Label>
-                          <Textarea id="competitors" value={form.competitors} onChange={set("competitors")} className="mt-1.5" rows={3} placeholder={"competitor1.com\ncompetitor2.com"} />
+                          <Label className="text-[12.5px]">Competitors</Label>
+                          <TagEditor
+                            kind="competitor"
+                            value={form.competitors}
+                            onChange={(competitors) => setForm((current) => ({ ...current, competitors }))}
+                            placeholder="Add a competitor domain"
+                          />
                         </div>
                         <div>
-                          <Label htmlFor="keywords" className="text-[12.5px]">Target keywords (comma separated)</Label>
-                          <Textarea id="keywords" value={form.keywords} onChange={set("keywords")} className="mt-1.5" rows={2} placeholder="plumber lyon, water leak, boiler" />
+                          <Label className="text-[12.5px]">Target keywords</Label>
+                          <TagEditor
+                            kind="keyword"
+                            value={form.keywords}
+                            onChange={(keywords) => setForm((current) => ({ ...current, keywords }))}
+                            placeholder="Add a target keyword"
+                          />
                         </div>
                       </div>
                     </details>
