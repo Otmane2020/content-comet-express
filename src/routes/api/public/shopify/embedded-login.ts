@@ -4,6 +4,13 @@ import { createFileRoute } from "@tanstack/react-router";
 const response = (body: Record<string, string>, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 
+const embeddedErrorStatus = (error: string) => {
+  if (error === "billing_required") return 200;
+  if (error === "shop_not_installed" || error === "merchant_not_found") return 404;
+  if (error === "subscription_check_failed") return 503;
+  return 500;
+};
+
 async function verifyAppBridgeToken(token: string) {
   const [encodedHeader, encodedPayload, signature] = token.split(".");
   if (!encodedHeader || !encodedPayload || !signature) return null;
@@ -101,7 +108,7 @@ export const Route = createFileRoute("/api/public/shopify/embedded-login")({
           const fresh = Number.isFinite(timestamp) && Math.abs(Date.now() - timestamp * 1000) < 5 * 60 * 1000;
           if (!shop || !fresh || !mod.verifyRequestHmac(url)) return response({ error: "invalid_embedded_launch" }, 401);
           const session = await issueEmbeddedSession(shop);
-          if ("error" in session) return response(session, 404);
+          if ("error" in session) return response(session, embeddedErrorStatus(session.error));
           console.info("[shopify embedded session] issued from signed launch", { shop });
           return response(session);
         } catch (error) {
@@ -120,8 +127,8 @@ export const Route = createFileRoute("/api/public/shopify/embedded-login")({
           console.info("[shopify embedded session] verified Shopify token", { shop });
           const session = await issueEmbeddedSession(shop);
           if ("error" in session) {
-            console.warn("[shopify embedded session] installed shop not found", { shop });
-            return response(session, 404);
+            console.info("[shopify embedded session] business state", { shop, error: session.error });
+            return response(session, embeddedErrorStatus(session.error));
           }
           console.info("[shopify embedded session] Supabase OTP issued", { shop });
           return response(session);
