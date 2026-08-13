@@ -10,11 +10,11 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
         const url = new URL(request.url);
         const origin = url.origin;
         let shop: string | null = null;
+        const plan = url.searchParams.get("plan") === "annual" ? "annual" : "monthly";
         const mod = await import("@/lib/shopify.server");
         try {
           shop = mod.normalizeShop(url.searchParams.get("shop"));
           const state = mod.verifyState(url.searchParams.get("state"));
-          const plan = url.searchParams.get("plan") === "annual" ? "annual" : "monthly";
           if (!shop || !state || state.shop !== shop) throw new Error("invalid_plan_selection");
           const pendingStore = await import("@/lib/shopifyPendingInstall.server");
           const pending = await pendingStore.getPendingShopifyInstall(shop);
