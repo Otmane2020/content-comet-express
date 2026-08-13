@@ -290,14 +290,22 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         // legitimate (e.g. a marketing-topic AI title correctly rejected), but
         // making it visible is what lets a future domain's "templates in
         // series" symptom be diagnosed as an AI-path failure instead of guessed at.
-        const aiTopicCount = calendar.filter((item) => item.generationSource === "ai").length;
-        const fallbackTopicCount = calendar.length - aiTopicCount;
-        const fallbackRate = fallbackTopicCount / calendar.length;
-        if (fallbackRate > 0.25) {
-          console.warn("[pipeline-diagnostic] high calendar fallback rate", { aiTopicCount, fallbackTopicCount, fallbackRate });
+        const { summariseTopicGeneration } = await import("./plan.server");
+        const gen = summariseTopicGeneration(calendar);
+        const reasonBreakdown = Object.entries(gen.byReason)
+          .sort((a, b) => b[1] - a[1])
+          .map(([reason, count]) => `${reason}=${count}`)
+          .join(", ");
+        if (gen.fallbackRate > 0.25) {
+          // Diagnostic only — never fails the stage. A high rate can be
+          // legitimate, but WHICH reason dominates is what distinguishes a bad
+          // strategy from a broken AI path (a provider error, or every title
+          // rejected by one check).
+          console.warn("[pipeline-diagnostic] high calendar fallback rate", gen);
         }
         return finish(
-          `${calendar.length} planned topics — eligible formats: ${eligible.join(", ")} — AI: ${aiTopicCount}, fallback: ${fallbackTopicCount} (${Math.round(fallbackRate * 100)}%)`,
+          `${calendar.length} planned topics — eligible formats: ${eligible.join(", ")} — AI: ${gen.aiAccepted}, fallback: ${gen.fallbackUsed} (${Math.round(gen.fallbackRate * 100)}%)` +
+            (reasonBreakdown ? ` — reasons: ${reasonBreakdown}` : ""),
           calendar,
           { ...context, calendar },
         );

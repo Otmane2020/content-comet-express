@@ -1,5 +1,5 @@
 import { callOpenRouter, parseJsonLoose } from "./ai.server";
-import { TYPE_META, type ContentType, type SearchIntent } from "./geo";
+import { TYPE_META, isLocalEligible, type ContentType, type SearchIntent } from "./geo";
 import { LANGUAGES } from "./industries";
 import { angleFitsIntent, formatFitsKeyword, isTitleUniqueAndNatural, type EditorialAngle } from "./angles.server";
 
@@ -298,8 +298,20 @@ export function validateCalendarTopic(
   // for that place (for example, "grossiste meubles France"). This stays a
   // structural check (confirmed locations vs. what the keyword itself asked
   // for), not a title-wording inference.
+  //
+  // Gated on a REAL local footprint, for the same reason isLocalEligible is:
+  // `locations` also carries the markets a nationwide online business serves
+  // ("France", "Belgique", "Suisse"), and naming your own market in a title is
+  // not an accidental local page. Ungated, this rejected 60% of otherwise valid
+  // AI titles for a France/Belgium/Switzerland marketplace
+  // (scripts/verify-topic-reconciliation.ts, case 3). A genuinely local
+  // business — one with a confirmed address or service area — is still held to
+  // the original rule.
   const injectedLocationOutsideLocal =
-    slot.type !== "local_aeo" && hasConfirmedLocation && !keywordRequestsLocation;
+    slot.type !== "local_aeo" &&
+    isLocalEligible(project.profile ?? {}) &&
+    hasConfirmedLocation &&
+    !keywordRequestsLocation;
   const titleNonEmpty = topic.trim().length > 0;
   // Reject a genuinely malformed nested question ("How does X? work?" has 2
   // question marks) — a text-quality check, not a format-inference one.
@@ -326,7 +338,7 @@ export function validateCalendarTopic(
  */
 function dedupeTopics(
   project: ProjectBrief,
-  planned: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null; topic: string; generationSource: "ai" | "fallback" }[],
+  planned: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null; topic: string; generationSource: "ai" | "fallback"; fallbackReason?: FallbackReason | null }[],
 ) {
   const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
   const usedPairs = new Set<string>();
@@ -338,6 +350,7 @@ function dedupeTopics(
     let angle = item.angle ?? (allowed[0] ?? null);
     let topic = item.topic;
     let generationSource = item.generationSource;
+    let fallbackReason = item.fallbackReason ?? null;
     if (!angle || !isTitleUniqueAndNatural(seed, angle, topic, usedPairs, usedTitles)) {
       const alt = allowed
         .map((candidate) => ({ candidate, candidateTopic: freshenYears(ANGLE_TEMPLATES[candidate][lang](seed)) }))
@@ -345,7 +358,11 @@ function dedupeTopics(
       if (alt) {
         angle = alt.candidate;
         topic = alt.candidateTopic;
-        generationSource = "fallback"; // the substitute came from ANGLE_TEMPLATES, not the AI response
+        // The substitute came from ANGLE_TEMPLATES, not the AI response. Keep
+        // the original reason when the slot was already a fallback, so a
+        // downstream dedup swap never masks why the AI title was rejected.
+        if (generationSource === "ai") fallbackReason = "dedupe_replaced";
+        generationSource = "fallback";
       } else if (angle && usedTitles.has(normalise(topic))) {
         // Every angle in the allowed set is exhausted (a keyword recurring far
         // more than the angle library covers) — guarantee uniqueness rather
@@ -356,8 +373,131 @@ function dedupeTopics(
     }
     usedPairs.add(`${normalise(seed)}:${angle ?? "none"}`);
     usedTitles.add(normalise(topic));
-    return { ...item, angle, topic, generationSource };
+    return { ...item, angle, topic, generationSource, fallbackReason };
   });
+}
+
+/**
+ * Does the model's echoed contentType identify the same format as the slot?
+ *
+ * A strict `===` against the raw enum used to reject every AI title ever
+ * generated, on every business: the prompt only ever showed the model
+ * TYPE_META's LABEL ("GEO", "Shopping AEO"), never the enum value it was then
+ * compared against, so "GEO" === "geo" was false 30 times out of 30. Proven by
+ * scripts/verify-topic-reconciliation.ts, where the label and enum cases differ
+ * by nothing but letter case and produce 0/30 vs 30/30.
+ *
+ * The prompt now states the enum explicitly, and this accepts either the enum
+ * or its label, case-insensitively — a model echoing back what it was shown is
+ * obeying the instruction, not failing it, and identity should not hinge on
+ * capitalisation.
+ */
+function sameContentType(generatedContentType: string | undefined, slotType: ContentType): boolean {
+  const echoed = (generatedContentType ?? "").trim().toLowerCase();
+  if (!echoed) return false;
+  return echoed === slotType.toLowerCase() || echoed === TYPE_META[slotType].label.toLowerCase();
+}
+
+/**
+ * Why a slot shipped a deterministic template instead of the AI's own title.
+ * Every value maps to exactly one branch of the acceptance chain in
+ * reconcileTopics below, so a 100%-fallback calendar names its cause instead of
+ * being indistinguishable from a calendar where the AI simply wasn't called.
+ */
+export type FallbackReason =
+  | "provider_error"
+  | "parse_failed"
+  | "missing_topic"
+  | "identity_format_mismatch"
+  | "identity_keyword_mismatch"
+  | "marketing_leak"
+  | "keyword_unaligned"
+  | "location_invalid"
+  | "format_unfit"
+  | "angle_unfit"
+  | "title_empty"
+  | "title_unnatural"
+  | "dedupe_replaced";
+
+export type PlannedTopic = {
+  date: string;
+  type: ContentType;
+  keyword?: string | null;
+  intent?: SearchIntent | null;
+  angle: EditorialAngle | null;
+  topic: string;
+  generationSource: "ai" | "fallback";
+  fallbackReason: FallbackReason | null;
+};
+
+/**
+ * Reconciles the model's returned topics against the slots that were asked for,
+ * accepting a title only when it still represents its exact slot. Extracted from
+ * planTopics as a PURE function so the accept/reject decision can be exercised
+ * with a simulated response at zero API cost — the decision path is otherwise
+ * only reachable through a billed call, which is why a 100% rejection rate went
+ * unnoticed across four different businesses.
+ */
+export function reconcileTopics(
+  project: ProjectBrief,
+  slots: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null }[],
+  parsedTopics: { date: string; keyword?: string; contentType?: string; topic: string }[],
+): PlannedTopic[] {
+  const byDate = new Map(parsedTopics.map((t) => [t.date, t]));
+  const fallback = fallbackTopics(project, slots);
+  return slots.map((slot, i) => {
+    const generated = byDate.get(slot.date);
+    const angle = fallback[i]!.angle;
+    const templateTopic = fallback[i]!.topic;
+    const useTemplate = (reason: FallbackReason): PlannedTopic => ({
+      ...slot,
+      angle,
+      topic: templateTopic,
+      generationSource: "fallback",
+      fallbackReason: reason,
+    });
+
+    // The model skipped this date entirely. The old code let this through as
+    // `identityAligned` (it short-circuits on `!generated`) and then validated
+    // the TEMPLATE, which passes — so a skipped slot was counted as an AI title
+    // while actually shipping a template. It is a fallback, and says so.
+    if (!generated) return useTemplate("missing_topic");
+
+    const candidate = freshenYears(generated.topic ?? "");
+    // The deterministic angle computed for this slot is the assigned angle
+    // regardless of which title wins — the AI isn't asked to echo back which
+    // angle it picked, so this is the one source of truth to validate against.
+    const checks = validateCalendarTopic(project, { ...slot, angle }, candidate);
+    const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
+
+    if (!isMarketingKeyword && META_MARKETING.test(candidate)) return useTemplate("marketing_leak");
+    if (normalise(generated.keyword ?? "") !== normalise(slot.keyword ?? "")) return useTemplate("identity_keyword_mismatch");
+    if (!sameContentType(generated.contentType, slot.type)) return useTemplate("identity_format_mismatch");
+    if (!checks.keywordAligned) return useTemplate("keyword_unaligned");
+    if (!checks.locationValid) return useTemplate("location_invalid");
+    if (!checks.formatFit) return useTemplate("format_unfit");
+    if (!checks.angleFit) return useTemplate("angle_unfit");
+    if (!checks.titleNonEmpty) return useTemplate("title_empty");
+    if (!checks.titleNatural) return useTemplate("title_unnatural");
+
+    return { ...slot, angle, topic: candidate, generationSource: "ai", fallbackReason: null };
+  });
+}
+
+/** Aggregate counters for the /test stage summary and server logs. */
+export function summariseTopicGeneration(topics: PlannedTopic[]) {
+  const byReason: Record<string, number> = {};
+  for (const t of topics) {
+    if (t.fallbackReason) byReason[t.fallbackReason] = (byReason[t.fallbackReason] ?? 0) + 1;
+  }
+  const fallbackUsed = topics.filter((t) => t.generationSource === "fallback").length;
+  return {
+    aiRequested: topics.length,
+    aiAccepted: topics.length - fallbackUsed,
+    fallbackUsed,
+    fallbackRate: topics.length ? fallbackUsed / topics.length : 0,
+    byReason,
+  };
 }
 
 export async function planTopics(
@@ -371,7 +511,11 @@ export async function planTopics(
       const allowed = angleFitsIntent(intent, s.type);
       const angle = allowed[0] ?? null;
       return (
-        `${i + 1}. ${s.date} — ${TYPE_META[s.type].label}: ${TYPE_META[s.type].blurb}` +
+        // The raw enum is stated explicitly because the reconciliation step
+        // compares against it. Showing only the human label ("GEO") while
+        // asking the model to "copy the slot type exactly" is what made every
+        // echoed value fail the identity check.
+        `${i + 1}. ${s.date} — ${TYPE_META[s.type].label} (contentType: ${s.type}): ${TYPE_META[s.type].blurb}` +
         (s.keyword ? ` | target keyword: "${s.keyword}" | search intent: ${intent}` : "") +
         (angle ? ` | suggested angle: ${angle}` : "")
       );
@@ -413,45 +557,25 @@ Confirmed locations: ${(project.locations ?? []).join(", ") || "none — use onl
 Slots:
 ${list}
 
-Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exactly","contentType":"copy the slot type exactly","topic":"..."}]}`,
+Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target keyword exactly","contentType":"copy the slot's contentType value exactly, lowercase (geo|seo|aeo|local_aeo|shopping)","topic":"..."}]}`,
     });
     const parsed = parseJsonLoose<{ topics?: { date: string; keyword?: string; contentType?: string; topic: string }[] }>(raw);
-    const byDate = new Map((parsed.topics ?? []).map((t) => [t.date, t]));
-    const fallback = fallbackTopics(project, slots);
-    const planned = slots.map((slot, i) => {
-      const generated = byDate.get(slot.date);
-      const candidate = freshenYears(generated?.topic ?? fallback[i]!.topic);
-      const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
-      // The deterministic angle computed for this slot (fallback[i]'s) is the
-      // assigned angle regardless of whether the AI title is used — the AI
-      // isn't asked to echo back which angle it picked, so this is the one
-      // source of truth to validate the candidate title's structural fit against.
-      const checks = validateCalendarTopic(project, { ...slot, angle: fallback[i]!.angle }, candidate);
-      const identityAligned =
-        !generated ||
-        (normalise(generated.keyword ?? "") === normalise(slot.keyword ?? "") && generated.contentType === slot.type);
-      const useFallback =
-        (!isMarketingKeyword && META_MARKETING.test(candidate)) ||
-        !identityAligned ||
-        !checks.keywordAligned ||
-        !checks.locationValid ||
-        !checks.formatFit ||
-        !checks.angleFit ||
-        !checks.titleNonEmpty ||
-        !checks.titleNatural;
-      return {
-        ...slot,
-        // The AI response isn't asked to echo back which angle it used, so
-        // the deterministic angle computed for this slot (also used by the
-        // fallback template) is what dedupeTopics reasons about either way.
-        angle: fallback[i]!.angle,
-        topic: useFallback ? fallback[i]!.topic : candidate,
-        generationSource: useFallback ? ("fallback" as const) : ("ai" as const),
-      };
+    return dedupeTopics(project, reconcileTopics(project, slots, parsed.topics ?? []));
+  } catch (error) {
+    // The whole batch never produced a usable response. Tag every slot with the
+    // reason so a 100%-fallback calendar can be told apart from one where the
+    // call succeeded and each title was individually rejected downstream — the
+    // two are byte-identical in the output otherwise.
+    const reason: FallbackReason =
+      error instanceof Error && /complete JSON value|JSON/i.test(error.message) ? "parse_failed" : "provider_error";
+    console.error("[planTopics] AI topic generation failed for the whole batch", {
+      reason,
+      error: error instanceof Error ? error.message : String(error),
     });
-    return dedupeTopics(project, planned);
-  } catch {
-    return dedupeTopics(project, fallbackTopics(project, slots));
+    return dedupeTopics(
+      project,
+      fallbackTopics(project, slots).map((slot) => ({ ...slot, fallbackReason: reason })),
+    );
   }
 }
 
@@ -572,6 +696,12 @@ export type CanonicalProfileFacts = {
   services?: string[] | null;
   locations?: string[] | null;
   primary_entity?: "product" | "software" | "service" | "marketplace" | null;
+  /** buildCanonicalProfile has always returned these two (relevance.server.ts)
+   * — they were simply missing from this type, so the planner could not tell a
+   * genuine local footprint from a `locations` list that merely names the
+   * markets a nationwide online business serves. */
+  has_physical_location?: boolean | null;
+  has_service_area?: boolean | null;
 };
 
 /**
@@ -605,6 +735,43 @@ function profileFactsBlock(profile: CanonicalProfileFacts | null | undefined) {
   return facts.length
     ? `\n\nVerified facts about this business, taken from its own website — write for this business, not for the generic industry:\n${facts.join("\n")}`
     : "";
+}
+
+/**
+ * Removes an FAQ-shaped section the model wrote inside body_md, so the
+ * structured `faq` can be appended exactly once. Structural, not wording-based
+ * beyond the heading: a `##` section qualifies when its heading matches the
+ * article language's own FAQ heading, OR when it contains 3+ `###`
+ * sub-headings of which most are questions — which IS an FAQ regardless of what
+ * the model titled it, in any language.
+ */
+export function stripModelFaqSection(body: string, faqHeading: string): string {
+  const lines = body.split("\n");
+  const headings: number[] = [];
+  lines.forEach((line, i) => {
+    if (/^##(?!#)\s+\S/.test(line)) headings.push(i);
+  });
+  if (!headings.length) return body;
+
+  const target = normalise(faqHeading);
+  const drop = new Set<number>();
+  for (let h = 0; h < headings.length; h += 1) {
+    const start = headings[h]!;
+    const end = h + 1 < headings.length ? headings[h + 1]! : lines.length;
+    const headingText = normalise(lines[start]!.replace(/^##\s+/, ""));
+    const subs = lines.slice(start + 1, end).filter((l) => /^###\s+\S/.test(l));
+    const questionSubs = subs.filter((l) => l.trim().endsWith("?"));
+    const isFaqSection =
+      (target.length > 0 && headingText.includes(target)) ||
+      (subs.length >= 3 && questionSubs.length >= Math.ceil(subs.length * 0.6));
+    if (isFaqSection) for (let i = start; i < end; i += 1) drop.add(i);
+  }
+  if (!drop.size) return body;
+  return lines
+    .filter((_, i) => !drop.has(i))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
 
 export async function writeArticle(
@@ -774,6 +941,13 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
   }
   if (faq.length) {
     const heading = FAQ_HEADING[locale] ?? FAQ_HEADING["en"];
+    // The prompt already says not to repeat the FAQ inside body_md, and models
+    // routinely ignore it — a live article shipped the same five Q&As twice,
+    // once as the model's own "Questions fréquentes sur…" section and once
+    // appended from the structured `faq`. Instruction is not enforcement:
+    // strip any FAQ-shaped section the model wrote before appending the
+    // canonical one, so the article carries it exactly once.
+    body_md = stripModelFaqSection(body_md, heading!);
     body_md += `\n\n## ${heading}\n\n${faq
       .map((f) => `### ${f.question}\n\n${f.answer}`)
       .join("\n\n")}`;
