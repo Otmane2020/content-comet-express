@@ -324,6 +324,19 @@ function previewCopy(locale: string) {
 }
 
 export function Onboarding({ userId, onDone }: { userId: string | null; onDone: () => void }) {
+  // TEMPORARY diagnostic — traces whether a repeated market scan comes from a
+  // real `step` change, a full remount of this component, or something else
+  // entirely (a page navigation would show as a new /app in the HTTP logs
+  // instead of any of these). One id per mount makes the two cases
+  // distinguishable in the console: same runId + new scan => step genuinely
+  // changed; new runId => <Onboarding> was remounted.
+  const [runId] = useState(() => Math.random().toString(36).slice(2, 8));
+  useEffect(() => {
+    console.info("[onboarding] mounted", { runId });
+    return () => console.info("[onboarding] unmounted", { runId });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const build = useServerFn(buildPlan);
   const kickstart = useServerFn(kickstartFirstDay);
   const detectBiz = useServerFn(detectBusiness);
@@ -366,6 +379,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     error?: string;
   } | null>(null);
   const [step, setStep] = useState(0);
+  // TEMPORARY diagnostic — see the "step changed" log above.
+  const previousStepRef = useRef<number | null>(null);
   const [showMoreLanguages, setShowMoreLanguages] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -501,7 +516,11 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   // Run the competitor/keyword scan the moment the merchant reaches step 2 —
   // no button to press, it just happens while they read.
   useEffect(() => {
+    // TEMPORARY diagnostic, same runId as the mount log above.
+    console.info("[onboarding] step changed", { runId, previousStep: previousStepRef.current, step });
+    previousStepRef.current = step;
     if (step === 2 && !market && !scanningMarket && form.website_url.trim()) {
+      console.info("[onboarding] market scan started", { runId, step });
       void autodetectMarket();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

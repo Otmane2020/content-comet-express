@@ -380,6 +380,17 @@ function Dashboard() {
   // them in the full Ranki onboarding wizard, prefilled from their store,
   // rather than dropping them into a separate abbreviated welcome screen.
   if (showShopifyWelcome || (embedded && onboardingState?.completed !== true)) {
+    // TEMPORARY diagnostic — every render of THIS branch logs. If this fires
+    // repeatedly with the same user/project, <Onboarding> below is being
+    // re-created each time only if its own "mounted"/"unmounted" pair also
+    // repeats — a render of this branch alone does not remount it, React
+    // keeps the same instance across re-renders in the same tree position.
+    console.info("[app] onboarding branch rendered", {
+      userId: user.id,
+      embedded,
+      onboardingCompleted: onboardingState?.completed,
+      projectId: project?.id,
+    });
     return (
       <Onboarding
         userId={user.id}
