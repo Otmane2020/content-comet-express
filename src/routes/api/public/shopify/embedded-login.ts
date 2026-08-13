@@ -49,21 +49,46 @@ async function issueEmbeddedSession(shop: string) {
     return { error: "shop_not_installed" } as const;
   }
   const config = (integration.config ?? {}) as { access_token?: string };
-  // Opening the embedded tile must never be treated as payment approval. Old
-  // partial installs can have an integration/user but no Shopify subscription.
-  // Send those merchants back through the plan picker before issuing Ranki's
-  // authenticated session.
-  // activeAppSubscription() returns null when Shopify says there is no active
-  // subscription, and THROWS when we could not ask Shopify at all. Collapsing
-  // both into null with `.catch(() => null)` meant any transient GraphQL
-  // failure — timeout, 429, a blip right after the charge was approved — was
-  // reported to the merchant as "you have not paid", bouncing someone who had
-  // just paid straight back to the payment page. Retry the call, and if it
-  // still cannot be answered, say so instead of inventing a billing state.
+
+  // CRITICAL UX requirement: for a merchant whose local subscription is
+  // active and fresh, opening App Home must make ZERO Shopify Billing/Admin
+  // API requests before issuing the session. billing.ts already writes
+  // status="active" synchronously right after Shopify confirms the charge,
+  // before ever redirecting back here — so the merchant's very next load
+  // reads that fresh row and skips the live check entirely. This is what
+  // actually removes the "About a minute before I see my plan" wait; the
+  // live check below is now exceptional reconciliation, not the normal path.
+  const FRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
+  const { data: cached } = await supabaseAdmin
+    .from("subscriptions")
+    .select("status, updated_at")
+    .eq("user_id", integration.user_id)
+    .maybeSingle();
+  const cacheFresh =
+    !!cached && Date.now() - new Date(cached.updated_at as string).getTime() < FRESH_WINDOW_MS;
+  if (cached?.status === "active" && cacheFresh) {
+    const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
+    if (!user.user?.email) return { error: "merchant_not_found" } as const;
+    const provision = await import("@/lib/shopifyProvision.server");
+    return provision.shopifyEmbeddedSession(user.user.email);
+  }
+
+  // Reconciliation: either no fresh cached verdict yet, or the cache says
+  // inactive/missing and needs a real answer before showing the plan picker.
+  // Old partial installs can have an integration/user but no Shopify
+  // subscription; opening the embedded tile must never be treated as
+  // payment approval on its own.
+  //
+  // activeAppSubscription() returns null when Shopify says there is no
+  // active subscription, and THROWS when we could not ask Shopify at all.
+  // Collapsing both into null used to report any transient GraphQL failure
+  // as "you have not paid". One retry (graphql() is now 5s-timeout bounded,
+  // so worst case here is ~10s, not the ~45s three retries used to allow) —
+  // if it still cannot be answered, say so instead of inventing a billing state.
   let active: Awaited<ReturnType<typeof activeAppSubscription>> = null;
   let checkFailed = false;
   if (config.access_token) {
-    for (let attempt = 1; attempt <= 3; attempt += 1) {
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
       try {
         active = await activeAppSubscription(shop, config.access_token);
         checkFailed = false;
@@ -75,19 +100,25 @@ async function issueEmbeddedSession(shop: string) {
           attempt,
           error: error instanceof Error ? error.message : String(error),
         });
-        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+        if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 400));
       }
     }
   }
   if (checkFailed) return { error: "subscription_check_failed" } as const;
+  const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
+  if (!user.user?.email) return { error: "merchant_not_found" } as const;
+  // The whole point of reconciling is to correct the cache either way — an
+  // `active` result refreshes `updated_at` and restarts the 24h fast-path
+  // window; an inactive result corrects a stale "active" row (the case the
+  // user flagged: DB says active, Shopify says cancelled, webhook missed).
+  const { recordShopifySubscription } = await import("@/lib/shopifyProvision.server");
+  await recordShopifySubscription(integration.user_id, user.user.email, active);
   if (!active) {
     return {
       error: "billing_required",
       billing_url: billingUrl(),
     } as const;
   }
-  const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
-  if (!user.user?.email) return { error: "merchant_not_found" } as const;
   const provision = await import("@/lib/shopifyProvision.server");
   return provision.shopifyEmbeddedSession(user.user.email);
 }

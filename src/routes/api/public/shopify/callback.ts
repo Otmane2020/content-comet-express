@@ -35,6 +35,11 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     if (!mod.verifyRequestHmac(url)) return fail("bad_signature");
     const { access_token } = await step("exchangeCode", mod.exchangeCode(shop, code));
     console.info("[shopify callback] OAuth token exchanged", { shop });
+    // Fire-and-forget: keeps subscriptions.status in sync after the fact via
+    // shopify-billing webhook. Never blocks the install — the 24h
+    // reconciliation window in embedded-login.ts is the backstop if this
+    // registration itself has a hiccup or a delivery is missed.
+    void mod.registerShopifyWebhooks(shop, access_token, `${origin}/api/public/hooks/shopify-billing`).catch(() => undefined);
     // A first App Store install should reach Shopify billing immediately. Only
     // fetch the small shop record needed to mark a development store as test;
     // the product/catalog import runs after Shopify confirms the subscription.

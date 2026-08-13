@@ -121,6 +121,45 @@ export function verifyRequestHmac(url: URL) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+/**
+ * Shopify webhook deliveries are signed differently from the OAuth/App Bridge
+ * redirects verifyRequestHmac checks: a base64 HMAC-SHA256 over the RAW
+ * request body (not a sorted query string), in the `X-Shopify-Hmac-Sha256`
+ * header. Same app secret either way.
+ */
+export function verifyWebhookHmac(rawBody: string, header: string | null): boolean {
+  if (!header) return false;
+  const digest = createHmac("sha256", shopifySecret()).update(rawBody, "utf8").digest("base64");
+  const a = Buffer.from(digest);
+  const b = Buffer.from(header);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Registers the two webhook topics the subscription cache depends on. This
+ * app has no shopify.app.toml declarative webhook config, so registration is
+ * done per-shop via the Admin API right after install. Fire-and-forget by
+ * design: a registration hiccup must never block the install itself — the
+ * 24h reconciliation window (embedded-login.ts) is the backstop if a webhook
+ * never gets registered or a delivery is missed.
+ */
+export async function registerShopifyWebhooks(shop: string, token: string, callbackUrl: string) {
+  const query = `
+    mutation Register($topic: WebhookSubscriptionTopic!, $url: URL!) {
+      webhookSubscriptionCreate(topic: $topic, webhookSubscription: { callbackUrl: $url, format: JSON }) {
+        webhookSubscription { id }
+        userErrors { message }
+      }
+    }`;
+  for (const topic of ["APP_SUBSCRIPTIONS_UPDATE", "APP_UNINSTALLED"] as const) {
+    try {
+      await graphql(shop, token, query, { topic, url: callbackUrl });
+    } catch (error) {
+      console.error("[shopify webhooks] registration failed", { shop, topic, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+}
+
 export function redirectUri(origin: string) {
   return `${origin.replace(/\/$/, "")}/api/public/shopify/callback`;
 }
@@ -481,10 +520,17 @@ export const SHOPIFY_PLANS: Record<ShopifyPlanId, {
 };
 
 async function graphql<T>(shop: string, token: string, query: string, variables: unknown) {
+  // The live subscription check used to have no timeout at all — an
+  // unresponsive connection blocked indefinitely, and a caller retrying that
+  // 3 times is what produced a reported ~1 minute wait on every single App
+  // Home load. This is now exceptional reconciliation, not the normal path
+  // (see embedded-login.ts's cache-first check), so its worst case must read
+  // as exceptional too.
   const res = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
     method: "POST",
     headers: adminHeaders(token),
     body: JSON.stringify({ query, variables }),
+    signal: AbortSignal.timeout(5_000),
   });
   const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
   if (!res.ok || json.errors?.length) throw new Error(json.errors?.[0]?.message ?? `Shopify API error (${res.status})`);
