@@ -39,13 +39,18 @@ async function issueEmbeddedSession(shop: string) {
     const state = signState({ origin: "", shop, ts: Date.now() });
     return `/shopify/plan?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(state)}`;
   };
+  // OAuth writes the fresh token to the pending-install vault before
+  // returning to App Home. This state must outrank an older integration row:
+  // after uninstall/reinstall that row still contains the revoked token. The
+  // previous order ignored the pending token, retried the revoked integration
+  // token, restarted OAuth, and looped every few seconds while briefly
+  // rendering the generic Stripe/onboarding payment card.
+  const pendingStore = await import("@/lib/shopifyPendingInstall.server");
+  const pending = await pendingStore.getPendingShopifyInstall(shop);
+  if (pending?.status === "billing_pending") {
+    return { error: "billing_required", billing_url: billingUrl() } as const;
+  }
   if (!integration?.user_id) {
-    // OAuth has completed but payment has not: the pending row is enough to
-    // show the embedded selector; a Ranki user is intentionally not created
-    // until Shopify approves the charge.
-    const pendingStore = await import("@/lib/shopifyPendingInstall.server");
-    const pending = await pendingStore.getPendingShopifyInstall(shop);
-    if (pending) return { error: "billing_required", billing_url: billingUrl() } as const;
     return { error: "shop_not_installed" } as const;
   }
   const config = (integration.config ?? {}) as { access_token?: string };
