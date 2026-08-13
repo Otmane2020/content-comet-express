@@ -119,6 +119,13 @@ function Dashboard() {
   });
   const [appBridgeReady, setAppBridgeReady] = useState(false);
   const [embeddedSessionError, setEmbeddedSessionError] = useState<string | null>(null);
+  // True once the embedded launch's identity/billing check below has
+  // concluded — a leftover Supabase session from unrelated earlier testing
+  // must never drive what's shown mid-Shopify-install: only the signed
+  // launch is authoritative for which account/shop this is. Gates the
+  // `!project` branch below regardless of whether `user` already looks
+  // signed in.
+  const [shopifyLaunchResolved, setShopifyLaunchResolved] = useState(false);
 
   useEffect(() => {
     if (!embedded) return;
@@ -136,7 +143,15 @@ function Dashboard() {
   }, [embedded]);
 
   useEffect(() => {
-    if (!embedded || loading || user) return;
+    // Deliberately does NOT skip when `user` is already set: a real merchant
+    // reopening a fully set-up store still resolves this cheaply (embedded-
+    // login's own cache-first check, no live Shopify call for an active,
+    // fresh subscription) and confirms nothing needs to change. Skipping
+    // whenever a session already existed is what let a leftover Supabase
+    // session from unrelated earlier testing render the full onboarding
+    // wizard for a split second on a fresh Shopify install, before this
+    // check (which never ran) would have redirected to billing.
+    if (!embedded || loading) return;
     let cancelled = false;
     const start = async () => {
       try {
@@ -148,7 +163,7 @@ function Dashboard() {
           : appBridgeReady
             ? await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${await waitForShopifyIdToken()}` } })
             : null;
-        if (!res) return;
+        if (!res) return; // App Bridge script still loading — effect re-runs once appBridgeReady flips true
         const body = await res.json() as { token_hash?: string; type?: "email"; error?: string; billing_url?: string };
         if (cancelled || !body.token_hash) {
           if (body.error) {
@@ -179,18 +194,23 @@ function Dashboard() {
                   : "Your Shopify session could not be opened.";
             setEmbeddedSessionError(message);
           }
+          if (!cancelled) setShopifyLaunchResolved(true);
           return;
         }
         const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "email" });
         if (error) throw error;
+        if (!cancelled) setShopifyLaunchResolved(true);
       } catch (error) {
         console.error("[shopify embedded] session token exchange failed", error);
-        if (!cancelled) setEmbeddedSessionError("Your Shopify session could not be opened.");
+        if (!cancelled) {
+          setEmbeddedSessionError("Your Shopify session could not be opened.");
+          setShopifyLaunchResolved(true);
+        }
       }
     };
     void start();
     return () => { cancelled = true; };
-  }, [embedded, appBridgeReady, loading, user]);
+  }, [embedded, appBridgeReady, loading]);
 
   useEffect(() => {
     if (!user) return;
@@ -357,6 +377,23 @@ function Dashboard() {
     // Showing the identical "Resuming…" sentence both times read as a failed
     // reload. sessionStorage distinguishes the two passes for copy only —
     // both still resolve to the same redirects.
+    //
+    // A leftover Supabase session from unrelated earlier testing must not
+    // drive this branch either: for an embedded launch, hold here until the
+    // identity/billing check above has actually concluded, regardless of
+    // `user` — otherwise a stale session let the real onboarding wizard
+    // flash on screen for a few seconds before the billing redirect fired,
+    // since that check used to skip entirely whenever `user` was already set.
+    if (embedded && shopifyVisitor && !shopifyLaunchResolved) {
+      return (
+        <div className="flex min-h-screen flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">
+            {installStep === "connecting" ? "Connecting Ranki to Shopify…" : "Shopify connected successfully"}
+          </p>
+          <p>{installStep === "connecting" ? "We're securely connecting your store." : "Preparing your Ranki workspace…"}</p>
+        </div>
+      );
+    }
     if (!user && shopifyVisitor) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
