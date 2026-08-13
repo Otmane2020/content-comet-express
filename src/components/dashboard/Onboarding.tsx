@@ -410,6 +410,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const audienceCopy = audienceFieldCopy(form.locale);
 
   const DRAFT_KEY = "apgeo_onboarding_draft";
+  const MARKET_PIPELINE_VERSION = "validated_pipeline_v1";
 
   const asList = (v: string, sep: RegExp | string = ",") =>
     v.split(sep as never).map((x: string) => x.trim()).filter(Boolean);
@@ -465,6 +466,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     loadDraft()
       .then(({ draft }) => {
         if (!draft) return;
+        const hasCurrentMarketPipeline = draft.data_source === MARKET_PIPELINE_VERSION;
         setForm((f) => ({
           ...f,
           name: draft.business_name || f.name,
@@ -474,10 +476,25 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           tone: draft.tone || f.tone,
           locale: draft.language || f.locale,
           country: draft.country || f.country,
-          keywords: (draft.keywords as string[] | null)?.join(", ") || f.keywords,
-          competitors: (draft.competitors as string[] | null)?.join("\n") || f.competitors,
+          // Results produced by the retired detectMarket function must never
+          // masquerade as output from the validated /test pipeline.
+          keywords: hasCurrentMarketPipeline
+            ? ((draft.keywords as string[] | null)?.join(", ") || f.keywords)
+            : "",
+          competitors: hasCurrentMarketPipeline
+            ? ((draft.competitors as string[] | null)?.join("\n") || f.competitors)
+            : "",
         }));
-        if (!returned && typeof draft.current_step === "number") setStep(draft.current_step);
+        if (!hasCurrentMarketPipeline && (draft.current_step ?? 0) >= 2) {
+          console.info("[onboarding] invalidating legacy market cache", {
+            previousSource: draft.data_source ?? null,
+            nextSource: MARKET_PIPELINE_VERSION,
+          });
+          setMarket(null);
+          setStep(2);
+        } else if (!returned && typeof draft.current_step === "number") {
+          setStep(draft.current_step);
+        }
       })
       .catch(() => undefined);
 
@@ -745,11 +762,32 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
       setMarket(r);
       setBizProfile(r.business_profile ?? null);
-      setForm((f) => ({
-        ...f,
+      const validatedForm = {
+        ...form,
         competitors: r.competitors.join("\n"),
         keywords: r.keywords.map((keyword) => keyword.keyword).join(", "),
-      }));
+      };
+      setForm(validatedForm);
+      // Cache only after every production batch passed. This marker lets both
+      // Shopify and Stripe resume without paying for the same scan again,
+      // while all results from the retired market engine are invalidated.
+      if (userId) {
+        await persistDraft({
+          data: {
+            website_url: validatedForm.website_url,
+            business_name: validatedForm.name,
+            industry: validatedForm.industry,
+            target_market: validatedForm.audience,
+            country: validatedForm.country || undefined,
+            tone: validatedForm.tone,
+            language: validatedForm.locale,
+            keywords: r.keywords.map((keyword) => keyword.keyword),
+            competitors: r.competitors,
+            current_step: 2,
+            data_source: MARKET_PIPELINE_VERSION,
+          },
+        });
+      }
       toast.success(`Validated market data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
       return r;
     } catch (err) {
