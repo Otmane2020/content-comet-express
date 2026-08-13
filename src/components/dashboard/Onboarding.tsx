@@ -7,7 +7,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
 import { startShopifyBilling } from "@/lib/shopify.functions";
-import { detectBusiness } from "@/lib/detect.functions";
 import { runPipelineDiagnosticBatch } from "@/lib/diagnostics.functions";
 import {
   completeOnboarding,
@@ -348,7 +347,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
   const build = useServerFn(buildPlan);
   const kickstart = useServerFn(kickstartFirstDay);
-  const detectBiz = useServerFn(detectBusiness);
   const runProductionPipelineBatch = useServerFn(runPipelineDiagnosticBatch);
   const checkout = useServerFn(createCheckout);
   const shopifyBilling = useServerFn(startShopifyBilling);
@@ -385,6 +383,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
    * be returned by detectBusiness and thrown away, so the market scan rebuilt it
    * from scratch without knowing who the business sells to. */
   const [bizProfile, setBizProfile] = useState<Record<string, unknown> | null>(null);
+  // Context produced by landing/profile on the analysis screen. Step 3
+  // continues from it instead of running a second, separate market engine.
+  const [marketPipelineContext, setMarketPipelineContext] = useState<unknown>(undefined);
   const [market, setMarket] = useState<{
     source: "dataforseo" | "ai";
     competitors: string[];
@@ -673,31 +674,43 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       toast.error("Add your website URL first.");
       return false;
     }
-    setLastAnalysedWebsite(form.website_url.trim());
+    const website = form.website_url.trim();
+    setLastAnalysedWebsite(website);
     setScanning(true);
     try {
-      const d = await detectBiz({ data: { website: form.website_url } });
-      const profileKeywords = (form.keywords || d.keywords.join(", "))
-        .split(",")
-        .map((keyword) => keyword.trim())
-        .filter(Boolean);
+      let context: unknown = undefined;
+      for (const batch of ["landing", "profile"] as const) {
+        const result = await runProductionPipelineBatch({
+          data: { website, batch, context },
+        }) as {
+          stage: { ok: boolean; error: string | null };
+          context: unknown;
+        };
+        if (!result.stage.ok) throw new Error(result.stage.error || `Business pipeline failed at ${batch}`);
+        context = result.context;
+      }
+      setMarketPipelineContext(context);
+      const pipeline = context as {
+        profile?: Record<string, unknown>;
+        site?: { landing?: { lang?: string | null; description?: string | null } };
+      };
+      const profile = pipeline.profile ?? {};
       const nextForm = {
         ...form,
-        name: form.name || (d.name ?? ""),
-        industry: d.industry ?? form.industry,
-        audience: d.audience ?? form.audience,
-        tone: d.tone,
-        locale: d.locale,
-        competitors: form.competitors,
-        keywords: profileKeywords.slice(0, 15).join(", "),
+        name: form.name || String(profile["name"] ?? ""),
+        industry: String(profile["industry"] ?? form.industry ?? ""),
+        audience: String(profile["audience"] ?? form.audience ?? ""),
+        tone: form.tone,
+        locale: String(pipeline.site?.landing?.lang ?? form.locale ?? "en").slice(0, 2).toLowerCase(),
+        competitors: "",
+        keywords: "",
       };
+      const summary = String(profile["canonical"] ?? profile["description"] ?? pipeline.site?.landing?.description ?? "");
       setForm(nextForm);
-      setBizProfile((d.business_profile ?? null) as Record<string, unknown> | null);
-      setDetected(d.summary);
-      toast.success("Website analysed — your profile is ready.");
-      // The website analysis completes step 1. Move directly to the editable
-      // content profile, then let the merchant confirm before the SEO scan.
-      void saveDraft(1, nextForm, d.summary);
+      setBizProfile(profile);
+      setDetected(summary || null);
+      toast.success("Website analysed — your validated profile is ready.");
+      void saveDraft(1, nextForm, summary || null);
       setStep(1);
       return true;
     } catch (err) {
@@ -720,8 +733,13 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       // pipeline is the source of truth for both Stripe and Shopify merchants.
       // Keeping the context between calls also avoids one long server request
       // timing out after paid DataForSEO work has already completed.
-      const batches = ["landing", "profile", "keywords", "serp", "rivals"] as const;
-      let context: unknown = undefined;
+      const canResumeValidatedContext =
+        Boolean(marketPipelineContext) &&
+        (marketPipelineContext as { website?: string }).website === form.website_url.trim();
+      const batches = canResumeValidatedContext
+        ? (["keywords", "serp", "rivals"] as const)
+        : (["landing", "profile", "keywords", "serp", "rivals"] as const);
+      let context: unknown = canResumeValidatedContext ? marketPipelineContext : undefined;
       for (const batch of batches) {
         const result = await runProductionPipelineBatch({
           data: { website: form.website_url.trim(), batch, context },
