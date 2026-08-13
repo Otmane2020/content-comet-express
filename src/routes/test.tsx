@@ -204,8 +204,15 @@ function TestPage() {
   const firstIncompleteStage = batchOrder.findIndex((batch) => !stageDone(stageStates[batch]));
   const resumePoint = contextMatchesWebsite && firstIncompleteStage > 0 ? firstIncompleteStage : 0;
   const calendarPreview = allStagesGreen && Array.isArray(s6.raw)
-    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null }[])
+    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null; generationSource?: "ai" | "fallback" }[])
     : [];
+  // Filtered explicitly on each value rather than "everything not ai" so an
+  // older cached result with no generationSource field at all surfaces as
+  // its own unknownCount instead of silently inflating fallbackCount.
+  const aiCount = calendarPreview.filter((item) => item.generationSource === "ai").length;
+  const fallbackCount = calendarPreview.filter((item) => item.generationSource === "fallback").length;
+  const unknownCount = calendarPreview.length - aiCount - fallbackCount;
+  const fallbackRate = calendarPreview.length ? fallbackCount / calendarPreview.length : 0;
   const articlePreview = allStagesGreen
     ? (s7.raw as { title?: string; excerpt?: string; body_md?: string } | null)
     : null;
@@ -692,11 +699,34 @@ function TestPage() {
         <section className="rounded-lg border border-border bg-card p-4">
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Test output</p>
           <h2 className="mt-1 text-base font-semibold">30-day content calendar</h2>
+          <div className="mt-2 flex items-center gap-2 text-xs">
+            <span className="text-muted-foreground">
+              AI: {aiCount} · Fallback: {fallbackCount} ({Math.round(fallbackRate * 100)}%)
+              {unknownCount > 0 && <> · Unknown: {unknownCount}</>}
+            </span>
+            {fallbackRate > 0.25 && (
+              <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-700">
+                HIGH FALLBACK RATE
+              </span>
+            )}
+          </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             {calendarPreview.map((item, index) => (
               <div key={`${item.date}-${index}`} className="rounded-md border border-border/70 bg-background p-2.5">
                 <div className="flex items-center justify-between gap-2 font-mono text-[10px] text-muted-foreground">
-                  <span>{item.date}</span><span>{item.type?.toUpperCase()}</span>
+                  <span>{item.date}</span>
+                  <span className="flex items-center gap-1">
+                    {item.type?.toUpperCase()}
+                    {item.generationSource && (
+                      <span className={`rounded px-1 py-0.5 font-bold ${
+                        item.generationSource === "ai"
+                          ? "bg-emerald-500/15 text-emerald-600"
+                          : "bg-amber-500/15 text-amber-700"
+                      }`}>
+                        {item.generationSource === "ai" ? "AI" : "FB"}
+                      </span>
+                    )}
+                  </span>
                 </div>
                 <p className="mt-1 text-sm font-medium leading-snug">{item.topic}</p>
                 {item.keyword && <p className="mt-1 text-[11px] text-muted-foreground">Target: {item.keyword}</p>}
