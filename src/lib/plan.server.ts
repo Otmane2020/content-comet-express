@@ -245,7 +245,7 @@ export function fallbackTopics(
     // unreachable — ANGLE_FIT covers every pair FORMAT_INTENT_FIT allows).
     // Never invent an angle to fill the gap: use the bare seed as the title.
     const angle = allowed.length ? allowed[occurrence % allowed.length]! : null;
-    return { ...slot, angle, topic: angle ? ANGLE_TEMPLATES[angle][lang](seed) : capitalise(seed) };
+    return { ...slot, angle, topic: angle ? ANGLE_TEMPLATES[angle][lang](seed) : capitalise(seed), generationSource: "fallback" as const };
   });
 }
 
@@ -326,7 +326,7 @@ export function validateCalendarTopic(
  */
 function dedupeTopics(
   project: ProjectBrief,
-  planned: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null; topic: string }[],
+  planned: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null; topic: string; generationSource: "ai" | "fallback" }[],
 ) {
   const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
   const usedPairs = new Set<string>();
@@ -337,6 +337,7 @@ function dedupeTopics(
     const allowed = angleFitsIntent(intent, item.type);
     let angle = item.angle ?? (allowed[0] ?? null);
     let topic = item.topic;
+    let generationSource = item.generationSource;
     if (!angle || !isTitleUniqueAndNatural(seed, angle, topic, usedPairs, usedTitles)) {
       const alt = allowed
         .map((candidate) => ({ candidate, candidateTopic: freshenYears(ANGLE_TEMPLATES[candidate][lang](seed)) }))
@@ -344,6 +345,7 @@ function dedupeTopics(
       if (alt) {
         angle = alt.candidate;
         topic = alt.candidateTopic;
+        generationSource = "fallback"; // the substitute came from ANGLE_TEMPLATES, not the AI response
       } else if (angle && usedTitles.has(normalise(topic))) {
         // Every angle in the allowed set is exhausted (a keyword recurring far
         // more than the angle library covers) — guarantee uniqueness rather
@@ -354,7 +356,7 @@ function dedupeTopics(
     }
     usedPairs.add(`${normalise(seed)}:${angle ?? "none"}`);
     usedTitles.add(normalise(topic));
-    return { ...item, angle, topic };
+    return { ...item, angle, topic, generationSource };
   });
 }
 
@@ -444,6 +446,7 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exa
         // fallback template) is what dedupeTopics reasons about either way.
         angle: fallback[i]!.angle,
         topic: useFallback ? fallback[i]!.topic : candidate,
+        generationSource: useFallback ? ("fallback" as const) : ("ai" as const),
       };
     });
     return dedupeTopics(project, planned);

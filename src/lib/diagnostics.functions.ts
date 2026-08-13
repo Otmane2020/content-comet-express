@@ -244,8 +244,11 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const { planWindow, getEligibleFormats } = await import("./geo");
         const { planTopics, validateCalendarTopic } = await import("./plan.server");
         const { assignKeywordsToSlots } = await import("./rotation.server");
+        const { buildContentStrategy } = await import("./strategy.server");
         const brief = { name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: context.qualified.map((row) => row.keyword), locations: context.profile.locations ?? null, profile: context.profile };
         const eligible = getEligibleFormats(context.profile);
+        const strategy = buildContentStrategy(context.profile);
+        console.info("[pipeline-diagnostic] content strategy", strategy.formats);
         const slots = assignKeywordsToSlots(
           context.qualified.map((row) => ({ keyword: row.keyword, intent: row.intent, origin: row.origin })),
           planWindow(new Date(), 30, eligible).map((slot) => ({ date: slot.date, type: slot.type })),
@@ -267,11 +270,37 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
             `Calendar completeness violation: ${orphaned.length}/${calendar.length} slot(s) missing keyword/intent/format/angle (first: ${orphaned[0]!.date}).`,
           );
         }
+        // Strategy invariant: every assigned format must be the same one
+        // buildContentStrategy independently declares eligible with a reason —
+        // this is what would have caught the Vends-Le contradiction (Local AEO
+        // assigned to a slot despite has_physical_location/has_service_area
+        // both false) structurally, instead of only being visible in a
+        // human-reviewed live report.
+        const strategyViolation = calendar.find((item) => !strategy.formats[item.type]?.eligible);
+        if (strategyViolation) {
+          throw new Error(
+            `Strategy violation: slot ${strategyViolation.date} assigned format "${strategyViolation.type}", which buildContentStrategy declares ineligible.`,
+          );
+        }
         const uniqueTitles = new Set(calendar.map((item) => item.topic.trim().toLowerCase()));
         if (uniqueTitles.size !== calendar.length) {
           throw new Error(`Calendar completeness violation: ${calendar.length - uniqueTitles.size} duplicate title(s) among ${calendar.length} slots.`);
         }
-        return finish(`${calendar.length} planned topics — eligible formats: ${eligible.join(", ")}`, calendar, { ...context, calendar });
+        // Diagnostic only, never fails the stage: a high fallback rate can be
+        // legitimate (e.g. a marketing-topic AI title correctly rejected), but
+        // making it visible is what lets a future domain's "templates in
+        // series" symptom be diagnosed as an AI-path failure instead of guessed at.
+        const aiTopicCount = calendar.filter((item) => item.generationSource === "ai").length;
+        const fallbackTopicCount = calendar.length - aiTopicCount;
+        const fallbackRate = fallbackTopicCount / calendar.length;
+        if (fallbackRate > 0.25) {
+          console.warn("[pipeline-diagnostic] high calendar fallback rate", { aiTopicCount, fallbackTopicCount, fallbackRate });
+        }
+        return finish(
+          `${calendar.length} planned topics — eligible formats: ${eligible.join(", ")} — AI: ${aiTopicCount}, fallback: ${fallbackTopicCount} (${Math.round(fallbackRate * 100)}%)`,
+          calendar,
+          { ...context, calendar },
+        );
       }
       if (!context.profile || !context.calendar?.length || !context.rivals?.length) missingBatchInput(data.batch);
       const { writeArticle } = await import("./plan.server");
