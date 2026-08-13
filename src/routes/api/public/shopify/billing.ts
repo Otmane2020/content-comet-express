@@ -5,9 +5,6 @@ const embeddedApp = (shop: string) => `https://admin.shopify.com/store/${shop.re
  * has no session yet, so /app would only offer them the sign-up wizard. */
 const installError = (origin: string, shop: string | null, message: string) =>
   new Response(null, { status: 302, headers: { location: `${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}` } });
-// Shopify merchant sign-in must always return to the public product domain,
-// never to a preview/deployment URL supplied by Vercel configuration.
-const publicOrigin = () => "https://www.ranki.ai";
 
 export const Route = createFileRoute("/api/public/shopify/billing")({ server: { handlers: { GET: async ({ request }) => {
   const url = new URL(request.url); const origin = url.origin; const mod = await import("@/lib/shopify.server");
@@ -38,9 +35,8 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
       return fail("billing_declined");
     }
 
-    // Every current entry point signs the merchant into the state, and the
-    // install flow already provisioned them in claimPending. Provisioning here
-    // is the fallback for a shop we only hold as a pending install.
+    // Provision only after Shopify has confirmed payment. For a pending install
+    // this is also where the full catalogue import is intentionally performed.
     let merchant: { userId: string; email: string } | null = null;
     const knownUserId = state.userId ?? integration?.user_id ?? null;
     if (knownUserId) {
@@ -66,11 +62,12 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
       merchant = { userId: created.userId, email: created.email };
     }
 
-    // Flips the subscriptions row claimPending wrote as "inactive" to active.
     await provision.recordShopifySubscription(merchant.userId, merchant.email, sub, state.plan ?? pending?.billing_plan ?? "monthly");
     if (pending) await pendingStore.markPendingShopifyInstall(shop, "active");
 
-    if (flow === "dashboard") return new Response(null, { status: 302, headers: { location: embeddedApp(shop) } });
-    return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(merchant.email, `${publicOrigin()}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
+    // Whether this charge came from a fresh App Store install or from the
+    // existing dashboard flow, the Shopify journey finishes back in App Home.
+    // embedded-login will establish the Ranki session inside Shopify Admin.
+    return new Response(null, { status: 302, headers: { location: embeddedApp(shop) } });
   } catch (e) { console.error("[shopify billing] return failed", e); return fail((e instanceof Error ? e.message : "failed").slice(0, 160)); }
 } } } });
