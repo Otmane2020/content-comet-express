@@ -31,17 +31,25 @@ export type RotationProject = {
 export type PickedKeyword = { id: string; keyword: string; intent?: string | null; origin?: string | null };
 
 /**
- * Pairs each slot with a HARD-fitting unused keyword from `pool` (formatFitsKeyword,
- * angles.server.ts) — a transactional term on a Shopping day, a question on an
- * AEO day — never reusing a keyword twice in the same window. Unlike the
- * soft preference table this replaced, a keyword whose intent doesn't fit
- * the day's preferred format is never forced onto it: the day's format can
- * shift to any of the business's OTHER eligible formats that a remaining
- * keyword does fit, and only once nothing fits any eligible format does the
- * slot go keyword-less (planTopics' fallback then plans from the business
- * name/seed list instead of grafting a mismatched template onto it). Shared
- * by the daily rotation (ensureWindow, below) and the /test calendar
- * diagnostic so both exercise the same pairing.
+ * Pairs each slot with a HARD-fitting keyword from `pool` (formatFitsKeyword,
+ * angles.server.ts) — a transactional term on a Shopping day, a question on
+ * an AEO day. A keyword whose intent doesn't fit the day's preferred format
+ * is never forced onto it: the day's format can shift to any of the
+ * business's OTHER eligible formats that a keyword does fit, and only once
+ * nothing fits any eligible format does the slot go keyword-less.
+ *
+ * Every qualified keyword legitimately supports MULTIPLE distinct articles
+ * (e.g. "generative engine optimization" → comparison, alternatives,
+ * implementation, buyer_guide are all valid angles on the same commercial
+ * keyword) — so keywords are reused round-robin (least-used first) rather
+ * than claimed once and discarded. With N qualified keywords and 30 slots,
+ * a `keyword: null` slot must never happen just because N < 30; it only
+ * happens when NO keyword in the pool structurally fits ANY eligible format
+ * at all. Angle-level anti-duplication for a reused keyword is handled
+ * downstream by dedupeTopics' (keyword, angle) pair tracking — this layer's
+ * only job is to never leave a slot keyword-less while a fitting keyword
+ * exists. Shared by the daily rotation (ensureWindow, below) and the /test
+ * calendar diagnostic so both exercise the same pairing.
  */
 export function assignKeywordsToSlots(
   pool: { keyword: string; intent?: string | null; origin?: string | null }[],
@@ -49,15 +57,22 @@ export function assignKeywordsToSlots(
   eligibleFormats: ContentType[],
 ): CalendarSlot[] {
   const normalised = pool.map((k) => ({ keyword: k.keyword, intent: resolveSlotIntent(k) }));
-  const claimed = new Set<number>();
+  const useCount = new Array(normalised.length).fill(0);
   // Both gates must hold: a format the intent is allowed on, AND at least one
   // natural editorial angle for that (intent, format) pair — angleFitsIntent
   // returns [] rather than a fallback angle, so an empty set here must be
-  // treated the same as a format mismatch, never assigned anyway.
-  const findFor = (format: ContentType) =>
-    normalised.findIndex(
-      (k, i) => !claimed.has(i) && formatFitsKeyword(k.intent, format) && angleFitsIntent(k.intent, format).length > 0,
-    );
+  // treated the same as a format mismatch, never assigned anyway. Among
+  // keywords that fit, pick the least-used one so all 30 slots spread across
+  // the whole pool instead of exhausting keyword[0] before touching keyword[1].
+  const findFor = (format: ContentType) => {
+    let best = -1;
+    for (let i = 0; i < normalised.length; i++) {
+      const k = normalised[i]!;
+      if (!formatFitsKeyword(k.intent, format) || angleFitsIntent(k.intent, format).length === 0) continue;
+      if (best < 0 || useCount[i]! < useCount[best]!) best = i;
+    }
+    return best;
+  };
 
   return slots.map((slot) => {
     // The slot's own rotation-assigned format first, then the business's
@@ -67,7 +82,7 @@ export function assignKeywordsToSlots(
     for (const format of tryOrder) {
       const index = findFor(format);
       if (index >= 0) {
-        claimed.add(index);
+        useCount[index]!++;
         const picked = normalised[index]!;
         return { ...slot, type: format, keyword: picked.keyword, intent: picked.intent, angle: null };
       }
