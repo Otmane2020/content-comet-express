@@ -816,6 +816,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         } else {
           toast.success(`Day 1 ready: “${first.title}”`);
         }
+        // Cover image failures used to vanish silently (no toast, no log) —
+        // an article missing its cover looked identical to "nothing
+        // happened". Same non-blocking pattern as the GMB warning above.
+        if (first.coverError) {
+          toast.warning(`Day 1 published without a cover image: ${first.coverError}`);
+        }
       } catch (e) {
         toast.warning(
           e instanceof Error ? `Day 1 will be written shortly (${e.message})` : "Day 1 will be written shortly",

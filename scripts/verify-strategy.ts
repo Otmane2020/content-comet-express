@@ -265,6 +265,27 @@ async function run() {
     console.log(`null keyword: ${nullKeyword}/30, null intent: ${nullIntent}/30, format violations: ${formatViolations}, strategy violations: ${strategyViolations}, title repeats: ${titleRepeats}, double-questions: ${doubleQuestions}, dominant angle: ${dominantAngle?.[0]} @ ${Math.round(dominantShare * 100)}%`);
     console.log(`generationSource — ai: ${aiCount}, fallback: ${fallbackCount}, fallbackRate: ${Math.round((fallbackCount / topics.length) * 100)}%${fixture.rivalWithBrandOverlap ? `, brand corrupted: ${brandCorrupted}` : ""}`);
   }
+  // --- Product pages must be offered as internal-link targets (pure
+  // function, zero cost): shopifyLinkTargets used to read only
+  // collections/pages, so every article on every content type could never
+  // link to a product page, on any business, ever.
+  const { shopifyLinkTargets } = await import("../src/lib/netlinking.server");
+  const linkTargets = shopifyLinkTargets({
+    collections: [{ title: "Sofas", url: "https://example.com/collections/sofas" }],
+    pages: [{ title: "About us", url: "https://example.com/pages/about" }],
+    products_sample: [
+      { title: "Oslo 3-Seat Sofa", url: "https://example.com/products/oslo-3-seat-sofa" },
+      { title: "Malmo Armchair", url: "https://example.com/products/malmo-armchair" },
+    ],
+  });
+  const hasProductLinks = linkTargets.some((t) => t.url.includes("/products/"));
+  const hasCollectionLink = linkTargets.some((t) => t.url.includes("/collections/"));
+  const hasPageLink = linkTargets.some((t) => t.url.includes("/pages/"));
+  const netlinkingOk = hasProductLinks && hasCollectionLink && hasPageLink && linkTargets.length === 4;
+  if (!netlinkingOk) totalViolations += 1;
+  console.log(`\n=== Product internal-link targets (${netlinkingOk ? "PASS" : "FAIL"}) ===`);
+  console.log(`  targets: ${linkTargets.map((t) => t.url).join(", ")}`);
+
   console.log(`\nTOTAL VIOLATIONS: ${totalViolations}`);
   process.exit(totalViolations > 0 ? 1 : 0);
 }

@@ -7,9 +7,17 @@ import type { Database } from "@/integrations/supabase/types";
  */
 export type LinkTarget = { title: string; url: string };
 
-type ShopifyConfig = { collections?: unknown; pages?: unknown } | null;
+type ShopifyConfig = { collections?: unknown; pages?: unknown; products_sample?: unknown } | null;
 
-/** Shopify collections + pages captured at install (buildShopifyConfig). */
+/**
+ * Shopify collections + pages + product pages captured at install/refresh
+ * (buildShopifyConfig — products_sample is up to 10 products with title/url,
+ * refreshed on every paid billing return). Product pages used to be entirely
+ * absent from this list: every article, on every content type, could only
+ * ever link to a collection or a static page, never to the actual product a
+ * buyer question was about. Reads the already-cached config — no extra API
+ * call, no added cost.
+ */
 export function shopifyLinkTargets(config: ShopifyConfig): LinkTarget[] {
   if (!config) return [];
   const fromRows = (rows: unknown) =>
@@ -20,7 +28,7 @@ export function shopifyLinkTargets(config: ShopifyConfig): LinkTarget[] {
           typeof r.title === "string" && typeof r.url === "string" && !!r.title && !!r.url,
       )
       .map((r) => ({ title: r.title, url: r.url }));
-  return [...fromRows(config.collections), ...fromRows(config.pages)];
+  return [...fromRows(config.collections), ...fromRows(config.pages), ...fromRows(config.products_sample)];
 }
 
 /** Already-published articles of the same project, for article-to-article linking. */

@@ -244,12 +244,18 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
     const geo = await write(first.id, "geo", first.topic, first.target_keyword);
 
     let coverUrl: string | null = null;
+    let coverError: string | null = null;
     try {
       const bytes = await generateImageBytes(coverPrompt(geo.title, project.industry));
       coverUrl = await storeImage(userId, `${first.id}-cover`, bytes, data.origin);
       await supabase.from("content_items").update({ cover_image_url: coverUrl }).eq("id", first.id);
-    } catch {
-      // an article without its cover is still shippable
+    } catch (error) {
+      // An article without its cover is still shippable — but the failure
+      // used to vanish with no log line and no way to see it, which is why a
+      // silent cover-image failure looked exactly like "image generation
+      // doesn't work" with nothing to diagnose it from.
+      coverError = error instanceof Error ? error.message : String(error);
+      console.error("[kickstart] cover image failed", { projectId: data.projectId, itemId: first.id, error: coverError });
     }
 
     // One image per article: the cover only.
@@ -335,5 +341,5 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
       }
     }
 
-    return { itemId: first.id, title: geo.title, coverUrl, gmb, published, shopify };
+    return { itemId: first.id, title: geo.title, coverUrl, coverError, gmb, published, shopify };
   });

@@ -120,7 +120,8 @@ export async function ensureWindow(
   project: RotationProject,
   days = 30,
 ): Promise<{ created: number; keywords: number; researched: boolean }> {
-  const { planTopics } = await import("./plan.server");
+  const { planTopics, summariseTopicGeneration } = await import("./plan.server");
+  const { buildContentStrategy } = await import("./strategy.server");
 
   // The rotation only ever offers formats this business is eligible for: a
   // globally-sold SaaS or service never gets a Local AEO day, and the
@@ -179,6 +180,34 @@ export async function ensureWindow(
 
   const topics = await planTopics(brief, slots);
   const byDate = new Map(slots.map((s) => [s.date, s.keyword]));
+
+  // /test's diagnostic calendar stage has hard invariants (strategy
+  // eligibility, completeness, fallback rate) that this production path never
+  // had — it silently shipped whatever planTopics returned. Per the rule that
+  // the app must stay functional for the merchant, this only logs; a
+  // production calendar is never blocked or rolled back on these. It is what
+  // turns a future "why is my calendar mechanical" report into a Vercel log
+  // line instead of requiring a fresh /test run to even see the counters.
+  const gen = summariseTopicGeneration(topics);
+  if (gen.fallbackRate > 0.25) {
+    console.warn("[ensureWindow] high calendar fallback rate", { projectId: project.id, ...gen });
+  }
+  const strategy = buildContentStrategy(project.business_profile ?? {});
+  const strategyViolations = topics.filter((t) => !strategy.formats[t.type]?.eligible);
+  if (strategyViolations.length) {
+    console.error("[ensureWindow] strategy violation: slot assigned an ineligible format", {
+      projectId: project.id,
+      violations: strategyViolations.map((t) => ({ date: t.date, type: t.type })),
+    });
+  }
+  const orphaned = topics.filter((t) => !t.keyword || !t.intent || !t.type || !t.angle);
+  if (orphaned.length) {
+    console.error("[ensureWindow] orphaned slot(s): missing keyword/intent/format/angle", {
+      projectId: project.id,
+      count: orphaned.length,
+      dates: orphaned.map((t) => t.date),
+    });
+  }
 
   const { error } = await supabase.from("content_items").insert(
     topics.map((t) => ({
