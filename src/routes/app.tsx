@@ -370,7 +370,16 @@ function Dashboard() {
     return (
       <Onboarding
         userId={user?.id ?? null}
-        onDone={() => void qc.invalidateQueries({ queryKey: ["project", user?.id] })}
+        onDone={() => {
+          // Also invalidate the embedded-Shopify onboarding gate below —
+          // completeOnboarding() already wrote completed:true before this
+          // fires, but that gate reads its own cached ["shopify-onboarding"]
+          // query, fetched earlier (still not-completed) and never refreshed.
+          // Missing this is what sent a merchant straight back into a second,
+          // full <Onboarding> pass right after finishing the first one.
+          void qc.invalidateQueries({ queryKey: ["project", user?.id] });
+          void qc.invalidateQueries({ queryKey: ["shopify-onboarding", user?.id] });
+        }}
       />
     );
   }
