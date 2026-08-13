@@ -47,9 +47,6 @@ async function issueEmbeddedSession(shop: string) {
   // rendering the generic Stripe/onboarding payment card.
   const pendingStore = await import("@/lib/shopifyPendingInstall.server");
   const pending = await pendingStore.getPendingShopifyInstall(shop);
-  if (pending?.status === "billing_pending") {
-    return { error: "billing_required", billing_url: billingUrl() } as const;
-  }
   if (!integration?.user_id) {
     return { error: "shop_not_installed" } as const;
   }
@@ -72,10 +69,34 @@ async function issueEmbeddedSession(shop: string) {
   const cacheFresh =
     !!cached && Date.now() - new Date(cached.updated_at as string).getTime() < FRESH_WINDOW_MS;
   if (cached?.status === "active" && cacheFresh) {
+    // A Shopify webhook can confirm the charge before billing.ts returns.
+    // In that race, the pending vault still says billing_pending even though
+    // the merchant already paid. Promote the install, and copy the fresh OAuth
+    // token into the existing integration so subsequent Admin API calls do not
+    // fall back to the revoked pre-reinstall token.
+    if (pending) {
+      await supabaseAdmin
+        .from("integrations")
+        .update({
+          config: { ...config, access_token: pending.access_token },
+          status: "connected",
+          last_error: null,
+        })
+        .eq("platform", "shopify")
+        .eq("config->>shop", shop);
+      await pendingStore.markPendingShopifyInstall(shop, "active");
+    }
     const { data: user } = await supabaseAdmin.auth.admin.getUserById(integration.user_id);
     if (!user.user?.email) return { error: "merchant_not_found" } as const;
     const provision = await import("@/lib/shopifyProvision.server");
     return provision.shopifyEmbeddedSession(user.user.email);
+  }
+
+  // A genuinely unpaid install still belongs on the native Shopify plan
+  // picker. This check intentionally comes after the active cache recovery
+  // above so webhook-confirmed payments cannot be trapped on the plan screen.
+  if (pending?.status === "billing_pending") {
+    return { error: "billing_required", billing_url: billingUrl() } as const;
   }
 
   // Reconciliation: either no fresh cached verdict yet, or the cache says
