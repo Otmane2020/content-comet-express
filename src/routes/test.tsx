@@ -210,6 +210,7 @@ function TestPage() {
     ? (s7.raw as { title?: string; excerpt?: string; body_md?: string } | null)
     : null;
   const [reportCopied, setReportCopied] = useState(false);
+  const [reportCopyError, setReportCopyError] = useState<string | null>(null);
   const diagnosticReport = {
     generatedAt: new Date().toISOString(),
     website,
@@ -232,9 +233,42 @@ function TestPage() {
   );
 
   async function copyDiagnosticReport() {
-    await navigator.clipboard.writeText(reportJson);
-    setReportCopied(true);
-    window.setTimeout(() => setReportCopied(false), 2000);
+    try {
+      // navigator.clipboard requires a secure context (https/localhost) and
+      // can be undefined or reject (permission, focus) depending on the
+      // browser — the button looked "broken" because the rejection was
+      // never caught, so neither the "Copied" state nor an error ever showed.
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(reportJson);
+      } else {
+        throw new Error("Clipboard API unavailable");
+      }
+      setReportCopied(true);
+      setReportCopyError(null);
+    } catch {
+      // Fallback for browsers/contexts without navigator.clipboard: a
+      // hidden textarea + the legacy execCommand copy path.
+      try {
+        const textarea = document.createElement("textarea");
+        textarea.value = reportJson;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        const ok = document.execCommand("copy");
+        document.body.removeChild(textarea);
+        if (!ok) throw new Error("execCommand copy failed");
+        setReportCopied(true);
+        setReportCopyError(null);
+      } catch {
+        setReportCopyError("Copy failed — use \"Download JSON\" instead.");
+      }
+    }
+    window.setTimeout(() => {
+      setReportCopied(false);
+      setReportCopyError(null);
+    }, 2500);
   }
 
   const setters = {
@@ -400,7 +434,11 @@ function TestPage() {
           <div className="mr-auto">
             <p className="text-sm font-semibold">JSON report</p>
             <p className="text-xs text-muted-foreground">
-              {hasDiagnosticOutput ? "All diagnostic outputs, calendar and article preview in one copyable file." : "Run at least one pipeline batch to generate the report."}
+              {reportCopyError
+                ? reportCopyError
+                : hasDiagnosticOutput
+                  ? "All diagnostic outputs, calendar and article preview in one copyable file."
+                  : "Run at least one pipeline batch to generate the report."}
             </p>
           </div>
           <button
@@ -408,7 +446,7 @@ function TestPage() {
             disabled={!hasDiagnosticOutput}
             className="rounded bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {reportCopied ? "Copied" : "Copy JSON report"}
+            {reportCopied ? "Copied" : reportCopyError ? "Retry copy" : "Copy JSON report"}
           </button>
           <a
             href={`data:application/json;charset=utf-8,${encodeURIComponent(reportJson)}`}

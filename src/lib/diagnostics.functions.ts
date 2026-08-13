@@ -249,6 +249,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const slots = assignKeywordsToSlots(
           context.qualified.map((row) => ({ keyword: row.keyword, intent: row.intent, origin: row.origin })),
           planWindow(new Date(), 30, eligible).map((slot) => ({ date: slot.date, type: slot.type })),
+          eligible,
         );
         const calendar = await planTopics(brief, slots);
         const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.contentTypeAligned || !c.locationValid; });

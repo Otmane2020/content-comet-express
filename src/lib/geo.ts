@@ -1,6 +1,17 @@
 export const ROTATION = ["geo", "seo", "aeo", "local_aeo", "shopping"] as const;
 export type ContentType = (typeof ROTATION)[number];
 
+/**
+ * A keyword's classified search intent, reconciling classifyIntent()'s
+ * output (research.server.ts — informational/transactional/commercial/
+ * navigational) with the separate `origin: "local"` concept tracked on
+ * picked keywords. Used to hard-gate which content format a keyword may be
+ * assigned to (see angles.server.ts's formatFitsKeyword) instead of the
+ * mechanical day-by-day rotation deciding the format before any keyword is
+ * even considered.
+ */
+export type SearchIntent = "informational" | "transactional" | "commercial" | "navigational" | "local";
+
 /** Formats every business is eligible for, regardless of model or geography. */
 export const BASE_FORMATS: ContentType[] = ["geo", "seo", "aeo"];
 

@@ -6,6 +6,7 @@
  */
 import { getEligibleFormats, planWindow, type ContentType } from "./geo";
 import type { CanonicalProfileFacts } from "./plan.server";
+import { angleFitsIntent, formatFitsKeyword, resolveSlotIntent, type CalendarSlot } from "./angles.server";
 
 type Sb = { from: (t: string) => any };
 
@@ -30,48 +31,49 @@ export type RotationProject = {
 export type PickedKeyword = { id: string; keyword: string; intent?: string | null; origin?: string | null };
 
 /**
- * Which search intents suit each content format. Used to pair a keyword with a
- * day whose format fits it, rather than to change the format itself — the
- * five-way rotation is what keeps the calendar varied.
- */
-const INTENT_FIT: Record<ContentType, string[]> = {
-  shopping: ["transactional", "commercial"],
-  seo: ["commercial", "informational"],
-  aeo: ["commercial", "transactional", "informational"],
-  // These are writing formats, not marketing topics. A commercial buyer
-  // query therefore remains the strongest fit for a GEO/AEO article.
-  geo: ["commercial", "transactional", "informational", "navigational"],
-  local_aeo: ["commercial", "transactional", "navigational", "informational"],
-};
-
-/**
- * Pairs each slot with the best-fitting unused keyword from `pool` (a
- * transactional term on a Shopping day, a question on an AEO day), never
- * reusing a keyword twice in the same window. Falls back to plain order when
- * a slot's format has no intent-matching keyword left. Shared by the daily
- * rotation (ensureWindow, below) and the /test calendar diagnostic so both
- * exercise the same pairing instead of /test's own naive
- * `index % pool.length`, which is what mechanically paired an informational
- * "how to rank on ChatGPT" query with a Shopping pricing template.
+ * Pairs each slot with a HARD-fitting unused keyword from `pool` (formatFitsKeyword,
+ * angles.server.ts) — a transactional term on a Shopping day, a question on an
+ * AEO day — never reusing a keyword twice in the same window. Unlike the
+ * soft preference table this replaced, a keyword whose intent doesn't fit
+ * the day's preferred format is never forced onto it: the day's format can
+ * shift to any of the business's OTHER eligible formats that a remaining
+ * keyword does fit, and only once nothing fits any eligible format does the
+ * slot go keyword-less (planTopics' fallback then plans from the business
+ * name/seed list instead of grafting a mismatched template onto it). Shared
+ * by the daily rotation (ensureWindow, below) and the /test calendar
+ * diagnostic so both exercise the same pairing.
  */
 export function assignKeywordsToSlots(
   pool: { keyword: string; intent?: string | null; origin?: string | null }[],
   slots: { date: string; type: ContentType }[],
-) {
-  const normalised = pool.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase(), origin: k.origin ?? "" }));
+  eligibleFormats: ContentType[],
+): CalendarSlot[] {
+  const normalised = pool.map((k) => ({ keyword: k.keyword, intent: resolveSlotIntent(k) }));
   const claimed = new Set<number>();
-  const takeFor = (type: ContentType) => {
-    const fits = INTENT_FIT[type] ?? [];
-    let index = type === "local_aeo"
-      ? normalised.findIndex((k, i) => !claimed.has(i) && k.origin === "local")
-      : -1;
-    if (index < 0) index = normalised.findIndex((k, i) => !claimed.has(i) && k.intent && fits.includes(k.intent));
-    if (index < 0) index = normalised.findIndex((_, i) => !claimed.has(i));
-    if (index < 0) return null;
-    claimed.add(index);
-    return normalised[index]!.keyword;
-  };
-  return slots.map((slot) => ({ ...slot, keyword: takeFor(slot.type) }));
+  // Both gates must hold: a format the intent is allowed on, AND at least one
+  // natural editorial angle for that (intent, format) pair — angleFitsIntent
+  // returns [] rather than a fallback angle, so an empty set here must be
+  // treated the same as a format mismatch, never assigned anyway.
+  const findFor = (format: ContentType) =>
+    normalised.findIndex(
+      (k, i) => !claimed.has(i) && formatFitsKeyword(k.intent, format) && angleFitsIntent(k.intent, format).length > 0,
+    );
+
+  return slots.map((slot) => {
+    // The slot's own rotation-assigned format first, then the business's
+    // other eligible formats in order — inverting the old "format decided
+    // before any keyword is considered" behaviour.
+    const tryOrder = [slot.type, ...eligibleFormats.filter((f) => f !== slot.type)];
+    for (const format of tryOrder) {
+      const index = findFor(format);
+      if (index >= 0) {
+        claimed.add(index);
+        const picked = normalised[index]!;
+        return { ...slot, type: format, keyword: picked.keyword, intent: picked.intent, angle: null };
+      }
+    }
+    return { ...slot, keyword: null, intent: null, angle: null };
+  });
 }
 
 /** Unused keywords for this project, most business-relevant first. */
@@ -157,6 +159,7 @@ export async function ensureWindow(
   const slots = assignKeywordsToSlots(
     pool,
     missing.map((m) => ({ date: m.date, type: m.type as ContentType })),
+    eligible,
   );
 
   const topics = await planTopics(brief, slots);

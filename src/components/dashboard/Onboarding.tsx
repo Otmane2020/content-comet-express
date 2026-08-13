@@ -30,6 +30,39 @@ const TONES = [
   { id: "direct", label: "Direct", hint: "Short, action-driven" },
 ];
 
+/**
+ * A merchant setting up their store has no "retry" button and shouldn't need
+ * one — a cold start or a slow DataForSEO/AI call timing out is transient,
+ * not a real failure, and onboarding is the one place we can't ask a
+ * customer to read a stack trace and try again themselves. Retries ONLY on
+ * the specific shapes a transient failure actually takes (a timed-out fetch,
+ * a JSON parse choking on an HTML error/cold-start page, a network drop) —
+ * never on a real thrown business error, which must still surface to the
+ * merchant immediately rather than silently re-running (and re-billing) the
+ * call that already correctly failed.
+ */
+function isTransientFailure(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    error instanceof SyntaxError ||
+    /unexpected token|aborted due to timeout|failed to fetch|network ?error|fetch failed|timed? ?out/i.test(message)
+  );
+}
+
+async function withTransientRetry<T>(run: () => Promise<T>, attempts = 2, delayMs = 3000): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await run();
+    } catch (error) {
+      lastError = error;
+      if (attempt === attempts || !isTransientFailure(error)) throw error;
+      await new Promise((resolve) => window.setTimeout(resolve, delayMs));
+    }
+  }
+  throw lastError;
+}
+
 // The most-targeted markets for SEO/GEO research: every country a supported
 // content language defaults to (industries.ts's LANGUAGES), plus the other
 // large e-commerce economies merchants commonly target directly.
@@ -639,14 +672,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           .filter(Boolean)
           .slice(0, 10),
       };
-      let r = await detectMkt({
-        data: {
-          ...scanInput,
-        },
-      });
+      let r = await withTransientRetry(() => detectMkt({ data: { ...scanInput } }));
       if (!r.competitors.length && !r.keywords.length && !r.error) {
         toast.message("No usable SEO data on the first pass. Retrying live data once…");
-        r = await detectMkt({ data: { ...scanInput, retry: true } });
+        r = await withTransientRetry(() => detectMkt({ data: { ...scanInput, retry: true } }));
       }
       setMarket(r);
       // Live DataForSEO keywords take priority over the AI-detected ones,
@@ -744,14 +773,14 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       }
 
       toast.info("Building your 30-day calendar…");
-      await build({ data: { projectId: data.id, days: 30 } });
+      await withTransientRetry(() => build({ data: { projectId: data.id, days: 30 } }));
       toast.success("Your 30 days are planned.");
 
       toast.info("Writing and illustrating your day-1 GEO article…");
       try {
-        const first = await kickstart({
-          data: { projectId: data.id, origin: window.location.origin },
-        });
+        const first = await withTransientRetry(() =>
+          kickstart({ data: { projectId: data.id, origin: window.location.origin } }),
+        );
         completion = { title: first.title, coverUrl: first.coverUrl, shopify: first.shopify };
         setFirstPost(completion);
         if (first.gmb?.posted) {
