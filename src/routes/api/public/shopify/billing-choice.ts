@@ -46,7 +46,8 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
           // the merchant on a fatal setup screen.
           if (shop && /Shopify API error \(401\)|Unauthorized/i.test(message)) {
             console.warn("[shopify billing-choice] stale token; restarting OAuth", { shop });
-            return redirect(`${origin}/api/public/shopify/install?shop=${encodeURIComponent(shop)}`);
+            const resumeState = mod.signState({ origin: "", shop, plan, ts: Date.now() });
+            return redirect(`${origin}/api/public/shopify/install?shop=${encodeURIComponent(shop)}&state=${encodeURIComponent(resumeState)}`);
           }
           return redirect(`${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}`);
         }
