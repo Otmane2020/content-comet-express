@@ -35,31 +35,45 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
       return fail("billing_declined");
     }
 
-    // Provision only after Shopify has confirmed payment. For a pending install
-    // this is also where the full catalogue import is intentionally performed.
+    // Provision only after Shopify has confirmed payment (`sub`, above) — and
+    // import the catalogue exactly once, here, for EVERY shape of install. This
+    // used to run only for a pending install with no resolvable user; a
+    // re-install (known shop, known user) skipped it entirely, both here and at
+    // the pre-payment fast path in callback.ts, so its catalogue was never
+    // refreshed at all.
     let merchant: { userId: string; email: string } | null = null;
     const knownUserId = state.userId ?? integration?.user_id ?? null;
     if (knownUserId) {
       const { data: user } = await supabaseAdmin.auth.admin.getUserById(knownUserId);
       if (user.user?.email) merchant = { userId: knownUserId, email: user.user.email };
     }
+    const [blogId, rawInfo, rawSnapshot, rawContent] = await Promise.all([
+      mod.resolveBlogId(shop, token),
+      mod.fetchShopInfo(shop, token),
+      mod.fetchProductSnapshot(shop, token),
+      mod.fetchStoreContent(shop, token),
+    ]);
+    const info = mod.cleanShopifyValue(rawInfo);
+    const snapshot = mod.cleanShopifyValue(rawSnapshot);
+    const content = mod.cleanShopifyValue(rawContent);
     if (!merchant) {
       if (!pending) throw new Error("Could not resolve the merchant account for this shop.");
-      const [blogId, info, snapshot, content] = await Promise.all([
-        mod.resolveBlogId(shop, pending.access_token),
-        mod.fetchShopInfo(shop, pending.access_token),
-        mod.fetchProductSnapshot(shop, pending.access_token),
-        mod.fetchStoreContent(shop, pending.access_token),
-      ]);
       const created = await provision.provisionShopifyMerchant({
         shop,
         accessToken: pending.access_token,
         blogId,
-        info: mod.cleanShopifyValue(info),
-        snapshot: mod.cleanShopifyValue(snapshot),
-        content: mod.cleanShopifyValue(content),
+        info,
+        snapshot,
+        content,
       });
       merchant = { userId: created.userId, email: created.email };
+    } else if (integration) {
+      const { error } = await supabaseAdmin
+        .from("integrations")
+        .update({ config: provision.buildShopifyConfig(shop, token, blogId, info, snapshot, content) })
+        .eq("platform", "shopify")
+        .eq("config->>shop", shop);
+      if (error) console.error("[shopify billing] catalogue refresh failed to save", { shop, error: error.message });
     }
 
     await provision.recordShopifySubscription(merchant.userId, merchant.email, sub, state.plan ?? pending?.billing_plan ?? "monthly");

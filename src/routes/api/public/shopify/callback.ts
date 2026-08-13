@@ -45,25 +45,24 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
         countryCode: null, countryName: null, phone: null, city: null, address1: null, planName: null,
         isTestStore: process.env["SHOPIFY_BILLING_TEST"] === "1",
       };
-      const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-      const { data: known } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
-      if (!known?.user_id) {
-        // A previous billing return can have succeeded while provisioning was
-        // interrupted. Resume that paid install instead of creating a second
-        // Shopify subscription.
-        const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
-        if (!active) {
-          const pending = await import("@/lib/shopifyPendingInstall.server");
-          await pending.savePendingShopifyInstall({
-            shop, access_token, blog_id: "", store_info: info,
-            snapshot: { count: 0, types: [], titles: [] },
+      // A previous billing return can have succeeded while provisioning was
+      // interrupted. Resume that paid install instead of creating a second
+      // Shopify subscription. Checked regardless of whether this shop has been
+      // installed before: a re-install with no active subscription must take
+      // this fast path too, not fall through to the full catalogue import
+      // below before the merchant has paid.
+      const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
+      if (!active) {
+        const pending = await import("@/lib/shopifyPendingInstall.server");
+        await pending.savePendingShopifyInstall({
+          shop, access_token, blog_id: "", store_info: info,
+          snapshot: { count: 0, types: [], titles: [] },
           content: { products: [], collections: [], pages: [], policies: [], articles: [] },
-            billing_plan: "monthly",
-          });
-          // Re-enter App Home. embedded-login recognises this pending install
-          // and serves the plan picker *inside* Shopify Admin.
-          return new Response(null, { status: 302, headers: { location: embeddedApp(shop) } });
-        }
+          billing_plan: "monthly",
+        });
+        // Re-enter App Home. embedded-login recognises this pending install
+        // and serves the plan picker *inside* Shopify Admin.
+        return new Response(null, { status: 302, headers: { location: embeddedApp(shop) } });
       }
     }
     const [blogId, rawInfo, rawSnapshot, rawContent] = await Promise.all([

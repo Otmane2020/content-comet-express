@@ -95,6 +95,10 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     return !!(params.get("shop") || params.get("shopify"));
   });
+  // App Home always relaunches with `shop` in the query string. Used below to
+  // open the store just connected instead of whichever project the query
+  // happens to find first.
+  const [shopParam] = useState(() => (typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("shop")));
   const [embedded] = useState(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).has("host");
@@ -231,13 +235,32 @@ function Dashboard() {
   }, [loading, user]);
 
   const { data: project, isLoading: projectLoading } = useQuery({
-    queryKey: ["project", user?.id],
+    queryKey: ["project", user?.id, shopParam],
     enabled: !!user,
     queryFn: async () => {
+      // Opened from Shopify App Home with a known store: load THAT store's
+      // project, never whichever the account happens to have created first.
+      // `.order("created_at")` below with no filter was ascending — the
+      // OLDEST project on the account — so an account that already owned a
+      // Ranki project always reopened it instead of the store just connected.
+      if (shopParam) {
+        const { data: integration } = await supabase
+          .from("integrations")
+          .select("project_id")
+          .eq("platform", "shopify")
+          .eq("config->>shop", shopParam)
+          .limit(1)
+          .maybeSingle();
+        if (integration?.project_id) {
+          const { data, error } = await supabase.from("projects").select("*").eq("id", integration.project_id).maybeSingle();
+          if (error) throw error;
+          if (data) return data as Project;
+        }
+      }
       const { data, error } = await supabase
         .from("projects")
         .select("*")
-        .order("created_at")
+        .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (error) throw error;
