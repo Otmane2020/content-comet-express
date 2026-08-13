@@ -95,6 +95,20 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     return !!(params.get("shop") || params.get("shopify"));
   });
+  // First pass this browser tab has seen the "mid-install" screen this
+  // session -> "connecting" copy; a second pass (App Home reloading after
+  // OAuth approval) -> "connected, preparing" copy. sessionStorage survives
+  // the top-level OAuth round-trip within the same tab, unlike component state.
+  const [installStep] = useState<"connecting" | "preparing">(() => {
+    if (typeof window === "undefined") return "connecting";
+    try {
+      if (sessionStorage.getItem("ranki:shopify-install-step")) return "preparing";
+      sessionStorage.setItem("ranki:shopify-install-step", "1");
+      return "connecting";
+    } catch {
+      return "connecting";
+    }
+  });
   // App Home always relaunches with `shop` in the query string. Used below to
   // open the store just connected instead of whichever project the query
   // happens to find first.
@@ -334,10 +348,22 @@ function Dashboard() {
     // Mid-install Shopify visitor: the effect above is already sending them
     // back into OAuth or to /shopify/error. Hold rather than flash the
     // sign-up wizard they can never complete.
+    //
+    // App Home genuinely loads /app twice before the plan picker: once on
+    // the very first tap (to discover the shop isn't installed yet and kick
+    // off OAuth), and once again after OAuth approval (to discover billing
+    // is required and go to /shopify/plan) — Shopify's OAuth consent screen
+    // cannot be embedded, so leaving and coming back is inherent, not a bug.
+    // Showing the identical "Resuming…" sentence both times read as a failed
+    // reload. sessionStorage distinguishes the two passes for copy only —
+    // both still resolve to the same redirects.
     if (!user && shopifyVisitor) {
       return (
-        <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
-          Resuming your Shopify installation…
+        <div className="flex min-h-screen flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">
+            {installStep === "connecting" ? "Connecting Ranki to Shopify…" : "Shopify connected successfully"}
+          </p>
+          <p>{installStep === "connecting" ? "We're securely connecting your store." : "Preparing your Ranki workspace…"}</p>
         </div>
       );
     }

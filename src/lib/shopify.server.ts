@@ -153,7 +153,11 @@ export async function registerShopifyWebhooks(shop: string, token: string, callb
     }`;
   for (const topic of ["APP_SUBSCRIPTIONS_UPDATE", "APP_UNINSTALLED"] as const) {
     try {
-      await graphql(shop, token, query, { topic, url: callbackUrl });
+      // This mutation is not on the fast-path clock: it's already
+      // fire-and-forget and never blocks the install, so a merely-slow (not
+      // hung) response should be allowed to finish rather than aborted at
+      // the same 5s bound activeAppSubscription's hot path uses.
+      await graphql(shop, token, query, { topic, url: callbackUrl }, { timeoutMs: 15_000 });
     } catch (error) {
       console.error("[shopify webhooks] registration failed", { shop, topic, error: error instanceof Error ? error.message : String(error) });
     }
@@ -519,18 +523,27 @@ export const SHOPIFY_PLANS: Record<ShopifyPlanId, {
   annual: { name: "Ranki-full-access", amount: 99, currency: "USD", trialDays: 3, interval: "ANNUAL" },
 };
 
-async function graphql<T>(shop: string, token: string, query: string, variables: unknown) {
-  // The live subscription check used to have no timeout at all — an
-  // unresponsive connection blocked indefinitely, and a caller retrying that
-  // 3 times is what produced a reported ~1 minute wait on every single App
-  // Home load. This is now exceptional reconciliation, not the normal path
-  // (see embedded-login.ts's cache-first check), so its worst case must read
-  // as exceptional too.
+/**
+ * The live subscription check used to have no timeout at all — an
+ * unresponsive connection blocked indefinitely, and a caller retrying that
+ * 3 times is what produced a reported ~1 minute wait on every single App
+ * Home load. That call (activeAppSubscription) is now exceptional
+ * reconciliation, not the normal path (see embedded-login.ts's cache-first
+ * check), so its worst case must read as exceptional too — hence the short
+ * 5s default.
+ *
+ * Not every graphql() caller belongs on that same clock, though: webhook
+ * registration is fire-and-forget and never blocks the install, so it can
+ * (and should) afford a more generous timeout rather than failing on a
+ * merely-slow-not-hung Shopify response. Configurable per call, defaulting
+ * to the short bound so nothing has to opt in to safety.
+ */
+async function graphql<T>(shop: string, token: string, query: string, variables: unknown, opts: { timeoutMs?: number } = {}) {
   const res = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
     method: "POST",
     headers: adminHeaders(token),
     body: JSON.stringify({ query, variables }),
-    signal: AbortSignal.timeout(5_000),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 5_000),
   });
   const json = (await res.json()) as { data?: T; errors?: { message: string }[] };
   if (!res.ok || json.errors?.length) throw new Error(json.errors?.[0]?.message ?? `Shopify API error (${res.status})`);

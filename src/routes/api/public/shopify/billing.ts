@@ -76,6 +76,14 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
       if (error) console.error("[shopify billing] catalogue refresh failed to save", { shop, error: error.message });
     }
 
+    // The integration row is guaranteed to exist now (just created above, or
+    // already did) — this is the earliest point in the fresh-install path
+    // where registering is safe. Registering any earlier (e.g. right after
+    // OAuth in callback.ts, before any row existed) is what produced the
+    // "unknown shop" race seen in production: Shopify can deliver a
+    // subscription webhook back to us before our own write had landed.
+    void mod.registerShopifyWebhooks(shop, token, `${origin}/api/public/hooks/shopify-billing`).catch(() => undefined);
+
     await provision.recordShopifySubscription(merchant.userId, merchant.email, sub, state.plan ?? pending?.billing_plan ?? "monthly");
     if (pending) await pendingStore.markPendingShopifyInstall(shop, "active");
 

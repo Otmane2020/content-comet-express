@@ -35,11 +35,16 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     if (!mod.verifyRequestHmac(url)) return fail("bad_signature");
     const { access_token } = await step("exchangeCode", mod.exchangeCode(shop, code));
     console.info("[shopify callback] OAuth token exchanged", { shop });
-    // Fire-and-forget: keeps subscriptions.status in sync after the fact via
-    // shopify-billing webhook. Never blocks the install — the 24h
-    // reconciliation window in embedded-login.ts is the backstop if this
-    // registration itself has a hiccup or a delivery is missed.
-    void mod.registerShopifyWebhooks(shop, access_token, `${origin}/api/public/hooks/shopify-billing`).catch(() => undefined);
+    // Webhook registration moved to AFTER each branch below writes its own
+    // `integrations` row (or, for a brand-new merchant, deferred to
+    // billing.ts — no such row exists yet at OAuth time). Registering here,
+    // before any row existed, is what produced the "unknown shop" race seen
+    // in production: Shopify can deliver a subscription webhook back to us
+    // fast enough to arrive before our own write landed. Fire-and-forget
+    // either way — never blocks the install; the 24h reconciliation window
+    // in embedded-login.ts is the backstop if a registration or delivery is
+    // missed.
+    const webhookUrl = `${origin}/api/public/hooks/shopify-billing`;
     // A first App Store install should reach Shopify billing immediately. Only
     // fetch the small shop record needed to mark a development store as test;
     // the product/catalog import runs after Shopify confirms the subscription.
@@ -89,6 +94,8 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const { data: existing } = await supabaseAdmin.from("integrations").select("id").eq("project_id", state.projectId).eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
       const row = { user_id: state.userId, project_id: state.projectId, platform: "shopify", label: info.name || shop.replace(".myshopify.com", ""), config: provision.buildShopifyConfig(shop, access_token, blogId, info, snapshot, content), status: "connected", last_error: null };
       const { error } = existing ? await supabaseAdmin.from("integrations").update(row).eq("id", existing.id) : await supabaseAdmin.from("integrations").insert(row); if (error) throw new Error(error.message);
+      // The integration row exists now — safe to register from here on.
+      void mod.registerShopifyWebhooks(shop, access_token, webhookUrl).catch(() => undefined);
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null); await provision.recordShopifySubscription(state.userId, email, active, state.plan ?? "monthly");
       if (active) return back(origin, { shopify: "connected" });
       const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(mod.signState({ origin: "", shop, plan: state.plan ?? "monthly", flow: "dashboard", ts: Date.now() }))}`;
@@ -96,6 +103,9 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
     }
     const { data: existing } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
     if (existing?.user_id) {
+      // An integration row for this shop already existed before this
+      // request — safe to register immediately, no write to wait for.
+      void mod.registerShopifyWebhooks(shop, access_token, webhookUrl).catch(() => undefined);
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
       if (active) {
         const { data: user } = await supabaseAdmin.auth.admin.getUserById(existing.user_id); const email = user.user?.email;
@@ -112,13 +122,17 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
       if (active) {
         const merchant = await provision.provisionShopifyMerchant({ shop, accessToken: access_token, blogId, info, snapshot, content });
+        // provisionShopifyMerchant just wrote the integration row — safe now.
+        void mod.registerShopifyWebhooks(shop, access_token, webhookUrl).catch(() => undefined);
         await provision.recordShopifySubscription(merchant.userId, merchant.email, active, "monthly");
         return new Response(null, { status: 302, headers: { location: await provision.shopifyLoginLink(merchant.email, `${origin}/auth/callback?shopify=connected&shop=${encodeURIComponent(shop)}`) } });
       }
     }
     // Brand-new merchant: park only the encrypted OAuth/install data, then
     // open Shopify billing immediately. The Supabase user and project are
-    // deliberately created by /billing only after Shopify confirms payment.
+    // deliberately created by /billing only after Shopify confirms payment —
+    // no `integrations` row exists yet at this point, so webhook
+    // registration is deferred to billing.ts, right after it writes one.
     const pending = await import("@/lib/shopifyPendingInstall.server");
     await pending.savePendingShopifyInstall({
       shop,
