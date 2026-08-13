@@ -9,9 +9,10 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
       GET: async ({ request }) => {
         const url = new URL(request.url);
         const origin = url.origin;
+        let shop: string | null = null;
         try {
           const mod = await import("@/lib/shopify.server");
-          const shop = mod.normalizeShop(url.searchParams.get("shop"));
+          shop = mod.normalizeShop(url.searchParams.get("shop"));
           const state = mod.verifyState(url.searchParams.get("state"));
           const plan = url.searchParams.get("plan") === "annual" ? "annual" : "monthly";
           if (!shop || !state || state.shop !== shop) throw new Error("invalid_plan_selection");
@@ -39,7 +40,15 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
           return redirect(confirmationUrl);
         } catch (error) {
           const message = (error instanceof Error ? error.message : "failed").slice(0, 140);
-          return redirect(`${origin}/shopify/error?message=${encodeURIComponent(message)}`);
+          // An OAuth token may be revoked between installation and plan choice
+          // (for example after a rapid uninstall/reinstall). A 401 is
+          // recoverable: obtain a fresh offline token instead of abandoning
+          // the merchant on a fatal setup screen.
+          if (shop && /Shopify API error \(401\)|Unauthorized/i.test(message)) {
+            console.warn("[shopify billing-choice] stale token; restarting OAuth", { shop });
+            return redirect(`${origin}/api/public/shopify/install?shop=${encodeURIComponent(shop)}`);
+          }
+          return redirect(`${origin}/shopify/error?${new URLSearchParams({ ...(shop ? { shop } : {}), message })}`);
         }
       },
     },
