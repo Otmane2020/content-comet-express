@@ -24,7 +24,10 @@ export const Route = createFileRoute("/api/public/shopify/billing")({ server: { 
     const { data: integration } = await supabaseAdmin.from("integrations").select("config, user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
     const storedToken = (integration?.config as { access_token?: string } | null)?.access_token;
     const pending = await pendingStore.getPendingShopifyInstall(shop);
-    const token = storedToken ?? pending?.access_token;
+    // A reinstall has a fresh OAuth token in the pending vault while the
+    // existing integration can still hold the token Shopify revoked on
+    // uninstall. Always prefer the fresh pending token through billing return.
+    const token = pending?.access_token ?? storedToken;
     if (!token) return fail("install_expired");
 
     // Shopify sends the merchant back here whether they approved or declined —
