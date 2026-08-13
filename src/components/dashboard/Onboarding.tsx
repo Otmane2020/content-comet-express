@@ -679,7 +679,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     setScanning(true);
     try {
       let context: unknown = undefined;
-      for (const batch of ["landing", "profile"] as const) {
+      // Run the complete validated /test pipeline behind ONE waiting screen.
+      // The merchant should not finish a business analysis and immediately
+      // encounter a second market-analysis loader for the same scan.
+      for (const batch of ["landing", "profile", "keywords", "serp", "rivals"] as const) {
         const result = await runProductionPipelineBatch({
           data: { website, batch, context },
         }) as {
@@ -693,8 +696,25 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       const pipeline = context as {
         profile?: Record<string, unknown>;
         site?: { landing?: { lang?: string | null; description?: string | null } };
+        qualified?: Array<{ keyword: string; search_volume?: number | null; difficulty?: number | null }>;
+        competitors?: Array<{ domain?: string }>;
       };
       const profile = pipeline.profile ?? {};
+      const completedMarket = {
+        source: "dataforseo" as const,
+        competitors: (pipeline.competitors ?? [])
+          .map((competitor) => competitor.domain?.trim() ?? "")
+          .filter(Boolean)
+          .slice(0, 8),
+        keywords: (pipeline.qualified ?? [])
+          .map((keyword) => ({
+            keyword: keyword.keyword,
+            volume: keyword.search_volume ?? null,
+            difficulty: keyword.difficulty ?? null,
+          }))
+          .slice(0, 15),
+        business_profile: profile,
+      };
       const nextForm = {
         ...form,
         name: form.name || String(profile["name"] ?? ""),
@@ -702,11 +722,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         audience: String(profile["audience"] ?? form.audience ?? ""),
         tone: form.tone,
         locale: String(pipeline.site?.landing?.lang ?? form.locale ?? "en").slice(0, 2).toLowerCase(),
-        competitors: "",
-        keywords: "",
+        competitors: completedMarket.competitors.join("\n"),
+        keywords: completedMarket.keywords.map((keyword) => keyword.keyword).join(", "),
       };
       const summary = String(profile["canonical"] ?? profile["description"] ?? pipeline.site?.landing?.description ?? "");
       setForm(nextForm);
+      setMarket(completedMarket);
       setBizProfile(profile);
       setDetected(summary || null);
       toast.success("Website analysed — your validated profile is ready.");
@@ -1478,7 +1499,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                                 </motion.div>
                               ))}
                             </div>
-                            <p className="mt-0.5 text-[13px] font-semibold">Mapping your real search market…</p>
                           </div>
                           <Loader2 className="ml-auto size-4 animate-spin text-primary/60" />
                         </div>
