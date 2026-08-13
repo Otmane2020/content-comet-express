@@ -12,16 +12,29 @@ export type EditorialAngle =
   | "definition"
   | "how_to"
   | "guide"
-  | "comparison"
-  | "mistakes"
   | "checklist"
-  | "pricing"
+  | "mistakes"
+  | "examples"
+  | "faq"
+  | "strategy"
+  | "use_cases"
+  | "comparison"
   | "alternatives"
   | "buyer_guide"
-  | "faq"
-  | "use_cases"
+  | "best_for"
+  | "evaluation"
+  | "features"
+  | "workflow"
+  | "pricing"
+  | "cost_breakdown"
+  | "plans"
+  | "value"
+  | "purchase_decision"
+  | "trial"
   | "local_intent"
-  | "service_area";
+  | "service_area"
+  | "near_me"
+  | "local_faq";
 
 /** One planned day: a format, the keyword (if any) claimed for it, its
  * classified intent, and the editorial angle chosen for the title. */
@@ -66,40 +79,35 @@ export function formatFitsKeyword(intent: SearchIntent, format: ContentType): bo
 }
 
 /**
- * Which editorial angles suit a given (intent, format) pair. "guide" is the
- * universal safe default for any combination not explicitly listed, since a
- * guide framing never contradicts a search intent the way e.g. "pricing"
- * would on a purely informational query.
+ * Which editorial angles suit a search intent, independent of business
+ * domain — a "comparison" angle is exactly as valid for a SaaS's competing
+ * tools as for a furniture wholesaler's competing suppliers. Kept generous
+ * (8-9 angles per intent) precisely so 30 days of content on a handful of
+ * qualified keywords doesn't collapse into "comparison"/"guide" on repeat —
+ * angleFitsIntent below still narrows this by format (e.g. local angles only
+ * ever apply to local_aeo).
  */
-const ANGLE_FIT: Record<SearchIntent, Partial<Record<ContentType, EditorialAngle[]>>> = {
-  informational: {
-    geo: ["definition", "how_to", "guide"],
-    seo: ["guide", "how_to", "checklist"],
-    aeo: ["definition", "how_to", "faq"],
-  },
-  commercial: {
-    geo: ["comparison", "alternatives", "guide"],
-    seo: ["guide", "comparison", "alternatives", "checklist"],
-    aeo: ["comparison", "faq"],
-    shopping: ["comparison", "alternatives", "buyer_guide"],
-  },
-  transactional: {
-    seo: ["pricing", "buyer_guide"],
-    shopping: ["pricing", "buyer_guide", "comparison"],
-  },
-  navigational: {
-    geo: ["definition"],
-    seo: ["guide"],
-  },
-  local: {
-    local_aeo: ["local_intent", "service_area", "faq"],
-  },
+const ANGLES_BY_INTENT: Record<SearchIntent, EditorialAngle[]> = {
+  informational: ["definition", "how_to", "guide", "checklist", "mistakes", "examples", "faq", "strategy", "use_cases"],
+  commercial: ["comparison", "alternatives", "buyer_guide", "best_for", "evaluation", "use_cases", "features", "workflow"],
+  transactional: ["pricing", "cost_breakdown", "plans", "value", "purchase_decision", "trial"],
+  navigational: ["definition", "guide"],
+  local: ["local_intent", "service_area", "near_me", "local_faq"],
 };
 
-/** Empty means no natural angle exists for this (intent, format) pair — callers
- * must change format/keyword, never fabricate a fallback angle. */
+/**
+ * Empty means no natural angle exists for this (intent, format) pair —
+ * callers must change format/keyword, never fabricate a fallback angle.
+ * Angle selection itself is intent-driven (ANGLES_BY_INTENT, above); the
+ * only format-level narrowing is that a "local" intent's angles only ever
+ * fit the local_aeo format, and local_aeo never carries any other intent —
+ * matching formatFitsKeyword's own local_aeo: ["local"] gate.
+ */
 export function angleFitsIntent(intent: SearchIntent, format: ContentType): EditorialAngle[] {
-  return ANGLE_FIT[intent]?.[format] ?? [];
+  const angles = ANGLES_BY_INTENT[intent] ?? [];
+  if (format === "local_aeo") return intent === "local" ? angles : [];
+  if (intent === "local") return [];
+  return angles;
 }
 
 const normaliseForDedup = (text: string) =>

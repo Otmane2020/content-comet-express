@@ -12,18 +12,28 @@ export type ContentType = (typeof ROTATION)[number];
  */
 export type SearchIntent = "informational" | "transactional" | "commercial" | "navigational" | "local";
 
-/** Formats every business is eligible for, regardless of model or geography. */
+/** Formats every business is eligible for, regardless of model, catalogue or geography. */
 export const BASE_FORMATS: ContentType[] = ["geo", "seo", "aeo"];
 
 /**
- * The subset of a business profile the eligibility engine reads. Structural
- * only, so both the client (marketing/dashboard) and the server (planning,
- * diagnostics) can pass whatever project/profile shape they already have.
+ * The subset of a business profile the eligibility engine reads — the same
+ * structured signals `buildCanonical Profile` already produces from a
+ * merchant's own site (sales model, products/services, catalogue, location).
+ * Structural only, so both the client (marketing/dashboard) and the server
+ * (planning, diagnostics) can pass whatever project/profile shape they
+ * already have. Format eligibility is derived from these fields alone — never
+ * a hardcoded "if industry === X" branch — so the same engine works for any
+ * domain (SaaS, e-commerce, local service, B2B wholesale, marketplace,
+ * publisher, ...) without code changes.
  */
 export type EligibilitySignals = {
   locations?: string[] | null;
   has_physical_location?: boolean | null;
   has_service_area?: boolean | null;
+  products?: string[] | null;
+  services?: string[] | null;
+  sales_model?: string | null;
+  primary_entity?: string | null;
 };
 
 /**
@@ -39,16 +49,36 @@ export function isLocalEligible(signals: EligibilitySignals): boolean {
 }
 
 /**
- * Which formats this business's calendar may rotate through. GEO/SEO/AEO and
- * the commercial ("shopping") slot are universal — every business answers
- * buyer questions and has something commercial to say about itself, even
- * without a product catalogue (the commercial slot renders as software or
- * service content instead of a product comparison — see writeArticle's
- * entity-adaptive "shopping" guidance). Local AEO is added only with a
- * genuine local signal, never mechanically.
+ * The commercial ("shopping") slot requires a genuine catalogue/transactional
+ * signal — real products, a marked-up sales model, or a marketplace/product
+ * entity — same reasoning as isLocalEligible: a pure SaaS/service business
+ * with no catalogue has nothing to render a product comparison from, and
+ * forcing the slot on it is what produced invented "models"/"dimensions"
+ * content for businesses that don't sell a physical or listable catalogue.
+ * A pricing/plans buyer question from that kind of business still gets
+ * written — as a transactional-intent SEO or AEO article instead, since
+ * FORMAT_INTENT_FIT (angles.server.ts) already allows transactional intent
+ * on those formats.
+ */
+export function isShoppingEligible(signals: EligibilitySignals): boolean {
+  return Boolean(
+    (signals.products?.length ?? 0) > 0 ||
+      signals.sales_model === "ecommerce" ||
+      signals.sales_model === "wholesale" ||
+      signals.primary_entity === "product" ||
+      signals.primary_entity === "marketplace",
+  );
+}
+
+/**
+ * Which formats this business's calendar may rotate through, derived purely
+ * from structured profile signals — never a business-type branch. GEO/SEO/AEO
+ * are universal (every business answers buyer questions). Shopping and Local
+ * AEO are each added only when their own genuine signal is present.
  */
 export function getEligibleFormats(signals: EligibilitySignals): ContentType[] {
-  const formats: ContentType[] = [...BASE_FORMATS, "shopping"];
+  const formats: ContentType[] = [...BASE_FORMATS];
+  if (isShoppingEligible(signals)) formats.push("shopping");
   if (isLocalEligible(signals)) formats.push("local_aeo");
   return formats;
 }

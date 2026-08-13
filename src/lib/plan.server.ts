@@ -155,6 +155,50 @@ const ANGLE_TEMPLATES: Record<EditorialAngle, { en: (seed: string) => string; fr
     en: (seed) => `${capitalise(seed)}: real use cases`,
     fr: (seed) => `${capitalise(seed)} : cas d'usage concrets`,
   },
+  examples: {
+    en: (seed) => `${capitalise(seed)}: real examples`,
+    fr: (seed) => `${capitalise(seed)} : des exemples concrets`,
+  },
+  strategy: {
+    en: (seed) => `${capitalise(seed)}: a practical strategy`,
+    fr: (seed) => `${capitalise(seed)} : une stratégie concrète`,
+  },
+  best_for: {
+    en: (seed) => `${capitalise(seed)}: who it's best for`,
+    fr: (seed) => `${capitalise(seed)} : à qui ça s'adresse`,
+  },
+  evaluation: {
+    en: (seed) => `${capitalise(seed)}: how to evaluate your options`,
+    fr: (seed) => `${capitalise(seed)} : comment évaluer vos options`,
+  },
+  features: {
+    en: (seed) => `${capitalise(seed)}: key features to look for`,
+    fr: (seed) => `${capitalise(seed)} : les fonctionnalités à surveiller`,
+  },
+  workflow: {
+    en: (seed) => `${capitalise(seed)}: how it fits into your workflow`,
+    fr: (seed) => `${capitalise(seed)} : comment l'intégrer à votre flux de travail`,
+  },
+  cost_breakdown: {
+    en: (seed) => `${capitalise(seed)}: a full cost breakdown`,
+    fr: (seed) => `${capitalise(seed)} : le détail des coûts`,
+  },
+  plans: {
+    en: (seed) => `${capitalise(seed)}: comparing the available plans`,
+    fr: (seed) => `${capitalise(seed)} : comparer les formules disponibles`,
+  },
+  value: {
+    en: (seed) => `${capitalise(seed)}: what you actually get for the price`,
+    fr: (seed) => `${capitalise(seed)} : ce que vous obtenez réellement pour ce prix`,
+  },
+  purchase_decision: {
+    en: (seed) => `${capitalise(seed)}: what to know before you buy`,
+    fr: (seed) => `${capitalise(seed)} : ce qu'il faut savoir avant d'acheter`,
+  },
+  trial: {
+    en: (seed) => `${capitalise(seed)}: what to expect from a free trial`,
+    fr: (seed) => `${capitalise(seed)} : à quoi s'attendre avec un essai gratuit`,
+  },
   local_intent: {
     en: (seed) => `${capitalise(seed)} near you: how to choose`,
     fr: (seed) => `${capitalise(seed)} près de chez vous : comment choisir`,
@@ -162,6 +206,14 @@ const ANGLE_TEMPLATES: Record<EditorialAngle, { en: (seed: string) => string; fr
   service_area: {
     en: (seed) => `Finding ${seed} in your area`,
     fr: (seed) => `Trouver ${seed} dans votre zone`,
+  },
+  near_me: {
+    en: (seed) => `${capitalise(seed)} near me: how to choose`,
+    fr: (seed) => `${capitalise(seed)} près de moi : comment choisir`,
+  },
+  local_faq: {
+    en: (seed) => `${capitalise(seed)}: local questions answered`,
+    fr: (seed) => `${capitalise(seed)} : vos questions locales`,
   },
 };
 
@@ -351,7 +403,7 @@ CONTENT TYPE RULE: GEO, SEO, AEO, Local AEO and Shopping describe HOW Ranki stru
 
 NO RIGID FORMULAS: never reuse the same sentence template across topics (e.g. always "Which X should you choose?", always "X: a guide for professional buyers", always "How do you choose X?"). Build each title from the keyword's real search intent, this business's model and audience, and the slot's format — a direct question for AEO, a natural search-friendly phrase for SEO, a definitional or comparative angle for GEO. Vary sentence structure across the list.
 
-Each slot below states its search intent and a suggested editorial angle (definition, how_to, guide, comparison, mistakes, checklist, pricing, alternatives, buyer_guide, faq, use_cases, local_intent, service_area). Match that angle's framing — a "comparison" angle contrasts options, "checklist" implies a list, "pricing" implies cost — never impose pricing/comparison language on a definition/how_to angle. If the target keyword already reads as a question, restate it naturally; never nest it inside another question ("How does how to rank on ChatGPT work?" is wrong). Never repeat the same angle on the same keyword twice, and never repeat or closely paraphrase an earlier title in this list.
+Each slot below states its search intent and a suggested editorial angle (informational: definition, how_to, guide, checklist, mistakes, examples, faq, strategy, use_cases; commercial: comparison, alternatives, buyer_guide, best_for, evaluation, use_cases, features, workflow; transactional: pricing, cost_breakdown, plans, value, purchase_decision, trial; local: local_intent, service_area, near_me, local_faq). Match that angle's framing — a "comparison" angle contrasts options, "checklist" implies a list, "pricing" implies cost — never impose pricing/comparison language on a definition/how_to angle. If the target keyword already reads as a question, restate it naturally; never nest it inside another question ("How does how to rank on ChatGPT work?" is wrong). Never repeat the same angle on the same keyword twice, and never repeat or closely paraphrase an earlier title in this list.
 
 For commercial or transactional keywords, choose supplier-selection questions, product/category offers, comparisons, buying guides or buyer FAQs. ${commercialRule[commercialEntity]} Local topics need a real place/service-area signal and must use ONLY the confirmed locations below. Never invent Paris, Lyon, Marseille, Bordeaux, Lille or any other city.
 Confirmed locations: ${(project.locations ?? []).join(", ") || "none — use only a generic near-me/local intent, never a city"}.
