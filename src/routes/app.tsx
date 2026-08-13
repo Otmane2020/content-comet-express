@@ -334,7 +334,7 @@ function Dashboard() {
     };
   }, [user, project, startGoogle]);
 
-  if (loading || (user && projectLoading) || (user && embedded && onboardingLoading)) {
+  if (loading || (embedded && !shopifyLaunchResolved) || (user && projectLoading) || (user && embedded && onboardingLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Loading your autopilot…
