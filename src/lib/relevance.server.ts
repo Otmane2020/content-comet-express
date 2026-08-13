@@ -124,6 +124,7 @@ STRICT INTENT RULES — score 0 regardless of volume when any of these apply:
 async function scoreBatch(profile: BusinessProfile, list: string[]): Promise<Record<string, number>> {
   const call = () =>
     callOpenRouter({
+      temperature: 0,
       json: true,
       maxTokens: 2000,
       system:
@@ -444,6 +445,7 @@ export async function candidateKeywords(
     : "";
   try {
     const raw = await callOpenRouter({
+      temperature: 0,
       json: true,
       maxTokens: 2000,
       system:
@@ -509,6 +511,7 @@ Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least
     if (merged.length < MIN_AI_CANDIDATES) {
       const missing = Math.min(Math.max(MIN_AI_CANDIDATES - merged.length, 12), Math.max(max - merged.length, 1));
       const retry = await callOpenRouter({
+      temperature: 0,
         json: true,
         maxTokens: 1600,
         system: "Return strict JSON only. You must derive buyer search queries from the supplied SEO title, page title, categories and landing-page copy.",
@@ -586,6 +589,7 @@ export async function productSeeds(profile: BusinessProfile, max = 12): Promise<
     .filter((p) => p.length > 2 && p.split(/\s+/).length <= 4);
   try {
     const raw = await callOpenRouter({
+      temperature: 0,
       json: true,
       maxTokens: 700,
       system:
@@ -638,6 +642,7 @@ export async function scoreCompetitorDomains(
   if (!list.length) return {};
   const fallback = () => Object.fromEntries(list.map((domain) => [domain, MIN_COMPETITOR_RELEVANCE]));
   const call = () => callOpenRouter({
+      temperature: 0,
     json: true,
     maxTokens: 1600,
     system:
