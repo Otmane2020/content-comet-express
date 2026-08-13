@@ -1,6 +1,81 @@
 const BASE = "https://api.dataforseo.com/v3";
 
 /**
+ * Carries the real DataForSEO status_code/status_message through to callers
+ * and logs, instead of collapsing every failure into a generic "Too many
+ * requests." or "DataForSEO error (429)" string that loses which endpoint,
+ * which DataForSEO status_code, and how many retries were already spent.
+ */
+export class DataForSeoError extends Error {
+  constructor(
+    message: string,
+    public readonly statusCode: number | null,
+    public readonly httpStatus: number | null,
+    public readonly retryable: boolean,
+  ) {
+    super(message);
+    this.name = "DataForSeoError";
+  }
+}
+
+// DataForSEO's own rate-limit signals — the ONLY codes this module retries.
+// 40202 = "Too Many Requests", 40209 = "Simultaneous connections limit
+// reached". Both mean the task was rejected before running, never billed, so
+// retrying never duplicates a paid task. Every other 4xx (bad request,
+// unauthorized, invalid field, task-level business error) is a real failure
+// and must surface immediately, not be silently retried into a bigger bill.
+const RETRYABLE_DFS_CODES = new Set([40202, 40209]);
+const MAX_RETRIES = 3;
+const BASE_DELAY_MS = 1000;
+const MAX_DELAY_MS = 15_000;
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function parseRetryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = Number(header);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds * 1000);
+  const dateMs = Date.parse(header);
+  return Number.isNaN(dateMs) ? null : Math.max(0, dateMs - Date.now());
+}
+
+/** Exponential backoff with jitter — jitter prevents every queued request
+ * that got 429'd together from retrying in the exact same instant and
+ * immediately re-tripping the rate limit. */
+function backoffDelayMs(attempt: number): number {
+  const exp = Math.min(MAX_DELAY_MS, BASE_DELAY_MS * 2 ** (attempt - 1));
+  return exp + Math.random() * exp * 0.3;
+}
+
+/**
+ * Every DataForSEO request in this app goes through this single shared
+ * limiter — never more than MAX_CONCURRENCY in flight at once, regardless of
+ * how many callers (keyword research, SERP, competitor discovery, local
+ * market) fire Promise.all-style in parallel. This is what was missing:
+ * individual endpoints already batched their own keyword lists, but nothing
+ * capped how many *separate* DataForSEO requests (search volume + keyword
+ * ideas + N competitor SERP calls + N competitor domain calls, all from one
+ * pipeline run) could be in flight at the same time, which is what tripped
+ * DataForSEO's own rate limit ("Too many requests.") under normal use.
+ */
+const MAX_CONCURRENCY = 4;
+let activeRequests = 0;
+const waiters: (() => void)[] = [];
+
+function acquireSlot(): Promise<void> {
+  if (activeRequests < MAX_CONCURRENCY) {
+    activeRequests++;
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => waiters.push(resolve));
+}
+
+function releaseSlot() {
+  const next = waiters.shift();
+  if (next) next(); // hand the slot straight to the next waiter; activeRequests unchanged
+  else activeRequests--;
+}
+
+/**
  * Checks whether the DataForSEO credentials are accepted (live data available).
  *
  * "missing" and "unreachable" used to collapse into the exact same generic
@@ -14,6 +89,7 @@ export async function dfsPing(): Promise<{ live: boolean; reason: string | null;
   const login = process.env["DATAFORSEO_LOGIN"];
   const password = process.env["DATAFORSEO_PASSWORD"];
   if (!login || !password) return { live: false, reason: "missing" };
+  await acquireSlot();
   try {
     const res = await fetch(`${BASE}/appendix/user_data`, {
       headers: { Authorization: "Basic " + Buffer.from(`${login}:${password}`).toString("base64") },
@@ -38,6 +114,8 @@ export async function dfsPing(): Promise<{ live: boolean; reason: string | null;
       reason: "unreachable",
       detail: timedOut ? "Ping to DataForSEO timed out after 15s (no response)." : error instanceof Error ? error.message : String(error),
     };
+  } finally {
+    releaseSlot();
   }
 }
 
@@ -50,28 +128,90 @@ function authHeader() {
   return "Basic " + Buffer.from(`${login}:${password}`).toString("base64");
 }
 
+/**
+ * All DataForSEO POST calls funnel through here: one shared concurrency
+ * limiter (acquireSlot/releaseSlot, above) and one retry policy. A request
+ * only ever retries on a rate-limit signal (HTTP 429, or DataForSEO
+ * status_code 40202/40209) — every other failure (auth, bad request, a real
+ * task-level business error) throws immediately on the first attempt, never
+ * silently retried.
+ */
 async function post<T>(path: string, payload: unknown): Promise<T> {
-  // Same reasoning as dfsPing's timeout: an unresponsive (not merely slow)
-  // DataForSEO connection must fail loudly well before Vercel's 300s function
-  // limit kills the whole batch with no error to show for it. 60s is well
-  // above this endpoint's normal response time even for a 40-keyword batch.
-  const res = await fetch(`${BASE}${path}`, {
-    method: "POST",
-    headers: { Authorization: authHeader(), "Content-Type": "application/json" },
-    body: JSON.stringify([payload]),
-    signal: AbortSignal.timeout(60_000),
-  });
-  const json = (await res.json()) as {
-    status_code?: number;
-    status_message?: string;
-    tasks?: { status_code?: number; status_message?: string; result?: unknown }[];
-  };
-  if (!res.ok || (json.status_code && json.status_code >= 40000)) {
-    throw new Error(json.status_message ?? `DataForSEO error (${res.status})`);
+  await acquireSlot();
+  try {
+    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+      // Same reasoning as dfsPing's timeout: an unresponsive (not merely slow)
+      // DataForSEO connection must fail loudly well before Vercel's 300s
+      // function limit kills the whole batch with no error to show for it.
+      // 60s is well above this endpoint's normal response time even for a
+      // 40-keyword batch.
+      const res = await fetch(`${BASE}${path}`, {
+        method: "POST",
+        headers: { Authorization: authHeader(), "Content-Type": "application/json" },
+        body: JSON.stringify([payload]),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after"));
+      console.info("[dataforseo] request", {
+        endpoint: path,
+        attempt,
+        concurrency: activeRequests,
+        httpStatus: res.status,
+        rateLimitRemaining: res.headers.get("x-ratelimit-remaining") ?? res.headers.get("x-rate-limit-remaining") ?? null,
+        rateLimitLimit: res.headers.get("x-ratelimit-limit") ?? res.headers.get("x-rate-limit-limit") ?? null,
+        retryAfterHeader: res.headers.get("retry-after"),
+      });
+
+      // A 429 with no JSON body worth parsing — DataForSEO rejected the
+      // request before it ever ran, so this never duplicates a paid task.
+      if (res.status === 429) {
+        if (attempt <= MAX_RETRIES) {
+          const delay = retryAfterMs ?? backoffDelayMs(attempt);
+          console.warn("[dataforseo] 429, retrying", { endpoint: path, attempt, delayMs: Math.round(delay) });
+          await sleep(delay);
+          continue;
+        }
+        throw new DataForSeoError(`DataForSEO rate limit (HTTP 429) after ${MAX_RETRIES} retries on ${path}`, 429, 429, true);
+      }
+
+      const json = (await res.json()) as {
+        status_code?: number;
+        status_message?: string;
+        tasks?: { status_code?: number; status_message?: string; result?: unknown }[];
+      };
+
+      if (!res.ok || (json.status_code && json.status_code >= 40000)) {
+        const code = json.status_code ?? null;
+        const message = `DataForSEO error ${code ?? res.status}: ${json.status_message ?? `HTTP ${res.status}`} (${path})`;
+        if (code !== null && RETRYABLE_DFS_CODES.has(code) && attempt <= MAX_RETRIES) {
+          const delay = retryAfterMs ?? backoffDelayMs(attempt);
+          console.warn("[dataforseo] retryable status_code, retrying", { endpoint: path, attempt, code, delayMs: Math.round(delay) });
+          await sleep(delay);
+          continue;
+        }
+        throw new DataForSeoError(message, code, res.status, false);
+      }
+
+      const task = json.tasks?.[0];
+      if (task?.status_code && task.status_code >= 40000) {
+        const message = `DataForSEO task error ${task.status_code}: ${task.status_message ?? "task failed"} (${path})`;
+        if (RETRYABLE_DFS_CODES.has(task.status_code) && attempt <= MAX_RETRIES) {
+          const delay = retryAfterMs ?? backoffDelayMs(attempt);
+          console.warn("[dataforseo] retryable task status_code, retrying", { endpoint: path, attempt, code: task.status_code, delayMs: Math.round(delay) });
+          await sleep(delay);
+          continue;
+        }
+        throw new DataForSeoError(message, task.status_code, res.status, false);
+      }
+
+      return (task?.result ?? []) as T;
+    }
+    // Unreachable — the loop always returns or throws — but keeps TypeScript
+    // satisfied that every path returns T.
+    throw new DataForSeoError(`DataForSEO request exhausted retries on ${path}`, null, null, false);
+  } finally {
+    releaseSlot();
   }
-  const task = json.tasks?.[0];
-  if (task?.status_code && task.status_code >= 40000) throw new Error(task.status_message ?? "DataForSEO task failed");
-  return (task?.result ?? []) as T;
 }
 
 export type KeywordRow = {
