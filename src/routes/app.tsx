@@ -95,20 +95,6 @@ function Dashboard() {
     const params = new URLSearchParams(window.location.search);
     return !!(params.get("shop") || params.get("shopify"));
   });
-  // First pass this browser tab has seen the "mid-install" screen this
-  // session -> "connecting" copy; a second pass (App Home reloading after
-  // OAuth approval) -> "connected, preparing" copy. sessionStorage survives
-  // the top-level OAuth round-trip within the same tab, unlike component state.
-  const [installStep] = useState<"connecting" | "preparing">(() => {
-    if (typeof window === "undefined") return "connecting";
-    try {
-      if (sessionStorage.getItem("ranki:shopify-install-step")) return "preparing";
-      sessionStorage.setItem("ranki:shopify-install-step", "1");
-      return "connecting";
-    } catch {
-      return "connecting";
-    }
-  });
   // App Home always relaunches with `shop` in the query string. Used below to
   // open the store just connected instead of whichever project the query
   // happens to find first.
@@ -387,20 +373,16 @@ function Dashboard() {
     if (embedded && shopifyVisitor && !shopifyLaunchResolved) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">
-            {installStep === "connecting" ? "Connecting Ranki to Shopify…" : "Shopify connected successfully"}
-          </p>
-          <p>{installStep === "connecting" ? "We're securely connecting your store." : "Preparing your Ranki workspace…"}</p>
+          <p className="font-medium text-foreground">Opening Ranki…</p>
+          <p>Verifying your Shopify session…</p>
         </div>
       );
     }
     if (!user && shopifyVisitor) {
       return (
         <div className="flex min-h-screen flex-col items-center justify-center gap-1 text-center text-sm text-muted-foreground">
-          <p className="font-medium text-foreground">
-            {installStep === "connecting" ? "Connecting Ranki to Shopify…" : "Shopify connected successfully"}
-          </p>
-          <p>{installStep === "connecting" ? "We're securely connecting your store." : "Preparing your Ranki workspace…"}</p>
+          <p className="font-medium text-foreground">Opening Ranki…</p>
+          <p>Verifying your Shopify session…</p>
         </div>
       );
     }
