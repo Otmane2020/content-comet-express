@@ -233,6 +233,7 @@ Write every human-readable JSON value (especially "description", "audience" and 
 Return JSON:
 {
   "name": "company name",
+  "industry": "concise business category in the website language",
   "description": "one sentence: sales model + products + audience + geography",
   "sales_model": "wholesale" | "retail" | "service" | "marketplace" | "manufacturer" | "other",
   "products": ["product category 1", "product category 2"],
@@ -247,6 +248,7 @@ Return JSON:
 }
 
 Rules:
+- "industry": a concise, human-readable category that completes “Industry”, grounded in the site (for example “Logiciel SEO et GEO”, “Grossiste de meubles”, or “Plateforme d’avis clients”). Never leave it blank when the business is reliable.
 - "products": only product categories the site actually sells. Empty array if unclear.
 - "services": list EVERY distinct capability, feature or offering described on the page as its own array item — do not fold them into one summary sentence. For a SaaS/software product this means each major feature separately (e.g. "keyword research", "competitor analysis", "AI content generation", "image generation", "CMS publishing", "Google Business Profile posting", "Search Console integration" — not one item like "content platform"). For a service business, list each distinct service offered. Include named integrations, platforms or destinations the page states it works with (e.g. "WordPress", "Shopify", "WooCommerce") as their own items when they are a real, distinguishable part of what's offered, not marketing filler. Empty array only for a pure product seller with no services at all.
 - "locations": only geographic areas mentioned on the site. Empty array if national/online with no area stated.
@@ -312,7 +314,12 @@ Rules:
   return {
     name: p.name?.toString().slice(0, 120) ?? hints?.name ?? site.title,
     website_url: hints?.website_url ?? null,
-    industry: hints?.industry ?? null,
+    industry:
+      p.industry?.toString().trim().slice(0, 120) ||
+      hints?.industry?.trim() ||
+      products[0] ||
+      services[0] ||
+      null,
     audience: p.audience?.toString().slice(0, 300) ?? null,
     description: p.description?.toString().slice(0, 400) ?? null,
     sales_model,
