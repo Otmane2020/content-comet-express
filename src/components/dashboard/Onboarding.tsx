@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { buildPlan, kickstartFirstDay } from "@/lib/autopilot.functions";
 import { createCheckout, getSubscription, syncSubscription } from "@/lib/billing.functions";
 import { startShopifyBilling } from "@/lib/shopify.functions";
-import { detectBusiness, detectMarket } from "@/lib/detect.functions";
+import { detectBusiness } from "@/lib/detect.functions";
+import { runPipelineDiagnosticBatch } from "@/lib/diagnostics.functions";
 import {
   completeOnboarding,
   getOnboarding,
@@ -348,7 +349,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const build = useServerFn(buildPlan);
   const kickstart = useServerFn(kickstartFirstDay);
   const detectBiz = useServerFn(detectBusiness);
-  const detectMkt = useServerFn(detectMarket);
+  const runProductionPipelineBatch = useServerFn(runPipelineDiagnosticBatch);
   const checkout = useServerFn(createCheckout);
   const shopifyBilling = useServerFn(startShopifyBilling);
   const fetchSub = useServerFn(getSubscription);
@@ -697,53 +698,71 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     }
     setScanningMarket(true);
     try {
-      const scanInput = {
-        website: form.website_url,
-        name: form.name || undefined,
-        industry: form.industry || undefined,
-        // Step 1 already worked out who actually buys from this business — for
-        // Sweet Deco, "professional furniture resellers". Dropping it here made
-        // the scan re-derive the sales model blind from the page and read a
-        // wholesaler as a shop, which is what returned consumer keywords
-        // ("canapés d'angle convertibles") instead of "fournisseur canapé".
-        // The merchant can also correct this field in step 2, so it is the more
-        // trustworthy signal of the two.
-        audience: form.audience || undefined,
-        profile: bizProfile ?? undefined,
-        locale: form.locale,
-        targetCountry: form.country || undefined,
-        seeds: form.keywords
-          .split(",")
-          .map((k) => k.trim())
-          .filter(Boolean)
-          .slice(0, 10),
-      };
-      let r = await withTransientRetry(() => detectMkt({ data: { ...scanInput } }));
-      if (!r.competitors.length && !r.keywords.length && !r.error) {
-        toast.message("No usable SEO data on the first pass. Retrying live data once…");
-        r = await withTransientRetry(() => detectMkt({ data: { ...scanInput, retry: true } }));
-      }
-      setMarket(r);
-      // Live DataForSEO keywords take priority over the AI-detected ones,
-      // which are only kept as a tail so a wrong industry guess can't drive
-      // the 30-day calendar.
-      setForm((f) => {
-        const aiKeywords = f.keywords.split(",").map((k) => k.trim()).filter(Boolean);
-        const dfsKeywords = r.keywords.slice(0, 15).map((k) => k.keyword);
-        const merged = Array.from(
-          new Map([...dfsKeywords, ...aiKeywords].map((k) => [k.toLowerCase(), k])).values(),
-        ).slice(0, 15);
-        return {
-          ...f,
-          competitors: f.competitors.trim() ? f.competitors : r.competitors.join("\n"),
-          keywords: merged.join(", "),
+      // Production onboarding deliberately runs the exact same validated
+      // batches as /test. /test is only the UI harness; this shared server
+      // pipeline is the source of truth for both Stripe and Shopify merchants.
+      // Keeping the context between calls also avoids one long server request
+      // timing out after paid DataForSEO work has already completed.
+      const batches = ["landing", "profile", "keywords", "serp", "rivals"] as const;
+      let context: unknown = undefined;
+      for (const batch of batches) {
+        const result = await runProductionPipelineBatch({
+          data: { website: form.website_url.trim(), batch, context },
+        }) as {
+          stage: { ok: boolean; error: string | null };
+          context: unknown;
         };
-      });
-      if (r.error) toast.error(r.error);
-      else toast.success(`Live SEO data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
+        if (!result.stage.ok) {
+          throw new Error(result.stage.error || `Market pipeline failed at ${batch}`);
+        }
+        context = result.context;
+      }
+
+      const pipeline = context as {
+        profile?: Record<string, unknown>;
+        qualified?: Array<{
+          keyword: string;
+          search_volume?: number | null;
+          difficulty?: number | null;
+        }>;
+        competitors?: Array<{ domain?: string }>;
+      };
+      const r = {
+        source: "dataforseo" as const,
+        competitors: (pipeline.competitors ?? [])
+          .map((competitor) => competitor.domain?.trim() ?? "")
+          .filter(Boolean)
+          .slice(0, 8),
+        keywords: (pipeline.qualified ?? [])
+          .map((keyword) => ({
+            keyword: keyword.keyword,
+            volume: keyword.search_volume ?? null,
+            difficulty: keyword.difficulty ?? null,
+          }))
+          .slice(0, 15),
+        business_profile: pipeline.profile ?? bizProfile,
+      };
+
+      setMarket(r);
+      setBizProfile(r.business_profile ?? null);
+      setForm((f) => ({
+        ...f,
+        competitors: r.competitors.join("\n"),
+        keywords: r.keywords.map((keyword) => keyword.keyword).join(", "),
+      }));
+      toast.success(`Validated market data: ${r.competitors.length} rivals, ${r.keywords.length} keywords.`);
       return r;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Market scan failed");
+      const message = err instanceof Error ? err.message : "Market scan failed";
+      console.error("[onboarding] production pipeline failed", { website: form.website_url, message });
+      setMarket({
+        source: "dataforseo",
+        competitors: [],
+        keywords: [],
+        business_profile: bizProfile,
+        error: message,
+      });
+      toast.error(message);
       return null;
     } finally {
       setScanningMarket(false);
