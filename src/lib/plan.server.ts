@@ -211,13 +211,28 @@ function significantTerms(keyword: string) {
     .filter((word) => word.length > 3 && !GENERIC_KEYWORD_WORDS.has(word));
 }
 
-/** A generated title is accepted only if it still represents its exact slot. */
+/**
+ * A generated title is accepted only if it still represents its exact slot.
+ *
+ * The source of truth for "does this title's shape fit this slot" is the
+ * STRUCTURED data — intent, assigned format, assigned editorial angle —
+ * never the title's wording. This used to also regex-match the title text
+ * itself (AEO required a literal "?" or question word; Shopping required a
+ * hardcoded pricing/comparison vocabulary list) and rejected perfectly valid
+ * structurally-aligned titles like a commercial/geo/comparison slot's "Geo
+ * seo: how to compare your options" just because its words didn't match that
+ * list — a false positive, not a real mismatch. formatFit/angleFit are now
+ * the only content-type checks; only genuinely text-level quality checks
+ * (non-empty, no nested double question) remain on the wording itself.
+ */
 export function validateCalendarTopic(
   project: ProjectBrief,
-  slot: { type: ContentType; keyword?: string | null; intent?: SearchIntent | null },
+  slot: { type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null },
   topic: string,
 ) {
-  const formatFit = formatFitsKeyword(slot.intent ?? "commercial", slot.type);
+  const intent: SearchIntent = slot.intent ?? "commercial";
+  const formatFit = formatFitsKeyword(intent, slot.type);
+  const angleFit = !slot.angle || angleFitsIntent(intent, slot.type).includes(slot.angle);
   const topicTerms = new Set(normalise(topic).split(" "));
   const terms = significantTerms(slot.keyword ?? "");
   const requiredMatches = terms.length <= 1 ? terms.length : Math.min(2, terms.length);
@@ -228,27 +243,23 @@ export function validateCalendarTopic(
   const keywordRequestsLocation = confirmedLocations.some((location) => normalise(slot.keyword ?? "").includes(location));
   // A city or region is useful on a Local AEO day. On every other day it
   // creates an accidental local page unless the buyer's query itself asked
-  // for that place (for example, "grossiste meubles France").
+  // for that place (for example, "grossiste meubles France"). This stays a
+  // structural check (confirmed locations vs. what the keyword itself asked
+  // for), not a title-wording inference.
   const injectedLocationOutsideLocal =
     slot.type !== "local_aeo" && hasConfirmedLocation && !keywordRequestsLocation;
-  const localIntent = /\b(pr[èe]s|proximite|zone|local|near|nearby|area)\b/i.test(topic);
-  // The commercial slot only owes a catalogue vocabulary (models, dimensions,
-  // finishes…) when it is actually rendering a product comparison. A SaaS or
-  // service commercial topic is judged on general commercial intent instead —
-  // requiring catalogue wording there is what forced "buying criteria for
-  // professionals" onto every business regardless of what it sells.
-  const commercialEntity = resolveCommercialEntity(project.profile, false);
-  const contentTypeAligned =
-    slot.type === "local_aeo"
-      ? hasConfirmedLocation || localIntent
-      : slot.type === "aeo"
-        ? /\?|^(comment|quel|quelle|quels|quelles|ou|where|which|how)\b/i.test(topic.trim())
-        : slot.type === "shopping"
-          ? commercialEntity === "product"
-            ? /\b(mod[eè]les?|selection|dimensions?|finitions?|catalogue|models?|selection|dimensions?|finishes|products?)\b/i.test(topic)
-            : /\b(co[uû]te?s?|prix|tarifs?|abonnement|fonctionnalit|inclus|inclut|prestataire|offres?|comparer|choisir|logiciel|plateforme|outil|service|costs?|price|pricing|plans?|features?|includes?|included|provider|offers?|compare|choose|software|platform|tool|subscription)\b/i.test(topic)
-          : true;
-  return { keywordAligned, contentTypeAligned, locationValid: !hasUnknownCity && !injectedLocationOutsideLocal, formatFit };
+  const titleNonEmpty = topic.trim().length > 0;
+  // Reject a genuinely malformed nested question ("How does X? work?" has 2
+  // question marks) — a text-quality check, not a format-inference one.
+  const titleNatural = (topic.match(/\?/g) ?? []).length <= 1;
+  return {
+    keywordAligned,
+    formatFit,
+    angleFit,
+    titleNonEmpty,
+    titleNatural,
+    locationValid: !hasUnknownCity && !injectedLocationOutsideLocal,
+  };
 }
 
 /**
@@ -357,7 +368,11 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exa
       const generated = byDate.get(slot.date);
       const candidate = freshenYears(generated?.topic ?? fallback[i]!.topic);
       const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
-      const checks = validateCalendarTopic(project, slot, candidate);
+      // The deterministic angle computed for this slot (fallback[i]'s) is the
+      // assigned angle regardless of whether the AI title is used — the AI
+      // isn't asked to echo back which angle it picked, so this is the one
+      // source of truth to validate the candidate title's structural fit against.
+      const checks = validateCalendarTopic(project, { ...slot, angle: fallback[i]!.angle }, candidate);
       const identityAligned =
         !generated ||
         (normalise(generated.keyword ?? "") === normalise(slot.keyword ?? "") && generated.contentType === slot.type);
@@ -365,9 +380,11 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target exa
         (!isMarketingKeyword && META_MARKETING.test(candidate)) ||
         !identityAligned ||
         !checks.keywordAligned ||
-        !checks.contentTypeAligned ||
         !checks.locationValid ||
-        !checks.formatFit;
+        !checks.formatFit ||
+        !checks.angleFit ||
+        !checks.titleNonEmpty ||
+        !checks.titleNatural;
       return {
         ...slot,
         // The AI response isn't asked to echo back which angle it used, so

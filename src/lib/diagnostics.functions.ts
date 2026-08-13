@@ -252,7 +252,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
           eligible,
         );
         const calendar = await planTopics(brief, slots);
-        const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.contentTypeAligned || !c.locationValid; });
+        const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.formatFit || !c.angleFit || !c.titleNonEmpty || !c.titleNatural || !c.locationValid; });
         if (invalid) throw new Error(`Calendar mismatch: \"${invalid.keyword}\" -> \"${invalid.topic}\"`);
         return finish(`${calendar.length} planned topics — eligible formats: ${eligible.join(", ")}`, calendar, { ...context, calendar });
       }
@@ -406,7 +406,7 @@ export const runPipelineDiagnostic = createServerFn({ method: "POST" })
         ...validateCalendarTopic(brief, item, item.topic),
       }));
       console.info("[pipeline-diagnostic] calendar target alignment", validation);
-      const invalid = validation.find((item) => !item.keywordAligned || !item.contentTypeAligned || !item.locationValid);
+      const invalid = validation.find((item) => !item.keywordAligned || !item.formatFit || !item.angleFit || !item.titleNonEmpty || !item.titleNatural || !item.locationValid);
       if (invalid) {
         throw new Error(`Calendar mismatch: \"${invalid.targetKeyword}\" -> \"${invalid.topic}\"`);
       }
