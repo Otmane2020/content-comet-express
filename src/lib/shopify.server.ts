@@ -3,6 +3,7 @@ import { SHOPIFY_CLIENT_ID } from "./shopify.constants";
 
 export { SHOPIFY_CLIENT_ID };
 export const SHOPIFY_SCOPES = "read_content,write_content,read_products";
+export const SHOPIFY_API_VERSION = "2026-07";
 
 export function shopifySecret() {
   const secret = process.env["SHOPIFY_ACCESS_TOKEN"];
@@ -192,13 +193,13 @@ export async function exchangeCode(shop: string, code: string) {
 /** The blog we publish into — first one found, created on the fly if none exists. */
 export async function resolveBlogId(shop: string, token: string) {
   const headers = adminHeaders(token);
-  const res = await fetch(`https://${shop}/admin/api/2024-10/blogs.json?limit=1`, { headers });
+  const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/blogs.json?limit=1`, { headers });
   if (res.ok) {
     const data = (await res.json()) as { blogs?: { id: number; title: string }[] };
     const blog = data.blogs?.[0];
     if (blog) return String(blog.id);
   }
-  const created = await fetch(`https://${shop}/admin/api/2024-10/blogs.json`, {
+  const created = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/blogs.json`, {
     method: "POST",
     headers,
     body: JSON.stringify({ blog: { title: "News" } }),
@@ -240,7 +241,7 @@ export type ShopInfo = {
 
 /** Everything we need about the store to run the autopilot without asking the merchant. */
 export async function fetchShopInfo(shop: string, token: string): Promise<ShopInfo> {
-  const res = await fetch(`https://${shop}/admin/api/2024-10/shop.json`, {
+  const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/shop.json`, {
     headers: adminHeaders(token),
   });
   if (!res.ok) throw new Error(`Could not read the Shopify store (${res.status}).`);
@@ -291,7 +292,7 @@ export async function fetchShopInfo(shop: string, token: string): Promise<ShopIn
 /** Product snapshot stored on the connection so shopping articles have real data immediately. */
 export async function fetchProductSnapshot(shop: string, token: string) {
   const res = await fetch(
-    `https://${shop}/admin/api/2024-10/products.json?limit=50&fields=id,title,product_type,tags,handle`,
+    `https://${shop}/admin/api/${SHOPIFY_API_VERSION}/products.json?limit=50&fields=id,title,product_type,tags,handle`,
     { headers: adminHeaders(token) },
   );
   if (!res.ok) return { count: 0, types: [] as string[], titles: [] as string[] };
@@ -368,7 +369,7 @@ export async function fetchStoreContent(
 ): Promise<ShopifyStoreContent> {
   const headers = adminHeaders(token);
   const productLimit = Math.min(opts.productLimit ?? 30, 100);
-  const base = `https://${shop}/admin/api/2024-10`;
+  const base = `https://${shop}/admin/api/${SHOPIFY_API_VERSION}`;
   const siteUrl = `https://${shop}`;
 
   const safeJson = async <T,>(url: string): Promise<T | null> => {
@@ -539,7 +540,7 @@ export const SHOPIFY_PLANS: Record<ShopifyPlanId, {
  * to the short bound so nothing has to opt in to safety.
  */
 async function graphql<T>(shop: string, token: string, query: string, variables: unknown, opts: { timeoutMs?: number } = {}) {
-  const res = await fetch(`https://${shop}/admin/api/2024-10/graphql.json`, {
+  const res = await fetch(`https://${shop}/admin/api/${SHOPIFY_API_VERSION}/graphql.json`, {
     method: "POST",
     headers: adminHeaders(token),
     body: JSON.stringify({ query, variables }),
