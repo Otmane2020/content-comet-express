@@ -9,6 +9,7 @@ async function callDeepSeek(opts: {
   user: string;
   json?: boolean;
   maxTokens?: number;
+  temperature?: number;
 }): Promise<string> {
   const apiKey = process.env["DEEPSEEK_API_KEY"];
   if (!apiKey) throw new Error("DEEPSEEK_API_KEY is not configured");
@@ -18,7 +19,7 @@ async function callDeepSeek(opts: {
     body: JSON.stringify({
       model: "deepseek-chat",
       max_tokens: opts.maxTokens ?? 2600,
-      temperature: 0.6,
+      temperature: opts.temperature ?? 0.6,
       ...(opts.json ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: opts.system },
@@ -38,6 +39,7 @@ async function callGemini(opts: {
   user: string;
   json?: boolean;
   maxTokens?: number;
+  temperature?: number;
 }): Promise<string> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) throw new Error("GEMINI_API_KEY is not configured");
@@ -52,7 +54,7 @@ async function callGemini(opts: {
       system_instruction: { parts: [{ text: opts.system }] },
       contents: [{ role: "user", parts: [{ text: opts.user }] }],
       generationConfig: {
-        temperature: 0.6,
+        temperature: opts.temperature ?? 0.6,
         maxOutputTokens: opts.maxTokens ?? 2600,
         ...(opts.json ? { responseMimeType: "application/json" } : {}),
       },
@@ -104,6 +106,7 @@ export async function callOpenRouter(opts: {
   model?: string;
   json?: boolean;
   maxTokens?: number;
+  temperature?: number;
 }): Promise<string> {
   const apiKey = process.env["OPENROUTER_API_KEY"];
   if (!apiKey) return callGeminiThenDeepSeek(opts, "OPENROUTER_API_KEY is not configured");
@@ -118,7 +121,7 @@ export async function callOpenRouter(opts: {
     body: JSON.stringify({
       model: opts.model ?? DEFAULT_MODEL,
       max_tokens: opts.maxTokens ?? 2600,
-      temperature: 0.6,
+      temperature: opts.temperature ?? 0.6,
       ...(opts.json ? { response_format: { type: "json_object" } } : {}),
       messages: [
         { role: "system", content: opts.system },
