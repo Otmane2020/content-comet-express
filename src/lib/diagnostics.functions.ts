@@ -253,7 +253,22 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         );
         const calendar = await planTopics(brief, slots);
         const invalid = calendar.find((item) => { const c = validateCalendarTopic(brief, item, item.topic); return !c.keywordAligned || !c.formatFit || !c.angleFit || !c.titleNonEmpty || !c.titleNatural || !c.locationValid; });
-        if (invalid) throw new Error(`Calendar mismatch: \"${invalid.keyword}\" -> \"${invalid.topic}\"`);
+        if (invalid) {
+          // TEMPORARY diagnostic — remove once the stage-6 "Calendar mismatch"
+          // repro is confirmed fixed in production.
+          console.error("[diagnostic] calendar mismatch throw", {
+            commitSha: process.env["VERCEL_GIT_COMMIT_SHA"] ?? null,
+            file: "diagnostics.functions.ts",
+            fn: "runPipelineDiagnosticBatch(calendar)",
+            keyword: invalid.keyword,
+            intent: invalid.intent,
+            format: invalid.type,
+            angle: invalid.angle,
+            title: invalid.topic,
+            ...validateCalendarTopic(brief, invalid, invalid.topic),
+          });
+          throw new Error(`Calendar mismatch: \"${invalid.keyword}\" -> \"${invalid.topic}\"`);
+        }
         return finish(`${calendar.length} planned topics — eligible formats: ${eligible.join(", ")}`, calendar, { ...context, calendar });
       }
       if (!context.profile || !context.calendar?.length || !context.rivals?.length) missingBatchInput(data.batch);
