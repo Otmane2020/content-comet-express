@@ -94,11 +94,27 @@ async function issueEmbeddedSession(shop: string) {
         checkFailed = false;
         break;
       } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        // A 401 is not a temporary subscription-check outage: Shopify has
+        // revoked the offline token (normally after app/uninstalled). Treat
+        // the store as not installed so App Home restarts OAuth. The client
+        // then follows the intended order: OAuth -> plan -> approval ->
+        // onboarding. Retrying the same revoked token only produced the
+        // misleading "Shopify connection is unavailable" dead end.
+        if (/Shopify API error \(401\)|Unauthorized/i.test(message)) {
+          console.warn("[shopify embedded-login] revoked token; restarting install", { shop });
+          await supabaseAdmin
+            .from("integrations")
+            .update({ status: "disconnected", last_error: "Shopify token revoked; reinstall required" })
+            .eq("platform", "shopify")
+            .eq("config->>shop", shop);
+          return { error: "shop_not_installed" } as const;
+        }
         checkFailed = true;
         console.error("[shopify embedded-login] subscription check failed", {
           shop,
           attempt,
-          error: error instanceof Error ? error.message : String(error),
+          error: message,
         });
         if (attempt < 2) await new Promise((resolve) => setTimeout(resolve, 400));
       }
