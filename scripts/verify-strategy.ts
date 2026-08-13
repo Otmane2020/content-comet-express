@@ -145,6 +145,24 @@ const CAPTURED_FIXTURES: Fixture[] = [
       { keyword: "plateforme vente meuble occasion", intent: "commercial" },
     ],
   },
+  {
+    // Regression fixture: primary_entity="marketplace" alone used to also
+    // qualify for shopping, conflating a GOODS marketplace (Vends-Le, above —
+    // has products) with a marketplace of REVIEWS (no products at all). Trust
+    // Avis got a live Shopping-format calendar slot that produced "compare
+    // their pricing, delivery times and product range" for a business with
+    // nothing to compare. isShoppingEligible() now requires products.length>0
+    // or an ecommerce/wholesale sales_model — never the marketplace label by
+    // itself.
+    name: "Captured: Trust Avis (reviews marketplace, zero products)",
+    profile: { description: "Verified customer review comparison platform", sales_model: "marketplace", products: [], services: ["avis clients vérifiés", "comparaison d'entreprises"], primary_entity: "marketplace", locations: ["France", "Belgique", "Suisse"], has_physical_location: false, has_service_area: false },
+    expected: { shopping: false, local_aeo: false },
+    keywords: [
+      { keyword: "avis clients vérifiés", intent: "commercial" },
+      { keyword: "plateforme d'avis clients", intent: "commercial" },
+      { keyword: "meilleures entreprises france", intent: "commercial" },
+    ],
+  },
 ];
 
 // --- Blind generalization fixture ------------------------------------------

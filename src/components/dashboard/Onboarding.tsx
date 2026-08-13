@@ -17,6 +17,7 @@ import {
 } from "@/lib/onboarding.functions";
 import { syncSiteKnowledge } from "@/lib/sitecrawl.functions";
 import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
+import { isShoppingEligible } from "@/lib/geo";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -223,15 +224,22 @@ function previewCategory(
  * Ranki.ai itself rendered as "Which site is best to buy seo & geo software?
  * Compare them on pricing, delivery times and range." Nobody "buys a
  * software from a site" or checks its "delivery time". The two framings
- * share nothing but the category noun, so this branches on sales_model
- * rather than trying to write one sentence that fits both.
+ * share nothing but the category noun.
+ *
+ * Reuses isShoppingEligible (geo.ts) — the same "does this business have a
+ * real catalogue" question already answered for calendar format eligibility
+ * this session, tested against 10 fixtures — instead of a second, ad-hoc
+ * sales_model string list. That old list treated `sales_model: "marketplace"`
+ * as inherently physical-goods, which is what put "compare their pricing,
+ * delivery times and product range" in front of Trust Avis, a marketplace of
+ * customer REVIEWS with zero products.
  */
-function sellsPhysicalGoods(salesModel: string | null | undefined): boolean {
-  return ["wholesale", "retail", "manufacturer", "marketplace"].includes((salesModel ?? "").trim().toLowerCase());
+function sellsPhysicalGoods(profile: { sales_model?: string | null; products?: string[] | null; primary_entity?: string | null } | null | undefined): boolean {
+  return isShoppingEligible(profile ?? {});
 }
 
-function aiPreviewQuestion(category: string, locale: string, salesModel: string | null | undefined): string {
-  if (sellsPhysicalGoods(salesModel)) {
+function aiPreviewQuestion(category: string, locale: string, profile: { sales_model?: string | null; products?: string[] | null; primary_entity?: string | null } | null | undefined): string {
+  if (sellsPhysicalGoods(profile)) {
     // The fixed noun head ("site") carries the agreement, so the category can
     // be plural, feminine or a mass noun without breaking the sentence.
     // Inlining it as `le meilleur ${category}` produced "le meilleur meubles
@@ -244,9 +252,9 @@ function aiPreviewQuestion(category: string, locale: string, salesModel: string 
 }
 
 /** Uses only real, already-discovered competitor domains — never invented. */
-function aiPreviewAnswer(category: string, competitors: string[], locale: string, salesModel: string | null | undefined): string {
+function aiPreviewAnswer(category: string, competitors: string[], locale: string, profile: { sales_model?: string | null; products?: string[] | null; primary_entity?: string | null } | null | undefined): string {
   const names = competitors.slice(0, 3).join(", ");
-  if (sellsPhysicalGoods(salesModel)) {
+  if (sellsPhysicalGoods(profile)) {
     return locale === "fr"
       ? `Pour ${category}, on cite souvent ${names}. Comparez leurs prix, délais de livraison et gamme de produits.`
       : `For ${category}, well-known options include ${names}. Compare them on pricing, delivery times and range.`;
@@ -1582,10 +1590,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                         </p>
                         <div className="relative mx-6 mt-7 space-y-5 sm:mx-8">
                           <div className="ml-auto max-w-[85%] rounded-3xl rounded-tr-sm border border-emerald-900/10 bg-[#eff8f4] px-4 py-3 text-[13px] shadow-sm">
-                            {aiPreviewQuestion(previewCategory(form.industry, form.locale, market.business_profile), form.locale, (market.business_profile as { sales_model?: string | null } | null | undefined)?.sales_model)}
+                            {aiPreviewQuestion(previewCategory(form.industry, form.locale, market.business_profile), form.locale, market.business_profile as { sales_model?: string | null; products?: string[] | null; primary_entity?: string | null } | null | undefined)}
                           </div>
                           <div className="max-w-[90%] rounded-3xl rounded-tl-sm border border-border bg-background px-4 py-3 text-[13px] leading-relaxed text-foreground shadow-sm">
-                            {aiPreviewAnswer(previewCategory(form.industry, form.locale, market.business_profile), market.competitors, form.locale, (market.business_profile as { sales_model?: string | null } | null | undefined)?.sales_model)}
+                            {aiPreviewAnswer(previewCategory(form.industry, form.locale, market.business_profile), market.competitors, form.locale, market.business_profile as { sales_model?: string | null; products?: string[] | null; primary_entity?: string | null } | null | undefined)}
                           </div>
                         </div>
                         <div className="relative mx-6 mt-6 flex items-center gap-2 rounded-2xl border border-border bg-muted/25 px-4 py-3 text-[12px] text-muted-foreground sm:mx-8">
@@ -1593,7 +1601,12 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           <span className="ml-auto flex size-5 items-center justify-center rounded-md bg-background/10 text-background/60">↑</span>
                         </div>
                         <p className="relative mx-6 mb-6 mt-5 rounded-2xl border border-gold/20 bg-gold-soft/35 px-4 py-3 text-[12.5px] leading-relaxed text-foreground sm:mx-8 sm:mb-8">
-                          <strong className="font-semibold text-gold">{aiPreviewOutcome(form.name || (form.locale === "fr" ? "Votre entreprise" : "Your business"), form.website_url, market.competitors, form.locale)}</strong>
+                          {/* Prefer the name FROM this scan's own business_profile — form.name
+                              can lag behind (a stale draft, a prior site's prefill) while
+                              market.competitors/keywords are already correctly this scan's.
+                              Showing a mismatched brand next to a correct competitor list is
+                              what made the whole card read as broken. */}
+                          <strong className="font-semibold text-gold">{aiPreviewOutcome((market.business_profile as { name?: string | null } | null | undefined)?.name || form.name || (form.locale === "fr" ? "Votre entreprise" : "Your business"), form.website_url, market.competitors, form.locale)}</strong>
                         </p>
                       </motion.div>
                     )}

@@ -16,13 +16,18 @@ export type ContentStrategy = {
   contentGoals: ("education" | "commercial_discovery" | "transaction_support" | "local_discovery")[];
 };
 
+// Mirrors isShoppingEligible() (geo.ts) exactly — kept in sync manually since
+// this only narrates that function's decision. `primary_entity ===
+// "marketplace"` was removed from both after Trust Avis (a reviews
+// marketplace, zero products) showed reasons=["primary_entity=marketplace"]
+// while eligible=false: this function had drifted out of sync with the
+// predicate it's supposed to be explaining.
 function shoppingReasons(signals: EligibilitySignals): string[] {
   const reasons: string[] = [];
   if ((signals.products?.length ?? 0) > 0) reasons.push("confirmed products");
   if (signals.sales_model === "ecommerce") reasons.push("sales_model=ecommerce");
   if (signals.sales_model === "wholesale") reasons.push("sales_model=wholesale");
   if (signals.primary_entity === "product") reasons.push("primary_entity=product");
-  if (signals.primary_entity === "marketplace") reasons.push("primary_entity=marketplace");
   return reasons;
 }
 

@@ -55,23 +55,31 @@ export function isLocalEligible(signals: EligibilitySignals): boolean {
 
 /**
  * The commercial ("shopping") slot requires a genuine catalogue/transactional
- * signal — real products, a marked-up sales model, or a marketplace/product
- * entity — same reasoning as isLocalEligible: a pure SaaS/service business
- * with no catalogue has nothing to render a product comparison from, and
- * forcing the slot on it is what produced invented "models"/"dimensions"
- * content for businesses that don't sell a physical or listable catalogue.
- * A pricing/plans buyer question from that kind of business still gets
- * written — as a transactional-intent SEO or AEO article instead, since
- * FORMAT_INTENT_FIT (angles.server.ts) already allows transactional intent
- * on those formats.
+ * signal — real products or a marked-up ecommerce/wholesale sales model —
+ * same reasoning as isLocalEligible: a pure SaaS/service business with no
+ * catalogue has nothing to render a product comparison from, and forcing the
+ * slot on it is what produced invented "models"/"dimensions" content for
+ * businesses that don't sell a physical or listable catalogue. A pricing/
+ * plans buyer question from that kind of business still gets written — as a
+ * transactional-intent SEO or AEO article instead, since FORMAT_INTENT_FIT
+ * (angles.server.ts) already allows transactional intent on those formats.
+ *
+ * `primary_entity === "marketplace"` alone used to also qualify — wrong: a
+ * marketplace of REVIEWS or LISTINGS (Trust Avis: `primary_entity:
+ * "marketplace"`, `products: []`) has no more catalogue to compare than a
+ * pure SaaS does, and still got a Shopping day producing "compare their
+ * pricing, delivery times and product range" content that doesn't apply to
+ * it. A goods marketplace (Vends-Le: `products: ["meubles d'occasion"]`)
+ * already qualifies through `products.length > 0` below — the marketplace
+ * label itself was never the real signal, having something listed to
+ * compare always was.
  */
 export function isShoppingEligible(signals: EligibilitySignals): boolean {
   return Boolean(
     (signals.products?.length ?? 0) > 0 ||
       signals.sales_model === "ecommerce" ||
       signals.sales_model === "wholesale" ||
-      signals.primary_entity === "product" ||
-      signals.primary_entity === "marketplace",
+      signals.primary_entity === "product",
   );
 }
 
