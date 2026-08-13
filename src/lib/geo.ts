@@ -37,15 +37,20 @@ export type EligibilitySignals = {
 };
 
 /**
- * Local AEO ("near me", city pages) requires a genuine local signal — a
- * confirmed location, a physical address, or a stated service area. A
- * globally-sold SaaS or service has none of these, and forcing local content
- * on it produces nonsense like "AI SEO for Shopify near you".
+ * Local AEO ("near me", city pages) requires a genuine local signal: a
+ * physical address/storefront, or a stated bounded service area. `locations`
+ * alone is NOT that signal — buildCanonicalProfile's own extraction prompt
+ * deliberately populates it with market/country names ("France", "Belgium")
+ * even for a nationwide online-only business, precisely so has_physical_
+ * location/has_service_area can stay false for that business while still
+ * recording where it operates. Treating locations.length>0 as local-eligible
+ * was the exact contradiction a live report caught: a marketplace with
+ * locations=["France"] but has_physical_location=false and has_service_area=
+ * false still got Local AEO enabled, which produces nonsense like "AI SEO
+ * for Shopify near you" for a business with no real local footprint.
  */
 export function isLocalEligible(signals: EligibilitySignals): boolean {
-  return Boolean(
-    (signals.locations?.length ?? 0) > 0 || signals.has_physical_location || signals.has_service_area,
-  );
+  return Boolean(signals.has_physical_location || signals.has_service_area);
 }
 
 /**

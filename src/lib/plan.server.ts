@@ -527,11 +527,31 @@ function stripLeakedCompetitorPhrases(text: string, rivals: { headings: string[]
   return result;
 }
 
-function removeCompetitorMentions(text: string, rivals: { domain: string }[]) {
-  const aliases = rivals.flatMap((rival) => {
-    const host = rival.domain.replace(/^www\./i, "").split(".")[0] ?? "";
-    return [rival.domain, host, host.replace(/[-_]+/g, " ")];
-  }).filter((name) => name.length > 2);
+/**
+ * profile.name is immutable — competitor scrubbing must never be able to
+ * mutate the client's own brand identity. A rival alias (its domain, host,
+ * or hyphen-split host) that happens to overlap with the client's own name
+ * used to still enter the replacement regex — a rival sharing a short
+ * substring with the brand ("Vends-Le" vs. a rival host containing "vends")
+ * corrupted the client's own name into "another supplier-Le.fr" in one live
+ * report. Any alias that overlaps the brand name either direction is now
+ * dropped before the regex is built, regardless of why the overlap exists
+ * upstream (a genuinely similar competitor name, or the client's own domain
+ * leaking into the rivals list).
+ */
+function removeCompetitorMentions(text: string, rivals: { domain: string }[], brandName?: string | null) {
+  const brandNorm = (brandName ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+  const aliases = rivals
+    .flatMap((rival) => {
+      const host = rival.domain.replace(/^www\./i, "").split(".")[0] ?? "";
+      return [rival.domain, host, host.replace(/[-_]+/g, " ")];
+    })
+    .filter((name) => name.length > 2)
+    .filter((name) => {
+      if (!brandNorm) return true;
+      const norm = name.toLowerCase().replace(/[^a-z0-9]+/g, "");
+      return !norm || !(brandNorm.includes(norm) || norm.includes(brandNorm));
+    });
   if (!aliases.length) return text;
   const pattern = aliases.map((name) => name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   return text.replace(new RegExp(`\\b(?:${pattern})\\b`, "gi"), "another supplier");
@@ -733,8 +753,8 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
     ? (parsed.faq ?? [])
         .filter((f): f is { question: string; answer: string } => Boolean(f.question && f.answer))
         .map((f) => ({
-          question: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(f.question), rivals), rivals),
-          answer: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(f.answer), rivals), rivals),
+          question: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(f.question), rivals, project.name), rivals),
+          answer: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(f.answer), rivals, project.name), rivals),
         }))
         .slice(0, 6)
     : [];
@@ -757,9 +777,9 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
   }
 
   return {
-    title: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")).slice(0, 70), rivals), rivals),
-    excerpt: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(parsed.excerpt?.trim() ?? ""), rivals), rivals),
-    body_md: stripLeakedCompetitorPhrases(removeCompetitorMentions(body_md, rivals), rivals),
+    title: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")).slice(0, 70), rivals, project.name), rivals),
+    excerpt: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(parsed.excerpt?.trim() ?? ""), rivals, project.name), rivals),
+    body_md: stripLeakedCompetitorPhrases(removeCompetitorMentions(body_md, rivals, project.name), rivals),
     faq: faq.length ? faq : null,
   };
 }
