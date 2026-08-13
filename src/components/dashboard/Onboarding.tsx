@@ -772,9 +772,35 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         void syncKnowledge({ data: { projectId: data.id } }).catch(() => undefined);
       }
 
+      // The merchant has now given us everything we asked for and the project
+      // exists — their part of setup is DONE. Record that before any content
+      // generation runs, because app.tsx keeps showing this wizard until the
+      // flag is true: previously a failed calendar build threw past the
+      // markComplete call at the end, so a merchant who had completed the whole
+      // form (and paid) was sent back through the entire wizard on every
+      // reload, forever. Generation is retried and reported below, never a
+      // reason to make someone fill the form again.
+      localStorage.removeItem(DRAFT_KEY);
+      try {
+        await withTransientRetry(() => markComplete({ data: { projectId: data.id } }));
+      } catch (markError) {
+        // This is the flag that ends the wizard loop — if it genuinely cannot
+        // be written, say so loudly rather than silently looping the merchant.
+        console.error("[onboarding] completeOnboarding failed", markError);
+        toast.error("Setup saved, but we couldn't finish marking it complete. Please reload.");
+      }
+
       toast.info("Building your 30-day calendar…");
-      await withTransientRetry(() => build({ data: { projectId: data.id, days: 30 } }));
-      toast.success("Your 30 days are planned.");
+      try {
+        await withTransientRetry(() => build({ data: { projectId: data.id, days: 30 } }));
+        toast.success("Your 30 days are planned.");
+      } catch (buildError) {
+        // A generation failure is not a setup failure. The daily autopilot cron
+        // refills an empty window on its own, so the merchant gets a working
+        // app now and a calendar shortly, instead of a dead-end wizard.
+        console.error("[onboarding] calendar build failed", buildError);
+        toast.warning("Your calendar will be generated shortly — you can start using the app now.");
+      }
 
       toast.info("Writing and illustrating your day-1 GEO article…");
       try {
@@ -795,8 +821,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
           e instanceof Error ? `Day 1 will be written shortly (${e.message})` : "Day 1 will be written shortly",
         );
       }
-      localStorage.removeItem(DRAFT_KEY);
-      await markComplete({ data: { projectId: data.id } }).catch(() => undefined);
       setLaunching(true);
       await new Promise((resolve) => window.setTimeout(resolve, 2200));
       setLaunching(false);

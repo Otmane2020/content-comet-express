@@ -46,9 +46,33 @@ async function issueEmbeddedSession(shop: string) {
   // partial installs can have an integration/user but no Shopify subscription.
   // Send those merchants back through the plan picker before issuing Ranki's
   // authenticated session.
-  const active = config.access_token
-    ? await activeAppSubscription(shop, config.access_token).catch(() => null)
-    : null;
+  // activeAppSubscription() returns null when Shopify says there is no active
+  // subscription, and THROWS when we could not ask Shopify at all. Collapsing
+  // both into null with `.catch(() => null)` meant any transient GraphQL
+  // failure — timeout, 429, a blip right after the charge was approved — was
+  // reported to the merchant as "you have not paid", bouncing someone who had
+  // just paid straight back to the payment page. Retry the call, and if it
+  // still cannot be answered, say so instead of inventing a billing state.
+  let active: Awaited<ReturnType<typeof activeAppSubscription>> = null;
+  let checkFailed = false;
+  if (config.access_token) {
+    for (let attempt = 1; attempt <= 3; attempt += 1) {
+      try {
+        active = await activeAppSubscription(shop, config.access_token);
+        checkFailed = false;
+        break;
+      } catch (error) {
+        checkFailed = true;
+        console.error("[shopify embedded-login] subscription check failed", {
+          shop,
+          attempt,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        if (attempt < 3) await new Promise((resolve) => setTimeout(resolve, attempt * 400));
+      }
+    }
+  }
+  if (checkFailed) return { error: "subscription_check_failed" } as const;
   if (!active) {
     return {
       error: "billing_required",

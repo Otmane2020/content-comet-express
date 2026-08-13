@@ -152,9 +152,13 @@ function Dashboard() {
             }
             const message = body.error === "shop_not_installed"
               ? "This store has no completed Ranki installation yet."
-              : body.error === "invalid_embedded_token" || body.error === "invalid_embedded_launch"
-                ? "Shopify could not verify this admin session."
-                : "Your Shopify session could not be opened.";
+              : body.error === "subscription_check_failed"
+                // Explicitly NOT the plan picker: we could not reach Shopify to
+                // ask, which is not the same as the merchant not having paid.
+                ? "We couldn't reach Shopify to verify your subscription. Your plan has not changed — please try again."
+                : body.error === "invalid_embedded_token" || body.error === "invalid_embedded_launch"
+                  ? "Shopify could not verify this admin session."
+                  : "Your Shopify session could not be opened.";
             setEmbeddedSessionError(message);
           }
           return;
