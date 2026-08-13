@@ -211,6 +211,7 @@ function TestPage() {
     : null;
   const [reportCopied, setReportCopied] = useState(false);
   const [reportCopyError, setReportCopyError] = useState<string | null>(null);
+  const [showManualCopy, setShowManualCopy] = useState(false);
   const diagnosticReport = {
     generatedAt: new Date().toISOString(),
     website,
@@ -233,6 +234,7 @@ function TestPage() {
   );
 
   async function copyDiagnosticReport() {
+    setShowManualCopy(false);
     try {
       // navigator.clipboard requires a secure context (https/localhost) and
       // can be undefined or reject (permission, focus) depending on the
@@ -262,7 +264,16 @@ function TestPage() {
         setReportCopied(true);
         setReportCopyError(null);
       } catch {
-        setReportCopyError("Copy failed — use \"Download JSON\" instead.");
+        // Both the async Clipboard API and execCommand can be blocked by a
+        // Permissions Policy — the common real-world case here is /test
+        // loaded inside Shopify admin's iframe, which restricts clipboard
+        // access on embedded apps regardless of user gesture. There is no
+        // programmatic copy left to try at that point, so fall back to
+        // showing the JSON in a selectable textarea the merchant can copy
+        // manually (Ctrl/Cmd+C) instead of a dead-end error.
+        setReportCopyError("Clipboard access is blocked here (likely the embedded app view) — select the text below and copy it manually, or use \"Download JSON\".");
+        setShowManualCopy(true);
+        return; // leave the manual textarea open; don't auto-clear the message
       }
     }
     window.setTimeout(() => {
@@ -458,6 +469,19 @@ function TestPage() {
             Download JSON
           </a>
       </section>
+
+      {showManualCopy && (
+        <section className="rounded-lg border border-border bg-card px-4 py-3">
+          <p className="mb-2 text-xs font-medium">Select all and copy (Ctrl/Cmd+C):</p>
+          <textarea
+            readOnly
+            value={reportJson}
+            onFocus={(event) => event.currentTarget.select()}
+            ref={(el) => el?.select()}
+            className="h-40 w-full resize-y rounded border border-border bg-muted/30 p-2 font-mono text-[11px]"
+          />
+        </section>
+      )}
 
       <Stage
         n={1}
