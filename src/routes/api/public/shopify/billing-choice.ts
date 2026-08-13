@@ -10,8 +10,8 @@ export const Route = createFileRoute("/api/public/shopify/billing-choice")({
         const url = new URL(request.url);
         const origin = url.origin;
         let shop: string | null = null;
+        const mod = await import("@/lib/shopify.server");
         try {
-          const mod = await import("@/lib/shopify.server");
           shop = mod.normalizeShop(url.searchParams.get("shop"));
           const state = mod.verifyState(url.searchParams.get("state"));
           const plan = url.searchParams.get("plan") === "annual" ? "annual" : "monthly";
