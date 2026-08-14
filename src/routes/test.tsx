@@ -10,6 +10,7 @@ import {
   probeRivals,
   runPipelineDiagnosticBatch,
 } from "@/lib/diagnostics.functions";
+import { renderMarkdown } from "@/lib/markdown";
 
 /**
  * `String(err)` on a plain object (not an Error instance) produces the
@@ -204,11 +205,11 @@ function TestPage() {
   const firstIncompleteStage = batchOrder.findIndex((batch) => !stageDone(stageStates[batch]));
   const resumePoint = contextMatchesWebsite && firstIncompleteStage > 0 ? firstIncompleteStage : 0;
   const calendarPreview = s6.status === "done" && Array.isArray(s6.raw)
-    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null; generationSource?: "ai" }[])
+    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null; generationSource?: "ai"; articleBrief?: { title: string; targetKeyword: string; angle: string; outline: string[]; questions: string[]; entities: string[] } }[])
     : [];
   const aiCount = calendarPreview.filter((item) => item.generationSource === "ai").length;
   const articlePreview = s7.status === "done"
-    ? (s7.raw as { title?: string; excerpt?: string; body_md?: string; quality?: { ok: boolean; failures: string[] } } | null)
+    ? (s7.raw as { title?: string; excerpt?: string; body_md?: string; articleBrief?: { title: string; targetKeyword: string; angle: string; outline: string[]; questions: string[]; entities: string[] }; quality?: { ok: boolean; failures: string[] } } | null)
     : null;
   const qualityFailures = articlePreview?.quality?.failures ?? [];
   const failedChecks = [s1, s2, s3, s4, s5, s6, s7].flatMap((stage) => stage.checks.filter((check) => !check.ok));
@@ -744,6 +745,17 @@ function TestPage() {
                 </div>
                 <p className="mt-1 text-sm font-medium leading-snug">{item.topic}</p>
                 {item.keyword && <p className="mt-1 text-[11px] text-muted-foreground">Target: {item.keyword}</p>}
+                {item.articleBrief && (
+                  <details className="mt-2 rounded border border-border/60 bg-muted/30 p-2 text-[11px]">
+                    <summary className="cursor-pointer font-semibold text-primary">Article brief · {item.articleBrief.angle}</summary>
+                    <ol className="mt-2 list-decimal space-y-1 pl-4 text-muted-foreground">
+                      {item.articleBrief.outline.map((section) => <li key={section}>{section}</li>)}
+                    </ol>
+                    {!!item.articleBrief.entities.length && (
+                      <p className="mt-2 text-muted-foreground">Entities: {item.articleBrief.entities.join(" · ")}</p>
+                    )}
+                  </details>
+                )}
               </div>
             ))}
           </div>
@@ -755,9 +767,24 @@ function TestPage() {
           <p className="font-mono text-[10px] font-bold uppercase tracking-[0.16em] text-primary">Test output</p>
           <h2 className="mt-1 text-xl font-semibold">{articlePreview.title}</h2>
           {articlePreview.excerpt && <p className="mt-2 text-sm text-muted-foreground">{articlePreview.excerpt}</p>}
-          <pre className="mt-4 max-h-[720px] overflow-auto whitespace-pre-wrap rounded-md bg-muted/60 p-4 font-sans text-sm leading-7 text-foreground">
-            {articlePreview.body_md}
-          </pre>
+          {articlePreview.articleBrief && (
+            <div className="mt-4 rounded-lg border border-border bg-muted/30 p-3 text-xs">
+              <p className="font-semibold text-primary">Structured generation input</p>
+              <p className="mt-1">Keyword: {articlePreview.articleBrief.targetKeyword} · Angle: {articlePreview.articleBrief.angle}</p>
+              <p className="mt-1 text-muted-foreground">{articlePreview.articleBrief.entities.join(" · ")}</p>
+            </div>
+          )}
+          <article className="mt-5 overflow-hidden rounded-xl border border-border bg-background shadow-sm">
+            <header className="border-b border-border bg-deep px-6 py-8 text-background">
+              <p className="font-mono text-[10px] font-bold uppercase tracking-[0.18em] text-gold">Article preview</p>
+              <h3 className="mt-2 font-display text-3xl font-bold leading-tight">{articlePreview.title}</h3>
+              {articlePreview.excerpt && <p className="mt-3 max-w-2xl text-sm text-background/75">{articlePreview.excerpt}</p>}
+            </header>
+            <div
+              className="prose-magazine px-6 py-7"
+              dangerouslySetInnerHTML={{ __html: renderMarkdown(articlePreview.body_md) }}
+            />
+          </article>
         </section>
       )}
     </main>
