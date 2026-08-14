@@ -44,11 +44,43 @@ export function absoluteImageUrl(url: string | null | undefined): string | null 
  * Store bytes in the article-images bucket and return a domain-independent URL.
  * We keep it relative so images keep working when the app domain changes.
  */
+const ARTICLE_IMAGES_BUCKET = "article-images";
+let bucketReady: Promise<void> | null = null;
+
+async function ensureArticleImagesBucket() {
+  if (!bucketReady) {
+    bucketReady = (async () => {
+      const { error } = await supabaseAdmin.storage.createBucket(ARTICLE_IMAGES_BUCKET, {
+        public: false,
+        fileSizeLimit: 10 * 1024 * 1024,
+        allowedMimeTypes: ["image/jpeg"],
+      });
+      // Concurrent cold starts can both discover the missing bucket. The
+      // second create then reports "already exists", which means the desired
+      // state has been reached and is safe to accept.
+      if (error && !/already exists|duplicate/i.test(error.message)) {
+        throw new Error(`Could not create ${ARTICLE_IMAGES_BUCKET}: ${error.message}`);
+      }
+    })().catch((error) => {
+      bucketReady = null;
+      throw error;
+    });
+  }
+  return bucketReady;
+}
+
 export async function storeImage(userId: string, key: string, bytes: Uint8Array, _origin?: string) {
   const path = `${userId}/${key}.jpg`;
-  const { error } = await supabaseAdmin.storage
-    .from("article-images")
-    .upload(path, bytes, { contentType: "image/jpeg", upsert: true });
+  const upload = () =>
+    supabaseAdmin.storage
+      .from(ARTICLE_IMAGES_BUCKET)
+      .upload(path, bytes, { contentType: "image/jpeg", upsert: true });
+
+  let { error } = await upload();
+  if (error && /bucket not found/i.test(error.message)) {
+    await ensureArticleImagesBucket();
+    ({ error } = await upload());
+  }
   if (error) throw new Error(error.message);
   return `/api/public/img/${path}`;
 }
