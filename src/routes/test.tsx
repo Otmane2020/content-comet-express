@@ -203,7 +203,7 @@ function TestPage() {
   const contextMatchesWebsite = (pipelineContext as { website?: string } | undefined)?.website === website;
   const firstIncompleteStage = batchOrder.findIndex((batch) => !stageDone(stageStates[batch]));
   const resumePoint = contextMatchesWebsite && firstIncompleteStage > 0 ? firstIncompleteStage : 0;
-  const calendarPreview = allStagesGreen && Array.isArray(s6.raw)
+  const calendarPreview = s6.status === "done" && Array.isArray(s6.raw)
     ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null; generationSource?: "ai" | "fallback" }[])
     : [];
   // Filtered explicitly on each value rather than "everything not ai" so an
@@ -213,16 +213,19 @@ function TestPage() {
   const fallbackCount = calendarPreview.filter((item) => item.generationSource === "fallback").length;
   const unknownCount = calendarPreview.length - aiCount - fallbackCount;
   const fallbackRate = calendarPreview.length ? fallbackCount / calendarPreview.length : 0;
-  const articlePreview = allStagesGreen
-    ? (s7.raw as { title?: string; excerpt?: string; body_md?: string } | null)
+  const articlePreview = s7.status === "done"
+    ? (s7.raw as { title?: string; excerpt?: string; body_md?: string; quality?: { ok: boolean; failures: string[] } } | null)
     : null;
+  const qualityFailures = articlePreview?.quality?.failures ?? [];
   const [reportCopied, setReportCopied] = useState(false);
   const [reportCopyError, setReportCopyError] = useState<string | null>(null);
   const [showManualCopy, setShowManualCopy] = useState(false);
   const diagnosticReport = {
     generatedAt: new Date().toISOString(),
     website,
-    status: allStagesGreen ? "complete" : "incomplete",
+    status: qualityFailures.length || fallbackRate > 0.25
+      ? "completed_with_quality_failures"
+      : allStagesGreen ? "complete" : "incomplete",
     stages: [
       ["landing", s1], ["profile", s2], ["keywords", s3], ["serp", s4],
       ["rivals", s5], ["calendar", s6], ["article", s7],
@@ -340,6 +343,13 @@ function TestPage() {
           status: stage.ok ? "done" : "error",
           checks: [
             { label: stage.summary, ok: stage.ok, ...(stage.error ? { detail: stage.error } : {}) },
+            ...(batch === "article" && stage.ok && stage.data && typeof stage.data === "object" && "quality" in stage.data
+              ? [{
+                  label: "Article fulfils its title promise",
+                  ok: Boolean((stage.data as { quality?: { ok?: boolean } }).quality?.ok),
+                  detail: ((stage.data as { quality?: { failures?: string[] } }).quality?.failures ?? []).join(" · ") || "ok",
+                }]
+              : []),
             ...localPack.map((business) => ({
               label: `Google Maps #${business.localPackPositions?.[0] ?? "—"} — ${business.name ?? "Unknown business"}`,
               ok: true,
