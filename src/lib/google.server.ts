@@ -45,11 +45,13 @@ export function googleClient() {
   const clientId =
     process.env["GOOGLE_OAUTH_CLIENT_ID"] ||
     process.env["GOOGLE_CLIENT_ID"] ||
+    process.env["GOOGLE_BUSINESS_CLIENT_ID"] ||
     process.env["GMB_CLIENT_ID"] ||
     process.env["GMB_OAUTH_CLIENT_ID"];
   const clientSecret =
     process.env["GOOGLE_OAUTH_CLIENT_SECRET"] ||
     process.env["GOOGLE_CLIENT_SECRET"] ||
+    process.env["GOOGLE_BUSINESS_CLIENT_SECRET"] ||
     process.env["GMB_CLIENT_SECRET"] ||
     process.env["GMB_OAUTH_CLIENT_SECRET"];
   if (!clientId || !clientSecret) throw new Error("Google OAuth is not configured yet.");
