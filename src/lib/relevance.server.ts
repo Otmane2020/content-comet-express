@@ -109,15 +109,14 @@ export async function proposeCompetitorCandidates(
     )
     .join("\n");
 
-  // Same successful architecture as deep-competitor-spy: DeepSeek receives
-  // multi-page website evidence and names real alternatives. The candidates
-  // are still only leads here; research.server.ts fetches every candidate's
-  // own landing page and requires the direct-substitute quality gate.
-  const raw = await callOpenRouter({
+  // Candidate discovery keeps the multi-page evidence architecture. A model
+  // response can still stop mid-JSON, so retry once with a smaller schema
+  // before failing; never invent deterministic competitor fallbacks.
+  const request = (compact: boolean) => callOpenRouter({
     temperature: 0,
     json: true,
-    maxTokens: 2000,
-    system: "You are an expert market analyst. Identify real business competitors from website evidence. Return valid JSON only.",
+    maxTokens: compact ? 900 : 2200,
+    system: "You are an expert market analyst. Identify real business competitors from website evidence. Return one complete JSON object only.",
     user: `${profileBlock(profile)}
 
 Website pages analysed:
@@ -131,22 +130,42 @@ Rules:
 - exclude the analysed business;
 - exclude blogs, media, directories, listicles, agencies and merely adjacent products unless the analysed company itself has that model;
 - do not infer competitors from one shared keyword: use the complete multi-page offer;
-- create 3-5 short commercial search queries in language code ${languageCode} describing the purchasable offer.
+- create 3-5 short commercial search queries in language code ${languageCode} describing the purchasable offer;
+${compact ? "- compact retry: return domains and queries only, with no explanations." : "- keep every explanation below 12 words."}
 
 Return exactly:
-{"competitors":[{"name":"...","domain":"example.com","why":"short evidence-based reason"}],"queries":["..."]}`,
+${compact
+  ? '{"competitors":[{"domain":"example.com"}],"queries":["..."]}'
+  : '{"competitors":[{"name":"...","domain":"example.com","why":"short reason"}],"queries":["..."]}'}`,
   });
 
-  const parsed = parseJsonLoose<{ competitors?: { domain?: string }[]; queries?: string[] }>(raw);
+  let parsed: { competitors?: { domain?: string }[]; queries?: string[] } | null = null;
+  let lastError: unknown = null;
+  for (let attempt = 0; attempt < 2 && !parsed; attempt += 1) {
+    try {
+      parsed = parseJsonLoose<{ competitors?: { domain?: string }[]; queries?: string[] }>(
+        await request(attempt === 1),
+      );
+    } catch (error) {
+      lastError = error;
+      console.warn("[competitors] AI discovery response incomplete", {
+        attempt: attempt + 1,
+        retrying: attempt === 0,
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
+  if (!parsed) throw lastError instanceof Error ? lastError : new Error("AI competitor discovery returned invalid JSON.");
+
   const own = evidence.domain;
   const domains = Array.from(new Set((parsed.competitors ?? [])
     .map((item) => (item.domain ?? "").trim().toLowerCase().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, ""))
     .filter((domain) => domain.includes(".") && domain !== own))).slice(0, Math.min(max, 5));
   if (!domains.length) throw new Error("The AI returned no usable competitor domains from the multi-page site evidence.");
   const queries = Array.from(new Set((parsed.queries ?? []).map((query) => query.trim()).filter(Boolean))).slice(0, 5);
+  if (!queries.length) throw new Error("The AI returned no usable commercial competitor queries.");
   return { domains, queries };
 }
-
 /** Hard language gate before any paid keyword measurement. */
 export function keywordMatchesLocale(keyword: string, locale: string | null | undefined): boolean {
   const code = (locale ?? "").slice(0, 2).toLowerCase();
