@@ -250,6 +250,13 @@ export async function buildCanonicalProfile(
   hints?: { name?: string | null; industry?: string | null; website_url?: string | null; audience?: string | null },
 ): Promise<CanonicalBusinessProfile> {
   const landing = site.landing;
+  const websiteLanguage = (landing?.lang ?? site.lang ?? "").slice(0, 2).toLowerCase();
+  const industryExamples = websiteLanguage === "fr"
+    ? "Logiciel SEO et GEO, Grossiste de meubles, Plateforme d’avis clients"
+    : "SEO and GEO software, Furniture wholesaler, Customer review platform";
+  const canonicalExample = websiteLanguage === "fr"
+    ? "Grossiste et vendeur de meubles en ligne pour les professionnels en France."
+    : "AI search visibility software for businesses and marketing teams.";
   const buildPrompt = () => `${landing?.positioning ? `How the business describes itself, verbatim (SEO title, site name, meta description) — trust this over your reading of the page body:\n${landing.positioning}\n` : ""}${
       landing?.sellsToBusinesses
         ? `Wholesale/B2B wording on this page: ${(landing.b2bMarkers ?? []).join(", ") || "in the body copy"} — ${landing.b2bMentions ?? 0} mentions across the landing page. This business sells to other businesses: "sales_model" MUST be "wholesale" or "manufacturer", and "audience" must describe the professional buyer, not a consumer.\n`
@@ -262,7 +269,7 @@ Page text (truncated): ${site.text?.slice(0, 6000) ?? ""}
 Hints — name: ${hints?.name ?? ""}, industry: ${hints?.industry ?? ""}, website: ${hints?.website_url ?? ""}
 ${hints?.audience ? `Known audience (already confirmed for this business, trust it over your own reading of the page): ${hints.audience}\nIf that audience is resellers, retailers, professionals or other businesses, "sales_model" MUST be "wholesale" or "manufacturer" — never "retail".` : ""}
 
-Write every human-readable JSON value (especially "description", "audience" and "canonical") in the website's own language: ${landing?.lang ?? site.lang ?? "the language used by the website"}. Do not translate it to English.
+Write every human-readable JSON value (especially "industry", "description", "audience" and "canonical") in the website's own language: ${landing?.lang ?? site.lang ?? "the language used by the website"}. Do not translate it into a different language.
 
 Return JSON:
 {
@@ -282,12 +289,12 @@ Return JSON:
 }
 
 Rules:
-- "industry": a concise, human-readable category that completes “Industry”, grounded in the site (for example “Logiciel SEO et GEO”, “Grossiste de meubles”, or “Plateforme d’avis clients”). Never leave it blank when the business is reliable.
+- "industry": a concise, human-readable category that completes “Industry”, grounded in the site (for example ${industryExamples}). Never leave it blank when the business is reliable.
 - "products": only product categories the site actually sells. Empty array if unclear.
 - "services": list EVERY distinct capability, feature or offering described on the page as its own array item — do not fold them into one summary sentence. For a SaaS/software product this means each major feature separately (e.g. "keyword research", "competitor analysis", "AI content generation", "image generation", "CMS publishing", "Google Business Profile posting", "Search Console integration" — not one item like "content platform"). For a service business, list each distinct service offered. Include named integrations, platforms or destinations the page states it works with (e.g. "WordPress", "Shopify", "WooCommerce") as their own items when they are a real, distinguishable part of what's offered, not marketing filler. Empty array only for a pure product seller with no services at all.
 - "locations": only geographic areas mentioned on the site. Empty array if national/online with no area stated.
 - "reliable": false if you cannot determine what the company actually sells with confidence.
-- "canonical": e.g. "Grossiste et vendeur de meubles en ligne: canapés, tables, chaises, mobilier de maison en France."
+- "canonical": e.g. "${canonicalExample}"
 - NEVER include craft trades (menuisier, ébéniste, tapissier, décorateur) as services unless the site explicitly offers them.
 - "primary_entity": the thing actually sold. "product" for physical/shippable goods, "software" for a SaaS/app/platform/tool (e.g. an AI content or SEO automation product), "service" for a professional or manual service performed for the buyer, "marketplace" for a platform that lists other sellers' offers.
 - "has_physical_location": true only if a real street address or storefront appears on the site.
@@ -321,12 +328,13 @@ Rules:
   const profileLanguageText = () => [p.industry, p.description, p.audience, p.canonical, ...(p.products ?? []), ...(p.services ?? [])]
     .filter(Boolean).join(" ");
   if (!textMatchesLocale(profileLanguageText(), profileLocale)) {
-    console.warn("[canonical-profile] language mismatch; retrying", { expected: profileLocale });
+    console.warn("[canonical-profile] language mismatch; normalising profile", { expected: profileLocale });
+    const targetLanguage = (profileLocale ?? "en").slice(0, 2).toLowerCase() === "fr" ? "French" : "English";
     const strictRaw = await callOpenRouter({
       json: true,
       maxTokens: 1800,
-      system,
-      user: `${buildPrompt()}\nCRITICAL RETRY: the previous response used the wrong language. Every human-readable value MUST use locale ${profileLocale}.`,
+      system: "You normalise the language of an existing business-profile JSON object. Return ONLY valid JSON. Preserve every fact and enum exactly; do not add, remove, infer, or reinterpret business information.",
+      user: `Rewrite ONLY the human-readable values of this JSON in ${targetLanguage}: industry, description, products, services, locations, audience and canonical. Keep name, website_url, sales_model, reliable, primary_entity, has_physical_location and has_service_area unchanged. Brand names and official product names may remain untranslated.\n\n${JSON.stringify(p)}`,
     });
     p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(strictRaw);
     if (!textMatchesLocale(profileLanguageText(), profileLocale)) {
