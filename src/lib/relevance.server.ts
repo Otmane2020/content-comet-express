@@ -98,33 +98,51 @@ function profileBlock(profile: BusinessProfile) {
 export async function proposeCompetitorCandidates(
   profile: BusinessProfile,
   languageCode: string,
-  max = 15,
+  max = 5,
 ): Promise<{ domains: string[]; queries: string[] }> {
+  if (!profile.website_url) throw new Error("A website URL is required to discover competitors.");
+  const { scrapeCompetitorEvidence } = await import("./scrape.server");
+  const evidence = await scrapeCompetitorEvidence(profile.website_url, 5);
+  const pagesDigest = evidence.pages
+    .map((page) =>
+      `- ${page.url}\n  title: ${page.title ?? ""}\n  meta: ${page.description ?? ""}\n  h1/h2/h3: ${page.headings.slice(0, 12).join(" | ")}\n  content: ${page.text.slice(0, 1200)}`,
+    )
+    .join("\n");
+
+  // Same successful architecture as deep-competitor-spy: DeepSeek receives
+  // multi-page website evidence and names real alternatives. The candidates
+  // are still only leads here; research.server.ts fetches every candidate's
+  // own landing page and requires the direct-substitute quality gate.
   const raw = await callOpenRouter({
     temperature: 0,
     json: true,
-    maxTokens: 1800,
-    system: "You identify purchasable business alternatives from verified company evidence. Return strict JSON only.",
+    maxTokens: 2000,
+    system: "You are an expert market analyst. Identify real business competitors from website evidence. Return valid JSON only.",
     user: `${profileBlock(profile)}
 
-Identify up to ${max} companies whose product or service a buyer could realistically choose INSTEAD of this business. This must work for any sector.
+Website pages analysed:
+${pagesDigest}
+
+Identify exactly ${Math.min(max, 5)} real competitors whose offer a buyer could choose instead of this business.
 
 Rules:
-- Same primary job, substantially similar offer, same buyer type and comparable delivery/sales model.
-- Do not return publishers, blogs, agencies, directories, marketplaces or broad adjacent tools unless that is also what the analysed business sells.
-- Do not include the analysed business itself.
-- Return the canonical commercial domain, without paths or protocols.
-- Also create 3-5 short commercial Google queries in language code ${languageCode} that describe the complete purchasable offer, not an editorial topic and not a brand name.
-- Never rely on shared keywords alone. These are candidate leads; their websites will be verified afterward.
+- same core need, comparable offer, same buyer type and compatible sales model;
+- use real canonical commercial domains, without protocol or path;
+- exclude the analysed business;
+- exclude blogs, media, directories, listicles, agencies and merely adjacent products unless the analysed company itself has that model;
+- do not infer competitors from one shared keyword: use the complete multi-page offer;
+- create 3-5 short commercial search queries in language code ${languageCode} describing the purchasable offer.
 
 Return exactly:
-{"competitors":[{"domain":"example.com","reason":"short substitution reason"}],"queries":["..."]}`,
+{"competitors":[{"name":"...","domain":"example.com","why":"short evidence-based reason"}],"queries":["..."]}`,
   });
+
   const parsed = parseJsonLoose<{ competitors?: { domain?: string }[]; queries?: string[] }>(raw);
-  const own = (profile.website_url ?? "").replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, "").toLowerCase();
+  const own = evidence.domain;
   const domains = Array.from(new Set((parsed.competitors ?? [])
     .map((item) => (item.domain ?? "").trim().toLowerCase().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, ""))
-    .filter((domain) => domain.includes(".") && domain !== own))).slice(0, max);
+    .filter((domain) => domain.includes(".") && domain !== own))).slice(0, Math.min(max, 5));
+  if (!domains.length) throw new Error("The AI returned no usable competitor domains from the multi-page site evidence.");
   const queries = Array.from(new Set((parsed.queries ?? []).map((query) => query.trim()).filter(Boolean))).slice(0, 5);
   return { domains, queries };
 }

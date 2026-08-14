@@ -406,3 +406,71 @@ export async function scrapeSite(input: string): Promise<SiteSnapshot> {
   // Parsed from the same fetch, so the richer landing signals cost nothing.
   return { url: page.url, ...signals, landing: extractLandingProfile(page.html, page.url) };
 }
+
+
+export type CompetitorDiscoveryEvidence = {
+  domain: string;
+  lang: string | null;
+  pages: Array<{ url: string; title: string | null; description: string | null; headings: string[]; text: string }>;
+};
+
+/**
+ * Multi-page evidence used only for competitor discovery. Ported from the
+ * proven deep-competitor-spy flow: homepage plus up to five real internal
+ * pages, with title/meta/headings/body copy. It reuses the bounded fetcher
+ * above and performs no DataForSEO request.
+ */
+export async function scrapeCompetitorEvidence(input: string, maxInternalPages = 5): Promise<CompetitorDiscoveryEvidence> {
+  const url = normalizeUrl(input);
+  const home = await fetchHtml(url);
+  const homeSignals = extractPageSignals(home.html, home.url);
+  const origin = new URL(home.url).origin;
+  const links: string[] = [];
+  const seen = new Set<string>([home.url.replace(/\/$/, "")]);
+
+  for (const match of home.html.matchAll(/<a[^>]+href=["']([^"'#]+)["']/gi)) {
+    const href = match[1];
+    if (!href) continue;
+    try {
+      const candidate = new URL(href, origin);
+      if (candidate.origin !== origin) continue;
+      if (/\.(?:pdf|jpe?g|png|svg|zip|webp|gif|mp4)(?:$|\?)/i.test(candidate.pathname)) continue;
+      candidate.hash = "";
+      const normalized = candidate.toString().replace(/\/$/, "");
+      if (seen.has(normalized)) continue;
+      seen.add(normalized);
+      links.push(candidate.toString());
+      if (links.length >= maxInternalPages) break;
+    } catch {
+      // Ignore malformed links; the homepage remains valid evidence.
+    }
+  }
+
+  const internal = await Promise.all(
+    links.map(async (pageUrl) => {
+      try {
+        const page = await fetchHtml(pageUrl);
+        return { url: page.url, ...extractPageSignals(page.html, page.url) };
+      } catch {
+        return null;
+      }
+    }),
+  );
+
+  const pages = [
+    { url: home.url, ...homeSignals },
+    ...internal.filter((page): page is NonNullable<typeof page> => page !== null),
+  ].map((page) => ({
+    url: page.url,
+    title: page.title,
+    description: page.description,
+    headings: page.headings,
+    text: page.text,
+  }));
+
+  return {
+    domain: new URL(home.url).hostname.replace(/^www\./i, "").toLowerCase(),
+    lang: homeSignals.lang,
+    pages,
+  };
+}
