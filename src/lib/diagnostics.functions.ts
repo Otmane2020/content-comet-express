@@ -188,7 +188,10 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
           ...measured.filter((row) => !hasMeasurableDemand(row)).map((row) => ({ keyword: row.keyword, reason: "no_volume" as const })),
           ...scored.filter((row) => (row.relevance_score ?? 0) < MIN_RELEVANCE).map((row) => ({ keyword: row.keyword, reason: "irrelevant" as const })),
         ];
-        const result = { proposed, measured, withDemand: withDemand.length, relevancePassed: relevant.length, qualified, rejected, warning };
+        const qualityFailures = qualified.every((row) => row.difficulty === null || row.difficulty === undefined)
+          ? ["Keyword difficulty is missing for every qualified keyword; opportunity selection is incomplete."]
+          : [];
+        const result = { proposed, measured, withDemand: withDemand.length, relevancePassed: relevant.length, qualified, rejected, warning, qualityFailures };
         return finish(
           `${proposed.length} proposed; ${measured.length} measured; ${withDemand.length} with volume; ${relevant.length} relevant; ${qualified.length} qualified${warning ? ` — ${warning}` : ""}`,
           result,

@@ -346,6 +346,13 @@ function TestPage() {
           status: stage.ok ? "done" : "error",
           checks: [
             { label: stage.summary, ok: stage.ok, ...(stage.error ? { detail: stage.error } : {}) },
+            ...(stage.ok && stage.data && typeof stage.data === "object" && "qualityFailures" in stage.data
+              ? ((stage.data as { qualityFailures?: string[] }).qualityFailures ?? []).map((failure) => ({
+                  label: "Quality gate",
+                  ok: false,
+                  detail: failure,
+                }))
+              : []),
             ...(batch === "article" && stage.ok && stage.data && typeof stage.data === "object" && "quality" in stage.data
               ? [{
                   label: "Article fulfils its title promise",
