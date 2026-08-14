@@ -205,7 +205,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const { discoverCompetitorsFromSerp } = await import("./research.server");
         const competitors = await discoverCompetitorsFromSerp(context.profile, context.writingLocale ?? "en", null, null, 8, context.qualified.slice(0, 5).map((row) => row.keyword), 5);
         if (!competitors.length) throw new Error("No SERP competitor candidates were found across the commercial queries.");
-        return finish(`${competitors.length} SERP candidate domains (confirmation happens after landing-page analysis)`, competitors, { ...context, competitors });
+        return finish(`${competitors.length} direct product competitor(s) confirmed from SERP and landing-page evidence`, competitors, { ...context, competitors });
       }
       if (data.batch === "rivals") {
         if (!context.competitors?.length || !context.profile || !context.qualified?.length) missingBatchInput(data.batch);

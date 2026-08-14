@@ -552,6 +552,7 @@ export async function discoverCompetitorsFromSerp(
   const country = opts.locationName;
   const category = (biz.industry ?? biz.name ?? "").trim();
   if (!category) throw new Error("Not enough business information to build competitor search queries.");
+  const primaryEntity = biz.primary_entity ?? "service";
 
   // Build queries from the canonical profile when available.
   const productQueries = (biz.products ?? []).slice(0, 3).map((p) => p);
@@ -615,9 +616,31 @@ export async function discoverCompetitorsFromSerp(
       ].filter((q): q is string => Boolean(q && q.trim())),
     ),
   ).slice(0, 9);
+  // Competitor discovery must describe the complete purchasable product, not
+  // reuse broad editorial keywords. A new GEO SaaS searched through terms like
+  // "generative engine optimization" mostly finds Semrush/Ahrefs articles;
+  // buyers comparing the actual product search for automation + creation +
+  // publishing. These queries work even when the new domain has no rankings.
+  const directProductQueries = primaryEntity === "software"
+    ? isFrench
+      ? [
+          "logiciel automatisation contenu SEO avec publication",
+          "plateforme IA création et publication de contenu SEO",
+          "logiciel GEO génération de contenu automatisée",
+          "plateforme visibilité IA calendrier éditorial automatique",
+          "outil SEO IA publication automatique CMS",
+        ]
+      : [
+          "AI SEO content automation software with publishing",
+          "AI content creation and CMS publishing platform",
+          "automated GEO content generation platform",
+          "AI search visibility content automation software",
+          "automated SEO editorial calendar and publishing tool",
+        ]
+    : [];
   const queries = Array.from(
-    new Set((buyerQueries?.length ? buyerQueries : generatedQueries).map((q) => q.trim()).filter(Boolean)),
-  ).slice(0, 9);
+    new Set([...directProductQueries, ...(buyerQueries ?? []), ...generatedQueries].map((q) => q.trim()).filter(Boolean)),
+  ).slice(0, primaryEntity === "software" ? 5 : 9);
 
   const selfDomain = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
 
@@ -728,7 +751,7 @@ export async function discoverCompetitorsFromSerp(
   // furniture retailers can rank for the same generic categories while selling
   // to an entirely different buyer. Verify the candidate's own landing page
   // with the same deterministic B2B extractor used for the merchant.
-  const landingProfiles = await analyseCompetitorLandings(shortlist, landingProfileLimit);
+  const landingProfiles = await analyseCompetitorLandings(shortlist, Math.max(landingProfileLimit, 12));
   const b2bDomains = new Set(landingProfiles.filter((p) => p.sellsToBusinesses).map((p) => p.domain.toLowerCase()));
   const readableDomains = new Set(landingProfiles.map((profile) => profile.domain.toLowerCase()));
   const buyerMatched = shortlist.filter((domain) => b2bMerchant ? b2bDomains.has(domain.toLowerCase()) : readableDomains.has(domain.toLowerCase()));
