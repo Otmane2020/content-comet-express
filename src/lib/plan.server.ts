@@ -776,13 +776,14 @@ export function stripModelFaqSection(body: string, faqHeading: string): string {
 
 export async function writeArticle(
   project: ProjectBrief,
-  item: { content_type: ContentType; topic: string | null },
+  item: { content_type: ContentType; topic: string | null; angle?: EditorialAngle | null },
   extras?: {
     products?: { title: string; price: string | null; url: string | null; description: string | null }[];
     links?: { title: string; url: string }[];
     localInfo?: LocalInfo | undefined;
     profile?: CanonicalProfileFacts | null;
     competitors?: { domain: string; positioning: string; headings: string[] }[];
+    qualityMode?: "throw" | "report";
   },
 ) {
   const products = extras?.products ?? [];
@@ -822,10 +823,18 @@ export async function writeArticle(
   // engineer") from being handed to the model as material to paraphrase in
   // the first place, rather than relying on an instruction not to.
   const rivals = extras?.competitors ?? [];
+  const comparisonRequested =
+    item.angle === "comparison" ||
+    /\b(?:compar(?:e|ed|ison)|versus|vs\.?|which (?:one|tool|platform|software)|best (?:tool|platform|software))\b/i.test(item.topic ?? "");
   const { topicsObserved, recurringSections } = abstractMarketResearch(rivals);
-  const rivalsBlock = topicsObserved.length || recurringSections.length
-    ? `\n\nAbstracted competitive research — anonymised topic/structure signals only, NOT source material, NOT phrases to reuse or rephrase:\nTopics observed across competing pages: ${topicsObserved.join(", ") || "none"}\nRecurring page sections across competitors: ${recurringSections.join(", ") || "none"}\n\nUse this only to decide what ground to cover, then go further using only the merchant's verified facts below. NEVER mention competitor names, brands, domains or URLs in the published content, and NEVER build a sentence out of the labels above — they are anonymised keyword fragments, not wording to echo. Every brand-specific claim describing what this business does, offers or automates must be traceable word-for-word to "Verified facts about this business" above; if a capability, integration or process is not listed there, do not attribute it to this business even if a competitor covers something similar.`
+  const comparisonRivalsBlock = comparisonRequested && rivals.length
+    ? `\n\nVerified comparison candidates. You MAY name these businesses only in this comparison article. Use only the supplied landing-page evidence; do not invent features, prices, integrations or results:\n${rivals
+        .map((rival) => `- ${rival.domain} — ${rival.positioning || "positioning not confirmed"}${rival.headings.length ? ` — page sections: ${rival.headings.slice(0, 6).join(", ")}` : ""} — official source: https://${rival.domain}`)
+        .join("\n")}\n\nComparison contract: name at least two candidates, define at least three explicit decision criteria, include a Markdown comparison table, and finish with a ## Sources section containing Markdown links to at least two official candidate websites. If evidence does not support a cell, write "Not verified" instead of guessing.`
     : "";
+  const rivalsBlock = !comparisonRequested && (topicsObserved.length || recurringSections.length)
+    ? `\n\nAbstracted competitive research — anonymised topic/structure signals only, NOT source material, NOT phrases to reuse or rephrase:\nTopics observed across competing pages: ${topicsObserved.join(", ") || "none"}\nRecurring page sections across competitors: ${recurringSections.join(", ") || "none"}\n\nUse this only to decide what ground to cover, then go further using only the merchant's verified facts below. NEVER mention competitor names, brands, domains or URLs in the published content, and NEVER build a sentence out of the labels above — they are anonymised keyword fragments, not wording to echo. Every brand-specific claim describing what this business does, offers or automates must be traceable word-for-word to "Verified facts about this business" above; if a capability, integration or process is not listed there, do not attribute it to this business even if a competitor covers something similar.`
+    : comparisonRivalsBlock;
 
   const catalogBlock = products.length
     ? `\n\nReal product catalogue of this business (use ONLY these products, with their exact names, prices and links; never invent products):\n${products
@@ -894,7 +903,7 @@ ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock
 ${editorialFormat}
 Rules: 900-1400 words, markdown body (## and ### headings, bullet lists where they genuinely clarify), title max 65 characters (it is a search-result headline), no title duplicated inside the body, no invented client testimonials, no placeholder lorem text.
 Audience safety: write for the person searching the target keyword. Never teach this business how to market, rank, use AI, GEO, SEO or advertising unless that is explicitly the search topic.
-Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above. Never invent a capability not listed in the verified facts — common failure modes to avoid specifically: claiming the product auto-updates or re-optimises already-published content, claiming "industry-standard" or unspecified security/compliance measures, claiming a support channel or response time, or claiming an industry-specific adaptation (healthcare, real estate, etc.) — unless each is explicitly present in the verified facts above. A broad service label from the verified facts (e.g. "social content automation", "AI video generation") describes WHAT the business does, not HOW — never expand it into invented specific mechanisms (a scheduling system, direct social-platform publishing, style/template selection, a particular workflow or step count) unless those specifics are themselves separately listed in the verified facts. When explaining a capability the verified facts only name broadly, describe it at the same level of generality the facts gave you, or explain the general concept without attributing the specific mechanism to this business. Competitor research is private and competitor names must never appear in title, excerpt, article or FAQ.
+Fact safety: use only facts supplied above about this business/catalogue. Never claim that the business is cited by AI, a leader, the best, frequently recommended, has a delivery time, stock level, price, number of references, review score or result unless that exact fact is supplied above. Never invent a capability not listed in the verified facts — common failure modes to avoid specifically: claiming the product auto-updates or re-optimises already-published content, claiming "industry-standard" or unspecified security/compliance measures, claiming a support channel or response time, or claiming an industry-specific adaptation (healthcare, real estate, etc.) — unless each is explicitly present in the verified facts above. A broad service label from the verified facts (e.g. "social content automation", "AI video generation") describes WHAT the business does, not HOW — never expand it into invented specific mechanisms (a scheduling system, direct social-platform publishing, style/template selection, a particular workflow or step count) unless those specifics are themselves separately listed in the verified facts. When explaining a capability the verified facts only name broadly, describe it at the same level of generality the facts gave you, or explain the general concept without attributing the specific mechanism to this business. ${comparisonRequested ? "This is a comparison article: competitor names are required, but every competitor-specific statement must be supported by supplied official landing evidence and linked in Sources." : "Competitor research is private and competitor names must never appear in title, excerpt, article or FAQ."}
 Dates: the current year is ${year}. Every "trends", "guide" or "best of" reference must say ${year}. Never mention ${year - 1}, ${year - 2} or older years as current, and do not invent precise dated statistics you cannot support.${faqRule}
 
 Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown article"${geoSchema}${faqSchema}}`,
@@ -953,12 +962,57 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
       .join("\n\n")}`;
   }
 
-  return {
-    title: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled")).slice(0, 70), rivals, project.name), rivals),
-    excerpt: stripLeakedCompetitorPhrases(removeCompetitorMentions(freshenYears(parsed.excerpt?.trim() ?? ""), rivals, project.name), rivals),
-    body_md: stripLeakedCompetitorPhrases(removeCompetitorMentions(body_md, rivals, project.name), rivals),
+  const protect = (value: string) => comparisonRequested
+    ? value
+    : stripLeakedCompetitorPhrases(removeCompetitorMentions(value, rivals, project.name), rivals);
+  const article = {
+    // Never character-slice a headline: that produced "...and Perplex".
+    title: protect(freshenYears(parsed.title?.trim() || (item.topic ?? "Untitled"))),
+    excerpt: protect(freshenYears(parsed.excerpt?.trim() ?? "")),
+    body_md: protect(body_md),
     faq: faq.length ? faq : null,
   };
+  const quality = validateArticleQuality(item, article, rivals);
+  if (!quality.ok && extras?.qualityMode !== "report") {
+    throw new Error(`ARTICLE_QUALITY_FAILED: ${quality.failures.join("; ")}`);
+  }
+  return { ...article, quality };
+}
+
+export type ArticleQuality = { ok: boolean; comparisonRequested: boolean; failures: string[] };
+
+/** Refuses content that does not fulfil the editorial promise in its title. */
+export function validateArticleQuality(
+  item: { topic: string | null; angle?: EditorialAngle | null },
+  article: { title: string; body_md: string },
+  rivals: { domain: string }[],
+): ArticleQuality {
+  const failures: string[] = [];
+  const comparisonRequested =
+    item.angle === "comparison" ||
+    /\b(?:compar(?:e|ed|ison)|versus|vs\.?|which (?:one|tool|platform|software)|best (?:tool|platform|software))\b/i.test(item.topic ?? article.title);
+  const title = article.title.trim();
+  if (title.length > 140) failures.push("article title exceeds 140 characters");
+  if (/\b(?:and|or|with|for|to|of|the|a|an|perplex)$/i.test(title) || /[,:;\\/-]$/.test(title)) {
+    failures.push("article title appears truncated or incomplete");
+  }
+  if (comparisonRequested) {
+    const text = article.body_md.toLowerCase();
+    const named = rivals.filter((rival) => {
+      const domain = rival.domain.toLowerCase();
+      const brand = domain.replace(/^www\./, "").split(".")[0] ?? domain;
+      return text.includes(domain) || (brand.length >= 4 && text.includes(brand));
+    });
+    if (named.length < 2) failures.push("comparison names fewer than two supplied competitors");
+    if (!/^\|.+\|\s*\n\|?\s*:?-{3,}/m.test(article.body_md)) failures.push("comparison has no Markdown comparison table");
+    const criteria = ["feature", "capabilit", "pricing", "cost", "integration", "workflow", "automation", "publishing", "setup", "ease of use", "use case"];
+    if (criteria.filter((term) => text.includes(term)).length < 3) failures.push("comparison has fewer than three explicit decision criteria");
+    const officialLinks = rivals.filter((rival) => text.includes(`https://${rival.domain.toLowerCase()}`));
+    if (!/^##\s+Sources\b/im.test(article.body_md) || officialLinks.length < 2) {
+      failures.push("comparison lacks a Sources section with two official competitor links");
+    }
+  }
+  return { ok: failures.length === 0, comparisonRequested, failures };
 }
 
 /**
