@@ -741,7 +741,16 @@ export async function discoverCompetitorsFromSerp(
     ? Object.fromEntries(buyerMatched.map((domain) => [domain, 100]))
     : await scoreCompetitorDomains(biz, buyerMatched);
   const kept = buyerMatched
-    .filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE && (queryHits.get(d) ?? 0) >= 2)
+    .filter((d) => {
+      const relevance = compScores[d] ?? 0;
+      const hits = queryHits.get(d) ?? 0;
+      const info = byDomain.get(d);
+      // Two distinct queries confirm a competitor. In a sparse niche SERP,
+      // retain a top-10 candidate only when the relevance model is highly
+      // confident; the next stage still verifies its actual landing page.
+      return relevance >= MIN_COMPETITOR_RELEVANCE &&
+        (hits >= 2 || (relevance >= 85 && hits >= 1 && (info?.bestPosition ?? 999) <= 10));
+    })
     .map((d) => {
       const info = byDomain.get(d)!;
       return {
@@ -798,7 +807,7 @@ export async function runLiveMarketResearch(
   };
 }> {
   const { scrapeSite } = await import("./scrape.server");
-  const { searchVolumeFor } = await import("./dataforseo.server");
+  const { searchVolumeFor, bulkKeywordDifficulty } = await import("./dataforseo.server");
   const { candidateKeywords, compositeScore, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand } = await import("./relevance.server");
 
   const opts = localeOpts(input.locale, input.targetCountry ?? null);
@@ -857,7 +866,7 @@ export async function runLiveMarketResearch(
     withDemandKeywords: withDemand.map((r) => ({ keyword: r.keyword, search_volume: r.search_volume })),
     scoredBelowThreshold: scored.filter((r) => (r.relevance_score ?? 0) < MIN_RELEVANCE).map((r) => ({ keyword: r.keyword, relevance_score: r.relevance_score })),
   });
-  const keywords = relevant
+  let keywords = relevant
     .sort((a, b) =>
       compositeScore(b, b.relevance_score ?? 0) - compositeScore(a, a.relevance_score ?? 0) ||
       (b.search_volume ?? 0) - (a.search_volume ?? 0),
@@ -872,6 +881,11 @@ export async function runLiveMarketResearch(
     throw new Error(
       `QUALITY_FAILED: only ${keywords.length} keyword${keywords.length === 1 ? "" : "s"} had real, measurable demand and passed the relevance gate; at least ${MIN_QUALIFIED_KEYWORDS} are required.`,
     );
+  }
+  const difficultyByKeyword = await bulkKeywordDifficulty(keywords.map((row) => row.keyword), opts);
+  keywords = keywords.map((row) => ({ ...row, difficulty: difficultyByKeyword.get(row.keyword.toLowerCase()) ?? null }));
+  if (keywords.every((row) => row.difficulty === null)) {
+    throw new Error("QUALITY_FAILED: DataForSEO returned no organic difficulty for any qualified keyword.");
   }
   const warning = null;
 

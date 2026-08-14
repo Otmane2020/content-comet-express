@@ -136,7 +136,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       if (data.batch === "keywords") {
         if (!context.site || !context.profile) missingBatchInput(data.batch);
         const { candidateKeywords, scoreRelevance, MIN_RELEVANCE, MIN_USABLE_KEYWORDS, MIN_QUALIFIED_KEYWORDS, TARGET_CANDIDATES, hasMeasurableDemand } = await import("./relevance.server");
-        const { searchVolumeFor } = await import("./dataforseo.server");
+        const { searchVolumeFor, bulkKeywordDifficulty } = await import("./dataforseo.server");
         const { localeOpts, requireLiveDataForSeo, classifyIntent } = await import("./research.server");
         await requireLiveDataForSeo();
         const proposed = await candidateKeywords(context.profile, context.site.landing ?? null, TARGET_CANDIDATES);
@@ -171,7 +171,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
           scoredBelowThreshold: scored.filter((r) => (r.relevance_score ?? 0) < MIN_RELEVANCE).map((r) => ({ keyword: r.keyword, relevance_score: r.relevance_score })),
         });
         if (!relevant.length) throw new Error(`${withDemand.length} keyword(s) had real search-volume data, but none matched this business's buyer profile (relevance gate).`);
-        const qualified = relevant;
+        let qualified = relevant;
         if (qualified.length < MIN_USABLE_KEYWORDS) {
           throw new Error(
             `Only ${qualified.length} keyword(s) had real, measurable demand and passed the relevance gate — not enough reliable search data to plan from.`,
@@ -180,6 +180,8 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         if (qualified.length < MIN_QUALIFIED_KEYWORDS) {
           throw new Error(`QUALITY_FAILED: only ${qualified.length} qualified keyword(s); at least ${MIN_QUALIFIED_KEYWORDS} are required for a non-repetitive 30-day calendar.`);
         }
+        const difficultyByKeyword = await bulkKeywordDifficulty(qualified.map((row) => row.keyword), localeOpts(writingLocale));
+        qualified = qualified.map((row) => ({ ...row, difficulty: difficultyByKeyword.get(row.keyword.toLowerCase()) ?? null }));
         const warning = null;
         // Every rejected candidate with why, so a thin scan is diagnosable
         // instead of a single opaque count: was it no market data at all

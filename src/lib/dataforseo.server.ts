@@ -299,6 +299,23 @@ export async function searchVolumeFor(
     }));
 }
 
+/** One batched Labs request enriches already-qualified keywords with organic difficulty. */
+export async function bulkKeywordDifficulty(
+  keywords: string[],
+  opts: LocationOpts = {},
+): Promise<Map<string, number>> {
+  const batch = Array.from(new Set(keywords.map((keyword) => cleanKeywordForDataForSeo(keyword).toLowerCase()).filter(Boolean))).slice(0, 1000);
+  if (!batch.length) return new Map();
+  const result = await post<{ items?: { keyword?: string; keyword_difficulty?: number | null }[] }[]>(
+    "/dataforseo_labs/google/bulk_keyword_difficulty/live",
+    { keywords: batch, ...loc(opts) },
+  );
+  const pairs = (result[0]?.items ?? [])
+    .filter((item) => Boolean(item.keyword) && item.keyword_difficulty !== null && item.keyword_difficulty !== undefined)
+    .map((item) => [item.keyword!.toLowerCase(), item.keyword_difficulty!] as const);
+  return new Map(pairs);
+}
+
 /**
  * Keyword ideas + volumes for a list of seed keywords.
  * All seeds go out in ONE batched request — never one request per keyword.
