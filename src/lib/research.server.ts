@@ -667,6 +667,7 @@ export async function discoverCompetitorsFromSerp(
   // sites already occupying the answer the merchant wants to be in. Same
   // response, no extra request — it used to be filtered out and discarded.
   const aiCited = batches.flatMap((b) => b.ai.citedDomains);
+  const aiCitedSet = new Set(aiCited.filter((domain) => isRealCompetitor(domain, selfDomain)));
   const aiQueryCount = batches.filter((b) => b.ai.hasAiOverview).length;
   if (aiQueryCount) {
     console.info("[competitors] AI Overview present", {
@@ -740,6 +741,13 @@ export async function discoverCompetitorsFromSerp(
   const compScores = b2bMerchant
     ? Object.fromEntries(buyerMatched.map((domain) => [domain, 100]))
     : await scoreCompetitorDomains(biz, buyerMatched);
+  console.info("[competitors] candidate evidence before final gate", buyerMatched.map((domain) => ({
+    domain,
+    relevance: compScores[domain] ?? 0,
+    distinctQueryHits: queryHits.get(domain) ?? 0,
+    citedByAiOverview: aiCitedSet.has(domain),
+    bestPosition: byDomain.get(domain)?.bestPosition ?? null,
+  })).sort((a, b) => b.relevance - a.relevance).slice(0, 20));
   const kept = buyerMatched
     .filter((d) => {
       const relevance = compScores[d] ?? 0;
@@ -748,8 +756,11 @@ export async function discoverCompetitorsFromSerp(
       // Two distinct queries confirm a competitor. In a sparse niche SERP,
       // retain a top-10 candidate only when the relevance model is highly
       // confident; the next stage still verifies its actual landing page.
-      return relevance >= MIN_COMPETITOR_RELEVANCE &&
-        (hits >= 2 || (relevance >= 85 && hits >= 1 && (info?.bestPosition ?? 999) <= 10));
+      return relevance >= MIN_COMPETITOR_RELEVANCE && (
+        hits >= 2 ||
+        aiCitedSet.has(d) ||
+        (relevance >= 85 && hits >= 1 && (info?.bestPosition ?? 999) <= 10)
+      );
     })
     .map((d) => {
       const info = byDomain.get(d)!;
