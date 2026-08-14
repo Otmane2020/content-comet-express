@@ -731,7 +731,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         toast.success("Your subscription is already active.");
         return;
       }
-      window.location.href = url;
+      // Stripe Checkout cannot run inside Shopify or another host iframe.
+      if (window.top !== window.self) window.open(url, "_top");
+      else window.location.assign(url);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Checkout failed");
       setBusy(false);

@@ -2,7 +2,33 @@ import { createFileRoute } from "@tanstack/react-router";
 
 function back(origin: string, params: Record<string, string>) {
   const q = new URLSearchParams(params).toString();
-  return new Response(null, { status: 302, headers: { location: `${origin}/app?${q}` } });
+  const target = `${origin}/app?${q}`;
+  const message = {
+    type: "ranki:google-oauth",
+    status: params["google"] ?? "error",
+    message: params["message"] ?? null,
+  };
+  // In Shopify, OAuth runs in a popup because Google consent cannot render in
+  // App Home. Notify the original iframe and close. Standalone users retain
+  // the normal redirect fallback.
+  const script = `
+    (() => {
+      const target = ${JSON.stringify(target).replace(/</g, "\\u003c")};
+      const origin = ${JSON.stringify(origin).replace(/</g, "\\u003c")};
+      const message = ${JSON.stringify(message).replace(/</g, "\\u003c")};
+      if (window.opener && !window.opener.closed) {
+        window.opener.postMessage(message, origin);
+        window.close();
+        setTimeout(() => window.location.replace(target), 500);
+      } else {
+        window.location.replace(target);
+      }
+    })();
+  `;
+  return new Response(`<!doctype html><html><head><meta charset="utf-8"><title>Google connected</title></head><body><p>Returning to Ranki…</p><script>${script}</script></body></html>`, {
+    status: 200,
+    headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" },
+  });
 }
 
 export const Route = createFileRoute("/api/public/google/callback")({

@@ -166,12 +166,33 @@ export function GoogleHub({ projectId }: { projectId: string }) {
     void qc.invalidateQueries({ queryKey: ["google", projectId] });
   }, [projectId, qc]);
 
+  useEffect(() => {
+    const receiveOAuthResult = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return;
+      const data = event.data as { type?: string; status?: string; message?: string };
+      if (data?.type !== "ranki:google-oauth") return;
+      setBusy(null);
+      if (data.status === "connected") toast.success("Google account connected.");
+      else toast.error(data.message ?? "Google connection failed.");
+      void qc.invalidateQueries({ queryKey: ["google", projectId] });
+    };
+    window.addEventListener("message", receiveOAuthResult);
+    return () => window.removeEventListener("message", receiveOAuthResult);
+  }, [projectId, qc]);
+
   async function startConnect(service: Service) {
     setBusy(service);
+    // Google refuses to render its consent screen inside Shopify's App Home
+    // iframe. Open a real OAuth popup synchronously from the click (before the
+    // awaited server call, otherwise browsers may classify it as a popup).
+    const popup = window.open("about:blank", "ranki-google-oauth", "popup,width=620,height=760");
     try {
       const res = await connect({ data: { projectId, service, origin: window.location.origin } });
-      window.location.href = res.url;
+      if (popup) popup.location.replace(res.url);
+      else if (window.top !== window.self) window.open(res.url, "_top");
+      else window.location.assign(res.url);
     } catch (e) {
+      popup?.close();
       toast.error(e instanceof Error ? e.message : "Could not start Google sign-in");
       setBusy(null);
     }
