@@ -16,7 +16,7 @@ import {
   saveOnboarding,
 } from "@/lib/onboarding.functions";
 import { syncSiteKnowledge } from "@/lib/sitecrawl.functions";
-import { INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
+import { ALL_INDUSTRIES, INDUSTRY_GROUPS, LANGUAGES } from "@/lib/industries";
 import { isShoppingEligible } from "@/lib/geo";
 import { BrandLockup } from "@/components/BrandMark";
 import { Button } from "@/components/ui/button";
@@ -111,6 +111,44 @@ function normalizeMarketCountry(country: string | null | undefined) {
     br: "Brazil", mx: "Mexico", in: "India", ae: "United Arab Emirates", sa: "Saudi Arabia",
   };
   return fromCode[code] ?? raw;
+}
+
+function normalizeDetectedIndustry(industry: string | null | undefined, profile?: Record<string, unknown>) {
+  const raw = industry?.trim() ?? "";
+  if (!raw) return "";
+  const exact = ALL_INDUSTRIES.find((item) => item.toLowerCase() === raw.toLowerCase());
+  if (exact) return exact;
+  const services = Array.isArray(profile?.["services"]) ? profile["services"] : [];
+  const haystack = [raw, profile?.["description"], ...services]
+    .map(String).join(" ").toLowerCase();
+  const rules: Array<[RegExp, string]> = [
+    [/\b(?:seo|geo|aeo|search optimization|référencement).*(?:software|logiciel|platform|plateforme)|(?:software|logiciel|platform|plateforme).*(?:seo|geo|aeo)\b/i, "SEO & GEO software"],
+    [/\b(?:saas|software as a service)\b/i, "B2B SaaS"],
+    [/\b(?:marketing automation|content marketing software)\b/i, "Marketing software"],
+    [/\b(?:e-?commerce|shopify|woocommerce).*(?:software|app|platform|logiciel)\b/i, "E-commerce software"],
+    [/\b(?:artificial intelligence|intelligence artificielle|ai platform|plateforme ia|data platform)\b/i, "AI & data"],
+    [/\b(?:furniture|meuble|mobilier)\b/i, "Home & furniture"],
+  ];
+  return rules.find(([pattern]) => pattern.test(haystack))?.[1] ?? "Other";
+}
+
+function countryFromVerifiedProfile(profile: Record<string, unknown>, website: string) {
+  const locations = Array.isArray(profile["locations"]) ? profile["locations"].map(String) : [];
+  for (const location of locations) {
+    const normalized = normalizeMarketCountry(location);
+    if (MARKET_COUNTRIES.some((country) => country.value === normalized)) return normalized;
+  }
+  try {
+    const host = new URL(website).hostname.toLowerCase();
+    const tldCountry: Record<string, string> = {
+      ".fr": "France", ".co.uk": "United Kingdom", ".de": "Germany", ".es": "Spain",
+      ".it": "Italy", ".nl": "Netherlands", ".pt": "Portugal", ".be": "Belgium",
+      ".ch": "Switzerland", ".ca": "Canada", ".com.au": "Australia",
+    };
+    return Object.entries(tldCountry).find(([suffix]) => host.endsWith(suffix))?.[1] ?? "";
+  } catch {
+    return "";
+  }
 }
 
 const STEPS = [
@@ -763,6 +801,8 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
         competitors?: Array<{ domain?: string }>;
       };
       const profile = pipeline.profile ?? {};
+      const detectedIndustry = normalizeDetectedIndustry(String(profile["industry"] ?? ""), profile);
+      const detectedCountry = countryFromVerifiedProfile(profile, website);
       const completedMarket = {
         source: "dataforseo" as const,
         competitors: (pipeline.competitors ?? [])
@@ -781,10 +821,14 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       const nextForm = {
         ...form,
         name: form.name || String(profile["name"] ?? ""),
-        industry: String(profile["industry"] ?? form.industry ?? ""),
+        industry: detectedIndustry || form.industry,
         audience: String(profile["audience"] ?? form.audience ?? ""),
         tone: form.tone,
         locale: String(pipeline.site?.landing?.lang ?? form.locale ?? "en").slice(0, 2).toLowerCase(),
+        // Do not silently turn an English-language site into a US business.
+        // Country is accepted only from verified site geography or a country
+        // TLD; otherwise the merchant sees "Match the content language".
+        country: detectedCountry,
         competitors: completedMarket.competitors.join("\n"),
         keywords: completedMarket.keywords.map((keyword) => keyword.keyword).join(", "),
       };
