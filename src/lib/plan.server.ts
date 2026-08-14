@@ -723,15 +723,25 @@ export function stripModelFaqSection(body: string, faqHeading: string): string {
     .trim();
 }
 
+export type ArticleGenerationBrief = {
+  title: string;
+  targetKeyword: string;
+  angle: string;
+  outline: string[];
+  questions: string[];
+  entities: string[];
+};
+
 export async function writeArticle(
   project: ProjectBrief,
-  item: { content_type: ContentType; topic: string | null; angle?: EditorialAngle | null },
+  item: { content_type: ContentType; topic: string | null; angle?: EditorialAngle | null; targetKeyword?: string | null },
   extras?: {
     products?: { title: string; price: string | null; url: string | null; description: string | null }[];
     links?: { title: string; url: string }[];
     localInfo?: LocalInfo | undefined;
     profile?: CanonicalProfileFacts | null;
     competitors?: { domain: string; positioning: string; headings: string[] }[];
+    articleBrief?: ArticleGenerationBrief;
     qualityMode?: "throw" | "report";
   },
 ) {
@@ -814,6 +824,51 @@ export async function writeArticle(
         : `\n\nNo verified address, phone or opening hours are available for this business. Do NOT invent any — write about city/service-area intent and local proof points without specific hours, address or phone.`
       : "";
 
+  // Structured article input, following the deep-competitor-spy contract.
+  // It is derived from already-validated calendar/profile evidence, so it adds
+  // no extra model or DataForSEO request per article.
+  const targetKeyword = item.targetKeyword?.trim() || project.keywords?.[0]?.trim() || "";
+  const verifiedEntities = Array.from(new Set([
+    project.name,
+    ...(extras?.profile?.products ?? []),
+    ...(extras?.profile?.services ?? []),
+    ...(extras?.profile?.locations ?? []),
+  ].map((value) => String(value ?? "").trim()).filter(Boolean))).slice(0, 20);
+  const articleBrief: ArticleGenerationBrief = extras?.articleBrief ?? {
+    title: item.topic?.trim() || targetKeyword,
+    targetKeyword,
+    angle: item.angle ?? "educational",
+    outline: [
+      "Direct answer matching the search intent",
+      "Essential facts and definitions",
+      "Decision criteria, process or practical steps",
+      "Verified business-specific section",
+      "Limitations, mistakes or questions to consider",
+      "Clear conclusion and next action",
+    ],
+    questions: [
+      `What does a buyer need to know about ${targetKeyword || item.topic || "this topic"}?`,
+      `How should a buyer evaluate ${targetKeyword || item.topic || "the available options"}?`,
+      "Which facts should be verified before making a decision?",
+    ],
+    entities: verifiedEntities,
+  };
+  const articleBriefBlock = `
+
+Structured article-generation input:
+Title: ${articleBrief.title}
+Target keyword: ${articleBrief.targetKeyword || "none"}
+Angle: ${articleBrief.angle}
+Required outline:
+${articleBrief.outline.map((section) => `- ${section}`).join("\n")}
+Buyer questions to answer:
+${articleBrief.questions.map((question) => `- ${question}`).join("\n")}
+Verified entities available:
+${articleBrief.entities.length ? articleBrief.entities.map((entity) => `- ${entity}`).join("\n") : "- none"}
+
+Follow this input as the editorial contract. Do not invent an entity, question, product or capability outside the verified context.
+`;
+
   const year = new Date().getUTCFullYear();
   const geoSchema = item.content_type === "geo" ? `,"answer_block":"50-80 words","key_facts":["verified fact"]` : "";
   const faqSchema = wantsFaq ? `,"faq":[{"question":"...","answer":"..."}]` : "";
@@ -847,6 +902,7 @@ export async function writeArticle(
 Content type: ${TYPE_META[item.content_type].label}
 Topic: ${item.topic ?? "choose the most valuable topic for this business"}
 
+${articleBriefBlock}
 ${guidance[item.content_type]}${profileFactsBlock(extras?.profile)}${rivalsBlock}${catalogBlock}${linksBlock}${localBlock}
 
 ${editorialFormat}
