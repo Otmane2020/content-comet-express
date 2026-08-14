@@ -521,7 +521,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   const audienceCopy = audienceFieldCopy(form.locale);
 
   const DRAFT_KEY = "apgeo_onboarding_draft";
-  const MARKET_PIPELINE_VERSION = "validated_pipeline_v1";
+  // v2 adds a hard language gate before DataForSEO. Never restore a v1 scan
+  // whose French candidates were measured for an English website.
+  const MARKET_PIPELINE_VERSION = "validated_pipeline_v2_language_locked";
 
   const asList = (v: string, sep: RegExp | string = ",") =>
     v.split(sep as never).map((x: string) => x.trim()).filter(Boolean);

@@ -88,6 +88,24 @@ function profileBlock(profile: BusinessProfile) {
   return lines.join("\n");
 }
 
+/** Hard language gate before any paid keyword measurement. */
+export function keywordMatchesLocale(keyword: string, locale: string | null | undefined): boolean {
+  const code = (locale ?? "").slice(0, 2).toLowerCase();
+  const text = ` ${keyword.toLowerCase()} `;
+  if (code === "en") {
+    return !/[àâçéèêëîïôùûüÿœ]/i.test(text) &&
+      !/\b(?:ia|outil|logiciel|référencement|visibilité|rédaction|automatisation|comparatif|meilleur|prix|avis|pour|avec|comment)\b/i.test(text);
+  }
+  if (code === "fr") {
+    return !/\b(?:tool|software|pricing|reviews?|best|how|what|automation|visibility|writing|for|with)\b/i.test(text);
+  }
+  return true;
+}
+
+function keepCandidateLanguage(keywords: string[], locale: string | null | undefined) {
+  return keywords.filter((keyword) => keywordMatchesLocale(keyword, locale));
+}
+
 const SCORING_RULES = `Scoring rules — be harsh, most keywords deserve a low score:
 100 = someone searching this is looking for exactly this product/service, or for the problem it solves.
 70-90 = strongly related category, comparison or buying-intent term for this product.
@@ -358,6 +376,7 @@ export async function candidateKeywords(
   landing?: import("./scrape.server").LandingProfile | null,
   max = 120,
 ): Promise<string[]> {
+  const websiteLocale = landing?.lang?.slice(0, 2).toLowerCase() ?? null;
   const sellsToBusinesses = ["wholesale", "manufacturer"].includes(
     (profile.sales_model ?? "").trim().toLowerCase(),
   );
@@ -456,13 +475,13 @@ export async function candidateKeywords(
       json: true,
       maxTokens: 2000,
       system:
-        "You turn a business's own landing page into the exact search queries its buyers type. Strict JSON only.",
+        `You turn a business's own landing page into buyer search queries. The website language code is ${websiteLocale ?? "unknown"}; every query MUST use that language. Strict JSON only.`,
       user: `${profileBlock(profile)}
 ${landingBlock ? `\n--- The business's actual landing page ---\n${landingBlock}\n--- end of landing page ---\n` : ""}
 Propose up to ${max} distinct search queries that would bring THIS business a qualified visitor.
 Ground every query in the landing page above: the vocabulary, product names and phrasing it already
 uses are what this business is findable for.
-Write them in the business's own language, exactly as a buyer would type them — never translated,
+Website language code: ${websiteLocale ?? "unknown"}. Write EVERY query in that exact language, exactly as a buyer would type it — never translated,
 never a normalised or agrammatical form.
 
 Real buyers type SHORT phrases, almost never full descriptive product names. Prefer 1-4 words per query;
@@ -497,8 +516,9 @@ ${profile.locations?.length ? `Geographic terms only with: ${profile.locations.j
 
 Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least 12 grounded buyer queries; never return an empty array.`,
     });
-    const aiCandidates = normaliseCandidates(raw);
-    console.info("[keyword-candidates] AI response", { count: aiCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
+    const rawCandidates = normaliseCandidates(raw);
+    const aiCandidates = keepCandidateLanguage(rawCandidates, websiteLocale);
+    console.info("[keyword-candidates] AI response", { count: aiCandidates.length, rejectedWrongLanguage: rawCandidates.length - aiCandidates.length, websiteLocale, hasLandingEvidence: Boolean(landingBlock) });
     // The prompt itself demands "at least 12" — but that instruction was
     // never enforced in code, only checked for the total-failure case
     // (empty array). A response of 3 candidates passed straight through,
@@ -521,20 +541,25 @@ Return exactly JSON: {"keywords":["...","..."]}. The array MUST contain at least
       temperature: 0,
         json: true,
         maxTokens: 1600,
-        system: "Return strict JSON only. You must derive buyer search queries from the supplied SEO title, page title, categories and landing-page copy.",
+        system: `Return strict JSON only. Derive buyer search queries from the evidence. Every query MUST use language code ${websiteLocale ?? "unknown"}.`,
         user: `${profileBlock(profile)}\n${landingBlock}\n\nYou already found these buyer queries — do not repeat any of them:\n${merged.length ? merged.map((k) => `- ${k}`).join("\n") : "(none yet)"}\n\nGenerate ${missing} additional, DISTINCT buyer queries in the site language, grounded in the evidence above. Keep them short (1-4 word) queries, not longer descriptive phrases — see the bad-example shapes above; do not repeat the pattern of your first batch if it produced long compound phrases. Return exactly {"keywords":["..."]}.`,
       });
-      const retryCandidates = normaliseCandidates(retry);
+      const retryCandidates = keepCandidateLanguage(normaliseCandidates(retry), websiteLocale);
       console.info("[keyword-candidates] AI retry response", { count: retryCandidates.length, hasLandingEvidence: Boolean(landingBlock) });
       merged = Array.from(new Set([...merged, ...retryCandidates])).slice(0, max);
     }
-    return merged.length ? merged : deterministicFallback();
+    if (merged.length >= MIN_AI_CANDIDATES) return merged;
+    const safeFallback = keepCandidateLanguage(deterministicFallback(), websiteLocale);
+    if (safeFallback.length >= 2) return Array.from(new Set([...merged, ...safeFallback])).slice(0, max);
+    throw new Error(`KEYWORD_LANGUAGE_MISMATCH: expected ${websiteLocale ?? "website language"}, received too few valid candidates`);
   } catch (error) {
     console.error("[keyword-candidates] AI candidate generation failed", {
       error: error instanceof Error ? error.message : String(error),
       hasLandingEvidence: Boolean(landingBlock),
     });
-    return deterministicFallback();
+    const safeFallback = keepCandidateLanguage(deterministicFallback(), websiteLocale);
+    if (safeFallback.length >= 2) return safeFallback;
+    throw error;
   }
 }
 
