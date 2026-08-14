@@ -102,7 +102,7 @@ export async function pickKeywords(
     .select("id, keyword, intent, relevance_score, search_volume")
     .eq("project_id", projectId)
     .eq("used", false)
-    .gte("relevance_score", 60)
+    .gte("relevance_score", 75)
     .order("search_volume", { ascending: false, nullsFirst: false })
     .order("relevance_score", { ascending: false, nullsFirst: false })
     .limit(limit);
