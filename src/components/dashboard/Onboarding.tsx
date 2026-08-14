@@ -617,19 +617,10 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
     };
   }, [userId]);
 
-  // A confirmed, paid Shopify merchant skips straight past step 0 (manual
-  // website entry) since loadShopify() already prefilled it silently — no
-  // separate "Store synced / Start your onboarding" interstitial page. Guarded
-  // to fire once and only from step 0, so it never overrides a step already
-  // restored from a saved draft or a Stripe checkout return.
-  const shopifyAdvancedRef = useRef(false);
-  useEffect(() => {
-    if (shopifyAdvancedRef.current || !shopifyReport || subActive !== true || step !== 0) return;
-    shopifyAdvancedRef.current = true;
-    setStep(1);
-    void saveDraft(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [shopifyReport, subActive, step]);
+  // Paid Shopify merchants deliberately remain on step 0. The store URL is
+  // prefilled, but the merchant must confirm it before the validated /test
+  // pipeline starts. This prevents analysing a thin myshopify.com storefront
+  // automatically and guarantees zero DataForSEO spend before confirmation.
 
   // Run the competitor/keyword scan the moment the merchant reaches step 2 —
   // no button to press, it just happens while they read.
@@ -661,7 +652,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
   useEffect(() => {
     const website = form.website_url.trim();
     const host = website.replace(/^https?:\/\//, "").split("/")[0] ?? "";
-    if (step !== 0 || !website || !host.includes(".") || scanning || website === lastAnalysedWebsite) return;
+    if (shopContext || step !== 0 || !website || !host.includes(".") || scanning || website === lastAnalysedWebsite) return;
     const id = window.setTimeout(() => void autodetectBusiness(), 700);
     return () => window.clearTimeout(id);
     // autodetectBusiness is deliberately omitted: it is recreated each render.
@@ -1386,7 +1377,9 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       <p className="mt-2 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
                         <Wand2 className="size-3.5 text-gold" />
                         {form.website_url.trim()
-                          ? "Your website will be analysed automatically in a moment."
+                          ? shopContext
+                            ? "Check this public website URL, then confirm it below. No analysis starts before your confirmation."
+                            : "Your website will be analysed automatically in a moment."
                           : "Enter your site and we’ll find your positioning, audience and keyword opportunities."}
                       </p>
                       {detected && (
@@ -1867,7 +1860,11 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                   type="button"
                   onClick={() => {
                     if (step === 0) {
-                      void continueFromStep0();
+                      if (shopContext) {
+                        void autodetectBusiness();
+                      } else {
+                        void continueFromStep0();
+                      }
                       return;
                     }
                     setStep((s) => {
@@ -1884,9 +1881,11 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                     : (step === 1 && scanningMarket) || waitingForMarketScan
                       ? "Finishing your market scan…"
                       : step === 0
-                      ? detected
-                        ? "Continue"
-                        : "Continue without analysis"
+                      ? shopContext
+                        ? "Confirm URL & analyse"
+                        : detected
+                          ? "Continue"
+                          : "Continue without analysis"
                       : "Continue"}{" "}
                   <ArrowRight className="ml-1.5 size-4" />
                 </Button>
