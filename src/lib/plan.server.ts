@@ -28,7 +28,7 @@ export const CONTENT_TEMPLATES = {
 } as const;
 
 const META_MARKETING = /\b(?:geo|seo|aeo|chatgpt|gemini|perplexity|ai visibility|generative engines?|moteurs? g[ée]n[ée]ratifs?|optimis.{0,12}(?:ia|geo|chatgpt))\b/i;
-const MARKETING_QUERY = /\b(?:geo|seo|aeo|marketing|r[ée]f[ée]rencement|chatgpt|gemini|perplexity|visibilit[ée]\s+ia)\b/i;
+const MARKETING_QUERY = /\b(?:geo|seo|aeo|marketing|r[ée]f[ée]rencement|chatgpt|gemini|perplexity|ai\s+(?:search|visibility)|generative\s+engines?|search\s+engine\s+optim(?:ization|isation)|visibilit[ée]\s+ia|moteurs?\s+g[ée]n[ée]ratifs?)\b/i;
 
 /**
  * English name of the project's writing language.
@@ -396,6 +396,7 @@ export type PlannedTopic = {
   intent?: SearchIntent | null;
   angle: EditorialAngle | null;
   topic: string;
+  articleBrief: ArticleGenerationBrief;
   generationSource: "ai";
 };
 
@@ -444,7 +445,8 @@ export function reconcileTopics(
     if (!checks.titleNonEmpty) return reject("title_empty");
     if (!checks.titleNatural) return reject("title_unnatural");
 
-    return { ...slot, angle, topic: candidate, generationSource: "ai" };
+    const planned = { ...slot, angle, topic: candidate };
+    return { ...planned, articleBrief: buildArticleGenerationBrief(project, planned), generationSource: "ai" as const };
   });
 }
 
@@ -732,6 +734,53 @@ export type ArticleGenerationBrief = {
   entities: string[];
 };
 
+/**
+ * Single article-brief generator shared by diagnostics, onboarding calendars
+ * and production writing. It maps one validated keyword/slot into the same
+ * structured contract exported by deep-competitor-spy, without another API
+ * call per article.
+ */
+export function buildArticleGenerationBrief(
+  project: ProjectBrief,
+  item: { content_type: ContentType; topic: string | null; angle?: EditorialAngle | null; targetKeyword?: string | null; keyword?: string | null },
+): ArticleGenerationBrief {
+  const targetKeyword = item.targetKeyword?.trim() || item.keyword?.trim() || project.keywords?.[0]?.trim() || "";
+  const inferredAngle = item.angle ??
+    (/\b(?:vs\.?|versus|compar(?:e|ed|ison)|alternatives?|which (?:tool|platform|one))\b/i.test(item.topic ?? "")
+      ? "comparison"
+      : item.content_type === "aeo" || item.content_type === "local_aeo"
+        ? "faq"
+        : item.content_type === "shopping"
+          ? "buyer_guide"
+          : "guide");
+  const entities = Array.from(new Set([
+    project.name,
+    ...(project.profile?.products ?? []),
+    ...(project.profile?.services ?? []),
+    ...(project.profile?.locations ?? []),
+  ].map((value) => String(value ?? "").trim()).filter(Boolean))).slice(0, 20);
+  const subject = targetKeyword || item.topic || "this topic";
+  return {
+    title: item.topic?.trim() || targetKeyword,
+    targetKeyword,
+    angle: inferredAngle,
+    outline: [
+      "Direct answer matching the search intent",
+      "Essential facts and definitions",
+      "Decision criteria, process or practical steps",
+      "Verified business-specific section",
+      "Limitations, mistakes or questions to consider",
+      "Clear conclusion and next action",
+    ],
+    questions: [
+      `What does a buyer need to know about ${subject}?`,
+      `How should a buyer evaluate ${subject}?`,
+      "Which facts should be verified before making a decision?",
+    ],
+    entities,
+  };
+}
+
 export async function writeArticle(
   project: ProjectBrief,
   item: { content_type: ContentType; topic: string | null; angle?: EditorialAngle | null; targetKeyword?: string | null },
@@ -824,35 +873,7 @@ export async function writeArticle(
         : `\n\nNo verified address, phone or opening hours are available for this business. Do NOT invent any — write about city/service-area intent and local proof points without specific hours, address or phone.`
       : "";
 
-  // Structured article input, following the deep-competitor-spy contract.
-  // It is derived from already-validated calendar/profile evidence, so it adds
-  // no extra model or DataForSEO request per article.
-  const targetKeyword = item.targetKeyword?.trim() || project.keywords?.[0]?.trim() || "";
-  const verifiedEntities = Array.from(new Set([
-    project.name,
-    ...(extras?.profile?.products ?? []),
-    ...(extras?.profile?.services ?? []),
-    ...(extras?.profile?.locations ?? []),
-  ].map((value) => String(value ?? "").trim()).filter(Boolean))).slice(0, 20);
-  const articleBrief: ArticleGenerationBrief = extras?.articleBrief ?? {
-    title: item.topic?.trim() || targetKeyword,
-    targetKeyword,
-    angle: item.angle ?? "educational",
-    outline: [
-      "Direct answer matching the search intent",
-      "Essential facts and definitions",
-      "Decision criteria, process or practical steps",
-      "Verified business-specific section",
-      "Limitations, mistakes or questions to consider",
-      "Clear conclusion and next action",
-    ],
-    questions: [
-      `What does a buyer need to know about ${targetKeyword || item.topic || "this topic"}?`,
-      `How should a buyer evaluate ${targetKeyword || item.topic || "the available options"}?`,
-      "Which facts should be verified before making a decision?",
-    ],
-    entities: verifiedEntities,
-  };
+  const articleBrief = extras?.articleBrief ?? buildArticleGenerationBrief(project, item);
   const articleBriefBlock = `
 
 Structured article-generation input:
@@ -981,7 +1002,7 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
   if (!quality.ok && extras?.qualityMode !== "report") {
     throw new Error(`ARTICLE_QUALITY_FAILED: ${quality.failures.join("; ")}`);
   }
-  return { ...article, quality };
+  return { ...article, articleBrief, quality };
 }
 
 export type ArticleQuality = { ok: boolean; comparisonRequested: boolean; failures: string[] };
