@@ -329,7 +329,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const { summariseTopicGeneration } = await import("./plan.server");
         const gen = summariseTopicGeneration(calendar);
         return finish(
-          `${calendar.length} AI-generated topics — eligible formats: ${eligible.join(", ")} — AI accepted: ${gen.aiAccepted}/${gen.aiRequested}`,
+          `${calendar.length} AI-generated topics + ${calendar.filter((item) => item.articleBrief).length} structured article briefs — eligible formats: ${eligible.join(", ")} — AI accepted: ${gen.aiAccepted}/${gen.aiRequested}`,
           calendar,
           { ...context, calendar },
         );
@@ -337,7 +337,7 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       if (!context.profile || !context.calendar?.length || !context.rivals?.length) missingBatchInput(data.batch);
       const { writeArticle } = await import("./plan.server");
       const first = context.calendar[0]!;
-      const article = await writeArticle({ name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: [context.qualified?.[0]?.keyword ?? ""] }, { content_type: first.type, topic: first.topic, angle: first.angle }, { profile: context.profile, competitors: context.rivals, qualityMode: "report" });
+      const article = await writeArticle({ name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: [first.keyword ?? context.qualified?.[0]?.keyword ?? ""], profile: context.profile }, { content_type: first.type, topic: first.topic, angle: first.angle, targetKeyword: first.keyword }, { profile: context.profile, competitors: context.rivals, articleBrief: first.articleBrief, qualityMode: "report" });
       return finish(article.quality.ok ? `Article preview generated: ${article.title}` : `Completed with quality failures: ${article.quality.failures.join("; ")}`, article, context);
     } catch (error) {
       const message = errorMessage(error);
