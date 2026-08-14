@@ -102,6 +102,13 @@ function isQuestionSeed(seed: string): boolean {
 }
 const questionify = (seed: string) => (seed.trim().endsWith("?") ? seed.trim() : `${seed.trim()}?`);
 const capitalise = (text: string) => (text ? text.charAt(0).toUpperCase() + text.slice(1) : text);
+const displaySeed = (seed: string) => capitalise(seed.trim())
+  .replace(/\bai\b/gi, "AI")
+  .replace(/\bseo\b/gi, "SEO")
+  .replace(/\baeo\b/gi, "AEO")
+  .replace(/\bgeo\b/gi, "GEO")
+  .replace(/\bchatgpt\b/gi, "ChatGPT")
+  .replace(/\bperplexity\b/gi, "Perplexity");
 
 /**
  * One title template per editorial angle, in the article's language. A
@@ -112,39 +119,39 @@ const capitalise = (text: string) => (text ? text.charAt(0).toUpperCase() + text
  */
 const ANGLE_TEMPLATES: Record<EditorialAngle, { en: (seed: string) => string; fr: (seed: string) => string }> = {
   definition: {
-    en: (seed) => (isQuestionSeed(seed) ? capitalise(questionify(seed)) : `What is ${seed}?`),
+    en: (seed) => (isQuestionSeed(seed) ? displaySeed(questionify(seed)) : `What Is ${displaySeed(seed)} and Why Does It Matter?`),
     fr: (seed) => (isQuestionSeed(seed) ? capitalise(questionify(seed)) : `Qu'est-ce que ${seed} ?`),
   },
   how_to: {
-    en: (seed) => (isQuestionSeed(seed) ? capitalise(questionify(seed)) : `How does ${seed} work?`),
+    en: (seed) => (isQuestionSeed(seed) ? displaySeed(questionify(seed)) : `How Does ${displaySeed(seed)} Work in Practice?`),
     fr: (seed) => (isQuestionSeed(seed) ? capitalise(questionify(seed)) : `Comment fonctionne ${seed} ?`),
   },
   guide: {
-    en: (seed) => `${capitalise(seed)}: the complete guide`,
+    en: (seed) => `${displaySeed(seed)}: A Practical Implementation Guide`,
     fr: (seed) => `${capitalise(seed)} : le guide complet`,
   },
   comparison: {
-    en: (seed) => `${capitalise(seed)}: how to compare your options`,
+    en: (seed) => `Best ${displaySeed(seed)} Platforms: Features, Pricing, and Use Cases Compared`,
     fr: (seed) => `${capitalise(seed)} : comment comparer vos options`,
   },
   mistakes: {
-    en: (seed) => `${capitalise(seed)}: common mistakes to avoid`,
+    en: (seed) => `${displaySeed(seed)}: Common Mistakes and How to Avoid Them`,
     fr: (seed) => `${capitalise(seed)} : les erreurs courantes à éviter`,
   },
   checklist: {
-    en: (seed) => `${capitalise(seed)}: a practical checklist`,
+    en: (seed) => `${displaySeed(seed)} Checklist: What to Verify Before You Start`,
     fr: (seed) => `${capitalise(seed)} : la checklist pratique`,
   },
   pricing: {
-    en: (seed) => `${capitalise(seed)}: how much it costs and what to look for`,
+    en: (seed) => `${displaySeed(seed)} Pricing: Costs, Features, and ROI Explained`,
     fr: (seed) => `${capitalise(seed)} : combien ça coûte et que faut-il regarder`,
   },
   alternatives: {
-    en: (seed) => `${capitalise(seed)}: the best alternatives to consider`,
+    en: (seed) => `${displaySeed(seed)} Alternatives: Which Approach Fits Your Team?`,
     fr: (seed) => `${capitalise(seed)} : les meilleures alternatives à considérer`,
   },
   buyer_guide: {
-    en: (seed) => `${capitalise(seed)}: a buyer's guide`,
+    en: (seed) => `How to Choose ${displaySeed(seed)} for Your Business`,
     fr: (seed) => `${capitalise(seed)} : le guide de l'acheteur`,
   },
   faq: {
