@@ -47,6 +47,13 @@ async function issueEmbeddedSession(shop: string) {
   // rendering the generic Stripe/onboarding payment card.
   const pendingStore = await import("@/lib/shopifyPendingInstall.server");
   const pending = await pendingStore.getPendingShopifyInstall(shop);
+  // A brand-new install has a fresh OAuth token in the pending vault but does
+  // not have an integration/user row until Shopify approves billing. Recognise
+  // that state before requiring an integration; the previous order returned
+  // shop_not_installed, restarted OAuth, and produced an endless reload loop.
+  if (pending?.status === "billing_pending") {
+    return { error: "billing_required", billing_url: billingUrl() } as const;
+  }
   if (!integration?.user_id) {
     return { error: "shop_not_installed" } as const;
   }
