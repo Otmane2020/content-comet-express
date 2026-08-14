@@ -650,6 +650,17 @@ export async function discoverCompetitorsFromSerp(
   const batches = batchSettled
     .filter((r): r is PromiseFulfilledResult<Awaited<ReturnType<typeof serpWithAiSignals>>> => r.status === "fulfilled")
     .map((r) => r.value);
+  // Count distinct commercial queries, not raw result occurrences. A blog
+  // ranking once for one "best tools" list is a SERP candidate, not a
+  // confirmed competitor.
+  const queryHits = new Map<string, number>();
+  for (const batch of batches) {
+    const domainsInQuery = new Set([
+      ...batch.organic.map((result) => result.domain),
+      ...batch.ai.citedDomains,
+    ].filter((domain) => isRealCompetitor(domain, selfDomain)));
+    for (const domain of domainsInQuery) queryHits.set(domain, (queryHits.get(domain) ?? 0) + 1);
+  }
   const allResults = batches.flatMap((b) => b.organic);
   // Who the AI assistant actually quotes when asked the buyer's question. For a
   // generative-engine product this outranks organic position: these are the
@@ -730,7 +741,7 @@ export async function discoverCompetitorsFromSerp(
     ? Object.fromEntries(buyerMatched.map((domain) => [domain, 100]))
     : await scoreCompetitorDomains(biz, buyerMatched);
   const kept = buyerMatched
-    .filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE)
+    .filter((d) => (compScores[d] ?? 0) >= MIN_COMPETITOR_RELEVANCE && (queryHits.get(d) ?? 0) >= 2)
     .map((d) => {
       const info = byDomain.get(d)!;
       return {
