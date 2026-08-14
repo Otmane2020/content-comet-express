@@ -30,7 +30,20 @@ function createSupabaseFetch(supabaseKey: string): typeof fetch {
   };
 }
 
-export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server(
+export const requireSupabaseAuth = createMiddleware({ type: 'function' })
+  .client(async ({ next }) => {
+    // Server functions are ordinary HTTP requests. Supabase stores the
+    // browser session in local storage, so no Authorization header is added
+    // automatically; without this bridge every protected useServerFn call
+    // fails before its handler with "No authorization header provided".
+    const { supabase } = await import('./client')
+    const { data } = await supabase.auth.getSession()
+    const token = data.session?.access_token
+    return next({
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    })
+  })
+  .server(
   async ({ next }) => {
     
     const SUPABASE_URL = process.env['SUPABASE_URL'] || process.env['VITE_PUBLIC_SUPABASE_URL'];
@@ -109,4 +122,4 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       },
     });
   },
-);
+)
