@@ -90,7 +90,7 @@ export const generateArticle = createServerFn({ method: "POST" })
       const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
       const article = await writeArticle(
         { ...project, keywords: target ? [target] : (project.keywords ?? []) },
-        { content_type: item.content_type as ContentType, topic: item.topic },
+        { content_type: item.content_type as ContentType, topic: item.topic, angle: (item as unknown as { angle?: import("./geo").EditorialAngle | null }).angle, targetKeyword: target ?? null },
         { products, links, localInfo, profile: project.business_profile as never, competitors },
       );
       // faq isn't in the generated Supabase types yet (migration only) — cast, same as target_keyword elsewhere.
@@ -223,7 +223,7 @@ export const kickstartFirstDay = createServerFn({ method: "POST" })
       // list, so the first published article fulfils its planned intent.
       const article = await writeArticle(
         { ...ctx, keywords: targetKeyword ? [targetKeyword] : ctx.keywords },
-        { content_type: type, topic },
+        { content_type: type, topic, targetKeyword: targetKeyword ?? null },
         { links, localInfo, profile: project!.business_profile as never, competitors },
       );
       await supabase
