@@ -147,7 +147,6 @@ function Dashboard() {
     if (!signedLaunch && !appBridgeReady) return;
     if (embeddedLaunchStarted.current) return;
     embeddedLaunchStarted.current = true;
-    let cancelled = false;
     const start = async () => {
       try {
         setEmbeddedSessionError(null);
@@ -158,7 +157,7 @@ function Dashboard() {
             : null;
         if (!res) throw new Error("Shopify App Bridge is not ready.");
         const body = await res.json() as { token_hash?: string; type?: "email"; error?: string; billing_url?: string };
-        if (cancelled || !body.token_hash) {
+        if (!body.token_hash) {
           if (body.error) {
             if (body.error === "billing_required" && body.billing_url) {
               // Keep the plan picker inside the Shopify App Home iframe. Only
@@ -187,22 +186,22 @@ function Dashboard() {
                   : "Your Shopify session could not be opened.";
             setEmbeddedSessionError(message);
           }
-          if (!cancelled) setShopifyLaunchResolved(true);
+          setShopifyLaunchResolved(true);
           return;
         }
         const { error } = await supabase.auth.verifyOtp({ token_hash: body.token_hash, type: body.type ?? "email" });
         if (error) throw error;
-        if (!cancelled) setShopifyLaunchResolved(true);
+        setShopifyLaunchResolved(true);
       } catch (error) {
         console.error("[shopify embedded] session token exchange failed", error);
-        if (!cancelled) {
-          setEmbeddedSessionError("Your Shopify session could not be opened.");
-          setShopifyLaunchResolved(true);
-        }
+        setEmbeddedSessionError("Your Shopify session could not be opened.");
+        setShopifyLaunchResolved(true);
       }
     };
+    // Do not cancel this one-shot exchange when App Bridge changes readiness.
+    // A signed GET does not depend on App Bridge; cancelling it here left the
+    // launch unresolved forever even though the server returned 200.
     void start();
-    return () => { cancelled = true; };
   }, [embedded, appBridgeReady, loading]);
 
   useEffect(() => {
@@ -283,6 +282,11 @@ function Dashboard() {
           if (error) throw error;
           if (data) return data as Project;
         }
+        // Never fall back to an unrelated project when Shopify named a store.
+        // A stale Ranki session may belong to another account; RLS correctly
+        // hides this shop's integration, and the UI must wait for the signed
+        // exchange instead of displaying that account's most recent project.
+        return null;
       }
       const { data, error } = await supabase
         .from("projects")
@@ -341,7 +345,7 @@ function Dashboard() {
     };
   }, [user, project, startGoogle]);
 
-  if (loading || (embedded && !shopifyLaunchResolved) || (user && projectLoading) || (user && embedded && onboardingLoading)) {
+  if (loading || (embedded && !shopifyLaunchResolved && !user) || (user && projectLoading) || (user && embedded && onboardingLoading)) {
     return (
       <div className="flex min-h-screen items-center justify-center text-sm text-muted-foreground">
         Loading your autopilot…
