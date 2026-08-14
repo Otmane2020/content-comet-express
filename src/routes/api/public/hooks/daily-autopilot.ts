@@ -152,8 +152,13 @@ export const Route = createFileRoute("/api/public/hooks/daily-autopilot")({
                 .from("content_items")
                 .update({ cover_image_url: coverUrl, body_md: body })
                 .eq("id", item.id);
-            } catch {
-              /* images are optional */
+            } catch (imageError) {
+              console.error("[daily-autopilot] cover image failed", {
+                projectId: project.id,
+                itemId: item.id,
+                error: imageError instanceof Error ? imageError.message : String(imageError),
+              });
+              /* Publishing remains available when an image provider is temporarily unavailable. */
             }
           }
 
