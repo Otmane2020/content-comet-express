@@ -647,7 +647,9 @@ export async function scoreCompetitorDomains(
 ): Promise<Record<string, number>> {
   const list = Array.from(new Set(domains.map((d) => d.trim().toLowerCase()).filter(Boolean))).slice(0, 40);
   if (!list.length) return {};
-  const fallback = () => Object.fromEntries(list.map((domain) => [domain, MIN_COMPETITOR_RELEVANCE]));
+  // Fail closed: accepting every domain exactly at the threshold when the AI
+  // scorer fails turns blogs, agencies and listicles into "confirmed rivals".
+  const fallback = () => Object.fromEntries(list.map((domain) => [domain, 0]));
   const call = () => callOpenRouter({
       temperature: 0,
     json: true,
@@ -657,8 +659,9 @@ export async function scoreCompetitorDomains(
     user: `${profileBlock(profile)}
 
 For each domain, score 0-100 how much it is a REAL competitor: it sells a similar product to the same buyers,
-or its content targets the same buyers. Score 0-20 for news sites, forums, directories, review aggregators,
-generic blogs and companies from another market, even if they rank for similar words.
+and has an identifiable commercial product page for a substantially similar product. Score 0-20 for news
+sites, forums, directories, review aggregators, generic blogs, agencies, consultancies and comparison/listicle
+publishers, even if they rank for similar words. Content audience overlap alone is never enough.
 The buyer match matters as much as the product/service match, for any business type: a site targeting a
 different customer type than this business's own sales_model/audience is NOT a real competitor even if it
 ranks for the same searches — score it 0-20. This isn't only about wholesale vs retail: a B2B logistics
@@ -725,10 +728,10 @@ export function compositeScore(k: ScorableKeyword, relevance: number): number {
 export const TARGET_CANDIDATES = 40;
 
 /** Keywords below this relevance are dropped (competitor noise, wrong industry). */
-export const MIN_RELEVANCE = 60;
+export const MIN_RELEVANCE = 75;
 
 /** Rival domains below this business-relevance are never mined for keywords. */
-export const MIN_COMPETITOR_RELEVANCE = 55;
+export const MIN_COMPETITOR_RELEVANCE = 75;
 
 /**
  * Below this, a scan is a hard failure — there is essentially no market
