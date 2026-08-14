@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
@@ -112,6 +112,10 @@ function Dashboard() {
   // `!project` branch below regardless of whether `user` already looks
   // signed in.
   const [shopifyLaunchResolved, setShopifyLaunchResolved] = useState(false);
+  // React Strict Mode and App Bridge readiness can re-run the effect. A
+  // Shopify launch is a one-shot token exchange; repeating it is what kept
+  // returning merchants on the "Verifying your Shopify session" screen.
+  const embeddedLaunchStarted = useRef(false);
 
   useEffect(() => {
     if (!embedded) return;
@@ -138,18 +142,21 @@ function Dashboard() {
     // wizard for a split second on a fresh Shopify install, before this
     // check (which never ran) would have redirected to billing.
     if (!embedded || loading) return;
+    const launch = new URLSearchParams(window.location.search);
+    const signedLaunch = launch.has("hmac") && launch.has("shop") && launch.has("timestamp");
+    if (!signedLaunch && !appBridgeReady) return;
+    if (embeddedLaunchStarted.current) return;
+    embeddedLaunchStarted.current = true;
     let cancelled = false;
     const start = async () => {
       try {
         setEmbeddedSessionError(null);
-        const launch = new URLSearchParams(window.location.search);
-        const signedLaunch = launch.has("hmac") && launch.has("shop") && launch.has("timestamp");
         const res = signedLaunch
           ? await fetch(`/api/public/shopify/embedded-login?${launch.toString()}`, { cache: "no-store" })
           : appBridgeReady
             ? await fetch("/api/public/shopify/embedded-login", { method: "POST", headers: { Authorization: `Bearer ${await waitForShopifyIdToken()}` } })
             : null;
-        if (!res) return; // App Bridge script still loading — effect re-runs once appBridgeReady flips true
+        if (!res) throw new Error("Shopify App Bridge is not ready.");
         const body = await res.json() as { token_hash?: string; type?: "email"; error?: string; billing_url?: string };
         if (cancelled || !body.token_hash) {
           if (body.error) {
