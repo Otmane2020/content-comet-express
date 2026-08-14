@@ -306,8 +306,8 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         if (overused.length) {
           throw new Error(`QUALITY_FAILED: target keyword used more than 3 times (${overused.map(([key, count]) => `${key}=${count}`).join(", ")}).`);
         }
-        const weakFallbacks = calendar.filter((item) => item.generationSource === "fallback" && /(?:how to compare your options|a buyer's guide)\s*$/i.test(item.topic));
-        if (weakFallbacks.length) throw new Error(`QUALITY_FAILED: ${weakFallbacks.length} weak mechanical fallback title(s) detected.`);
+        const nonAiTitles = calendar.filter((item) => item.generationSource !== "ai");
+        if (nonAiTitles.length) throw new Error(`QUALITY_FAILED: ${nonAiTitles.length} non-AI calendar title(s) detected; fallback content is forbidden.`);
         const comparisonCount = calendar.filter((item) => item.angle === "comparison" || /\b(?:vs\.?|versus|compared?|comparison|which (?:tool|platform|software|one))\b/i.test(item.topic)).length;
         if (comparisonCount > 8) throw new Error(`QUALITY_FAILED: ${comparisonCount}/30 comparison titles; maximum is 8.`);
         const titleTerms = (value: string) => new Set(value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 3 && !["best", "guide", "tool", "tools", "software", "platform", "which", "your", "with", "from", "compared", "comparison"].includes(word)));
@@ -328,20 +328,8 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         // series" symptom be diagnosed as an AI-path failure instead of guessed at.
         const { summariseTopicGeneration } = await import("./plan.server");
         const gen = summariseTopicGeneration(calendar);
-        const reasonBreakdown = Object.entries(gen.byReason)
-          .sort((a, b) => b[1] - a[1])
-          .map(([reason, count]) => `${reason}=${count}`)
-          .join(", ");
-        if (gen.fallbackRate > 0.25) {
-          // Diagnostic only — never fails the stage. A high rate can be
-          // legitimate, but WHICH reason dominates is what distinguishes a bad
-          // strategy from a broken AI path (a provider error, or every title
-          // rejected by one check).
-          console.warn("[pipeline-diagnostic] high calendar fallback rate", gen);
-        }
         return finish(
-          `${calendar.length} planned topics — eligible formats: ${eligible.join(", ")} — AI: ${gen.aiAccepted}, fallback: ${gen.fallbackUsed} (${Math.round(gen.fallbackRate * 100)}%)` +
-            (reasonBreakdown ? ` — reasons: ${reasonBreakdown}` : ""),
+          `${calendar.length} AI-generated topics — eligible formats: ${eligible.join(", ")} — AI accepted: ${gen.aiAccepted}/${gen.aiRequested}`,
           calendar,
           { ...context, calendar },
         );

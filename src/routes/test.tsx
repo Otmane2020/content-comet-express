@@ -204,15 +204,9 @@ function TestPage() {
   const firstIncompleteStage = batchOrder.findIndex((batch) => !stageDone(stageStates[batch]));
   const resumePoint = contextMatchesWebsite && firstIncompleteStage > 0 ? firstIncompleteStage : 0;
   const calendarPreview = s6.status === "done" && Array.isArray(s6.raw)
-    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null; generationSource?: "ai" | "fallback" }[])
+    ? (s6.raw as { date?: string; type?: string; topic?: string; keyword?: string | null; generationSource?: "ai" }[])
     : [];
-  // Filtered explicitly on each value rather than "everything not ai" so an
-  // older cached result with no generationSource field at all surfaces as
-  // its own unknownCount instead of silently inflating fallbackCount.
   const aiCount = calendarPreview.filter((item) => item.generationSource === "ai").length;
-  const fallbackCount = calendarPreview.filter((item) => item.generationSource === "fallback").length;
-  const unknownCount = calendarPreview.length - aiCount - fallbackCount;
-  const fallbackRate = calendarPreview.length ? fallbackCount / calendarPreview.length : 0;
   const articlePreview = s7.status === "done"
     ? (s7.raw as { title?: string; excerpt?: string; body_md?: string; quality?: { ok: boolean; failures: string[] } } | null)
     : null;
@@ -226,7 +220,7 @@ function TestPage() {
   const diagnosticReport = {
     generatedAt: new Date().toISOString(),
     website,
-    status: hasQualityStageError || (allStagesFinished && (qualityFailures.length || fallbackRate > 0.25 || failedChecks.length))
+    status: hasQualityStageError || (allStagesFinished && (qualityFailures.length || failedChecks.length))
       ? "quality_failed"
       : allStagesGreen ? "complete" : "incomplete",
     stages: [
@@ -721,12 +715,12 @@ function TestPage() {
           <h2 className="mt-1 text-base font-semibold">30-day content calendar</h2>
           <div className="mt-2 flex items-center gap-2 text-xs">
             <span className="text-muted-foreground">
-              AI: {aiCount} · Fallback: {fallbackCount} ({Math.round(fallbackRate * 100)}%)
-              {unknownCount > 0 && <> · Unknown: {unknownCount}</>}
+              AI-generated: {aiCount}/{calendarPreview.length}
+              {aiCount !== calendarPreview.length && <> · Invalid non-AI rows: {calendarPreview.length - aiCount}</>}
             </span>
-            {fallbackRate > 0.25 && (
+            {aiCount !== calendarPreview.length && (
               <span className="rounded bg-amber-500/15 px-1.5 py-0.5 font-mono text-[10px] font-bold text-amber-700">
-                HIGH FALLBACK RATE
+                INVALID: NON-AI TITLE
               </span>
             )}
           </div>

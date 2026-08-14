@@ -225,34 +225,23 @@ const ANGLE_TEMPLATES: Record<EditorialAngle, { en: (seed: string) => string; fr
 };
 
 /**
- * One topic per slot, picking a different editorial angle each time a
+ * Assigns a different editorial angle each time a
  * (type, keyword) pair recurs — inevitable once the calendar has more days
  * than qualified keywords — via angleFitsIntent's allowed set for this
  * slot's (intent, format), instead of a per-format template blind to intent.
  */
-export function fallbackTopics(
-  project: ProjectBrief,
+function assignSlotAngles(
   slots: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null }[],
 ) {
-  const seeds = project.keywords.length ? project.keywords : [project.industry ?? project.name];
-  const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
   const pairOccurrence = new Map<string, number>();
-  return slots.map((slot, i) => {
-    // A slot's target is authoritative. Falling back to a modulo-indexed seed
-    // used to create a valid title for the *next* keyword, while storing the
-    // current target beside it in the calendar.
-    const seed = slot.keyword ?? seeds[i % seeds.length] ?? project.name;
+  return slots.map((slot) => {
+    const seed = slot.keyword ?? "";
     const intent: SearchIntent = slot.intent ?? "commercial";
     const allowed = angleFitsIntent(intent, slot.type);
     const key = `${slot.type}:${normalise(seed)}`;
     const occurrence = pairOccurrence.get(key) ?? 0;
     pairOccurrence.set(key, occurrence + 1);
-    // allowed is empty only if this (intent, format) pair reached title
-    // generation despite assignKeywordsToSlots' hard gate (theoretically
-    // unreachable — ANGLE_FIT covers every pair FORMAT_INTENT_FIT allows).
-    // Never invent an angle to fill the gap: use the bare seed as the title.
-    const angle = allowed.length ? allowed[occurrence % allowed.length]! : null;
-    return { ...slot, angle, topic: angle ? ANGLE_TEMPLATES[angle][lang](seed) : capitalise(seed), generationSource: "fallback" as const };
+    return allowed.length ? allowed[occurrence % allowed.length]! : null;
   });
 }
 
@@ -334,53 +323,27 @@ export function validateCalendarTopic(
 }
 
 /**
- * Final anti-duplication pass over the whole 30-slot list, run after either
- * the AI response or the fallback template has already picked a topic per
- * slot. With only ~8-14 qualified keywords for 30 days, the same
- * (type, keyword) pair recurring is inevitable — this is what catches it
- * regardless of which path produced the collision (the AI repeating itself
- * across two different slots, or the fallback reapplying the same template)
- * and swaps in the next unused angle instead of shipping a literal duplicate
- * topic like "ai search optimization tool: the complete guide" twice.
+ * Final anti-duplication gate. It never rewrites an AI title with a template:
+ * an invalid or duplicate title rejects the complete generation attempt.
  */
 function dedupeTopics(
   project: ProjectBrief,
-  planned: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null; topic: string; generationSource: "ai" | "fallback"; fallbackReason?: FallbackReason | null }[],
+  planned: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null; angle?: EditorialAngle | null; topic: string; generationSource: "ai" }[],
 ) {
-  const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
   const usedPairs = new Set<string>();
   const usedTitles = new Set<string>();
   return planned.map((item) => {
     const seed = item.keyword ?? project.name;
     const intent: SearchIntent = item.intent ?? "commercial";
     const allowed = angleFitsIntent(intent, item.type);
-    let angle = item.angle ?? (allowed[0] ?? null);
-    let topic = item.topic;
-    let generationSource = item.generationSource;
-    let fallbackReason = item.fallbackReason ?? null;
+    const angle = item.angle ?? (allowed[0] ?? null);
+    const topic = item.topic;
     if (!angle || !isTitleUniqueAndNatural(seed, angle, topic, usedPairs, usedTitles)) {
-      const alt = allowed
-        .map((candidate) => ({ candidate, candidateTopic: freshenYears(ANGLE_TEMPLATES[candidate][lang](seed)) }))
-        .find(({ candidate, candidateTopic }) => isTitleUniqueAndNatural(seed, candidate, candidateTopic, usedPairs, usedTitles));
-      if (alt) {
-        angle = alt.candidate;
-        topic = alt.candidateTopic;
-        // The substitute came from ANGLE_TEMPLATES, not the AI response. Keep
-        // the original reason when the slot was already a fallback, so a
-        // downstream dedup swap never masks why the AI title was rejected.
-        if (generationSource === "ai") fallbackReason = "dedupe_replaced";
-        generationSource = "fallback";
-      } else if (angle && usedTitles.has(normalise(topic))) {
-        // Every angle in the allowed set is exhausted (a keyword recurring far
-        // more than the angle library covers) — guarantee uniqueness rather
-        // than silently ship a duplicate; the date suffix keeps the title
-        // truthful about why it differs from the earlier one on the same topic.
-        topic = `${topic} (${item.date})`;
-      }
+      throw new Error(`CALENDAR_AI_QUALITY_FAILED: duplicate or unnatural AI title for ${item.date}: "${topic}"`);
     }
     usedPairs.add(`${normalise(seed)}:${angle ?? "none"}`);
     usedTitles.add(normalise(topic));
-    return { ...item, angle, topic, generationSource, fallbackReason };
+    return { ...item, angle, topic, generationSource: "ai" as const };
   });
 }
 
@@ -433,8 +396,7 @@ export type PlannedTopic = {
   intent?: SearchIntent | null;
   angle: EditorialAngle | null;
   topic: string;
-  generationSource: "ai" | "fallback";
-  fallbackReason: FallbackReason | null;
+  generationSource: "ai";
 };
 
 /**
@@ -451,24 +413,19 @@ export function reconcileTopics(
   parsedTopics: { date: string; keyword?: string; contentType?: string; topic: string }[],
 ): PlannedTopic[] {
   const byDate = new Map(parsedTopics.map((t) => [t.date, t]));
-  const fallback = fallbackTopics(project, slots);
+  const slotAngles = assignSlotAngles(slots);
   return slots.map((slot, i) => {
     const generated = byDate.get(slot.date);
-    const angle = fallback[i]!.angle;
-    const templateTopic = fallback[i]!.topic;
-    const useTemplate = (reason: FallbackReason): PlannedTopic => ({
-      ...slot,
-      angle,
-      topic: templateTopic,
-      generationSource: "fallback",
-      fallbackReason: reason,
-    });
+    const angle = slotAngles[i] ?? null;
+    const reject = (reason: FallbackReason): never => {
+      throw new Error(`CALENDAR_AI_QUALITY_FAILED: ${reason} for slot ${slot.date}`);
+    };
 
     // The model skipped this date entirely. The old code let this through as
     // `identityAligned` (it short-circuits on `!generated`) and then validated
     // the TEMPLATE, which passes — so a skipped slot was counted as an AI title
     // while actually shipping a template. It is a fallback, and says so.
-    if (!generated) return useTemplate("missing_topic");
+    if (!generated) return reject("missing_topic");
 
     const candidate = freshenYears(generated.topic ?? "");
     // The deterministic angle computed for this slot is the assigned angle
@@ -477,39 +434,32 @@ export function reconcileTopics(
     const checks = validateCalendarTopic(project, { ...slot, angle }, candidate);
     const isMarketingKeyword = MARKETING_QUERY.test(slot.keyword ?? "");
 
-    if (!isMarketingKeyword && META_MARKETING.test(candidate)) return useTemplate("marketing_leak");
-    if (normalise(generated.keyword ?? "") !== normalise(slot.keyword ?? "")) return useTemplate("identity_keyword_mismatch");
-    if (!sameContentType(generated.contentType, slot.type)) return useTemplate("identity_format_mismatch");
-    if (!checks.keywordAligned) return useTemplate("keyword_unaligned");
-    if (!checks.locationValid) return useTemplate("location_invalid");
-    if (!checks.formatFit) return useTemplate("format_unfit");
-    if (!checks.angleFit) return useTemplate("angle_unfit");
-    if (!checks.titleNonEmpty) return useTemplate("title_empty");
-    if (!checks.titleNatural) return useTemplate("title_unnatural");
+    if (!isMarketingKeyword && META_MARKETING.test(candidate)) return reject("marketing_leak");
+    if (normalise(generated.keyword ?? "") !== normalise(slot.keyword ?? "")) return reject("identity_keyword_mismatch");
+    if (!sameContentType(generated.contentType, slot.type)) return reject("identity_format_mismatch");
+    if (!checks.keywordAligned) return reject("keyword_unaligned");
+    if (!checks.locationValid) return reject("location_invalid");
+    if (!checks.formatFit) return reject("format_unfit");
+    if (!checks.angleFit) return reject("angle_unfit");
+    if (!checks.titleNonEmpty) return reject("title_empty");
+    if (!checks.titleNatural) return reject("title_unnatural");
 
-    return { ...slot, angle, topic: candidate, generationSource: "ai", fallbackReason: null };
+    return { ...slot, angle, topic: candidate, generationSource: "ai" };
   });
 }
 
 /** Aggregate counters for the /test stage summary and server logs. */
 export function summariseTopicGeneration(topics: PlannedTopic[]) {
-  const byReason: Record<string, number> = {};
-  for (const t of topics) {
-    if (t.fallbackReason) byReason[t.fallbackReason] = (byReason[t.fallbackReason] ?? 0) + 1;
-  }
-  const fallbackUsed = topics.filter((t) => t.generationSource === "fallback").length;
   return {
     aiRequested: topics.length,
-    aiAccepted: topics.length - fallbackUsed,
-    fallbackUsed,
-    fallbackRate: topics.length ? fallbackUsed / topics.length : 0,
-    byReason,
+    aiAccepted: topics.length,
   };
 }
 
 export async function planTopics(
   project: ProjectBrief,
   slots: { date: string; type: ContentType; keyword?: string | null; intent?: SearchIntent | null }[],
+  attempt = 1,
 ) {
   const lang: "en" | "fr" = (project.locale ?? "fr").slice(0, 2).toLowerCase() === "fr" ? "fr" : "en";
   const list = slots
@@ -569,20 +519,12 @@ Return JSON: {"topics":[{"date":"YYYY-MM-DD","keyword":"copy the slot target key
     const parsed = parseJsonLoose<{ topics?: { date: string; keyword?: string; contentType?: string; topic: string }[] }>(raw);
     return dedupeTopics(project, reconcileTopics(project, slots, parsed.topics ?? []));
   } catch (error) {
-    // The whole batch never produced a usable response. Tag every slot with the
-    // reason so a 100%-fallback calendar can be told apart from one where the
-    // call succeeded and each title was individually rejected downstream — the
-    // two are byte-identical in the output otherwise.
-    const reason: FallbackReason =
-      error instanceof Error && /complete JSON value|JSON/i.test(error.message) ? "parse_failed" : "provider_error";
-    console.error("[planTopics] AI topic generation failed for the whole batch", {
-      reason,
+    console.error("[planTopics] AI topic generation attempt failed", {
+      attempt,
       error: error instanceof Error ? error.message : String(error),
     });
-    return dedupeTopics(
-      project,
-      fallbackTopics(project, slots).map((slot) => ({ ...slot, fallbackReason: reason })),
-    );
+    if (attempt < 2) return planTopics(project, slots, attempt + 1);
+    throw new Error(`CALENDAR_AI_GENERATION_FAILED: two AI attempts failed; no fallback content was created. Last error: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 

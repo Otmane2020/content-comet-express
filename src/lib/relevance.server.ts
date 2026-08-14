@@ -763,6 +763,52 @@ Return JSON: {"scores":[{"domain":"...","score":0-100}]}`,
 }
 
 /**
+ * Confirms direct competitors from what their product landing pages actually
+ * sell. SERP overlap alone only proves topic overlap and commonly admits
+ * publishers, broad suites, plugins and analytics products.
+ */
+export async function scoreCompetitorLandings(
+  profile: BusinessProfile,
+  candidates: { domain: string; positioning: string; headings: string[]; categories: string[] }[],
+): Promise<Record<string, number>> {
+  if (!candidates.length) return {};
+  const fallback = () => Object.fromEntries(candidates.map((candidate) => [candidate.domain.toLowerCase(), 0]));
+  try {
+    const raw = await callOpenRouter({
+      temperature: 0,
+      json: true,
+      maxTokens: 1800,
+      system: "You verify direct product competitors from landing-page evidence. Return strict JSON only.",
+      user: `${profileBlock(profile)}
+
+Score each candidate from 0-100 as a DIRECT competitor. A direct competitor must sell substantially the same core product, solve the same primary job, target the same buyer, and use a comparable delivery model. Shared SEO keywords are not enough.
+
+Scoring:
+- 85-100: direct substitute a buyer could choose instead of this product.
+- 65-84: partially overlapping or broader platform with a genuinely comparable core module.
+- 30-64: adjacent analytics, plugin, agency, content tool, broad marketing suite, or only one shared feature.
+- 0-29: publisher, blog, directory, course, community, unrelated product, or no commercial evidence.
+
+Landing-page evidence:
+${candidates.map((candidate) => `DOMAIN: ${candidate.domain}\nPOSITIONING: ${candidate.positioning}\nHEADINGS: ${candidate.headings.slice(0, 12).join(" | ")}\nCATEGORIES: ${candidate.categories.slice(0, 8).join(" | ")}`).join("\n\n")}
+
+Return JSON: {"scores":[{"domain":"...","score":0-100,"reason":"short evidence-based reason"}]}`,
+    });
+    const parsed = parseJsonLoose<{ scores?: { domain: string; score: number }[] }>(raw);
+    const out: Record<string, number> = {};
+    for (const item of parsed.scores ?? []) {
+      const domain = item.domain?.trim().toLowerCase();
+      const score = Number(item.score);
+      if (domain && Number.isFinite(score)) out[domain] = Math.max(0, Math.min(100, score));
+    }
+    return Object.keys(out).length ? out : fallback();
+  } catch (error) {
+    console.error("[relevance] competitor landing scoring failed", error);
+    return fallback();
+  }
+}
+
+/**
  * Composite ranking score. Relevance dominates and also acts as a gate:
  * an off-topic keyword can never outrank a relevant one, whatever its volume.
  * Weights: relevance 60, intent 18, volume 10, difficulty 7, CPC 5, and the

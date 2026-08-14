@@ -546,7 +546,7 @@ export async function discoverCompetitorsFromSerp(
 ): Promise<SerpCompetitor[]> {
   const { serpWithAiSignals, competitorDomains } = await import("./dataforseo.server");
   const { dedupeDomains, isRealCompetitor } = await import("./quotas");
-  const { scoreCompetitorDomains, MIN_COMPETITOR_RELEVANCE } = await import("./relevance.server");
+  const { scoreCompetitorLandings } = await import("./relevance.server");
 
   const opts = localeOpts(locale, targetCountry);
   const country = opts.locationName;
@@ -728,9 +728,10 @@ export async function discoverCompetitorsFromSerp(
   // furniture retailers can rank for the same generic categories while selling
   // to an entirely different buyer. Verify the candidate's own landing page
   // with the same deterministic B2B extractor used for the merchant.
-  const landingProfiles = b2bMerchant ? await analyseCompetitorLandings(shortlist, landingProfileLimit) : [];
+  const landingProfiles = await analyseCompetitorLandings(shortlist, landingProfileLimit);
   const b2bDomains = new Set(landingProfiles.filter((p) => p.sellsToBusinesses).map((p) => p.domain.toLowerCase()));
-  const buyerMatched = b2bMerchant ? shortlist.filter((domain) => b2bDomains.has(domain.toLowerCase())) : shortlist;
+  const readableDomains = new Set(landingProfiles.map((profile) => profile.domain.toLowerCase()));
+  const buyerMatched = shortlist.filter((domain) => b2bMerchant ? b2bDomains.has(domain.toLowerCase()) : readableDomains.has(domain.toLowerCase()));
   if (!buyerMatched.length) {
     throw new Error("Google found category sites, but none showed evidence of selling to the same professional buyers.");
   }
@@ -738,9 +739,10 @@ export async function discoverCompetitorsFromSerp(
   // A verified B2B landing page is direct evidence of the same buyer model.
   // Do not discard it because a second model cannot infer a business from a
   // domain name alone.
-  const compScores = b2bMerchant
-    ? Object.fromEntries(buyerMatched.map((domain) => [domain, 100]))
-    : await scoreCompetitorDomains(biz, buyerMatched);
+  const compScores = await scoreCompetitorLandings(
+    biz,
+    landingProfiles.filter((profile) => buyerMatched.includes(profile.domain.toLowerCase())),
+  );
   console.info("[competitors] candidate evidence before final gate", buyerMatched.map((domain) => ({
     domain,
     relevance: compScores[domain] ?? 0,
@@ -756,7 +758,7 @@ export async function discoverCompetitorsFromSerp(
       // Two distinct queries confirm a competitor. In a sparse niche SERP,
       // retain a top-10 candidate only when the relevance model is highly
       // confident; the next stage still verifies its actual landing page.
-      return relevance >= MIN_COMPETITOR_RELEVANCE && (
+      return relevance >= 85 && (
         hits >= 2 ||
         aiCitedSet.has(d) ||
         (relevance >= 85 && hits >= 1 && (info?.bestPosition ?? 999) <= 10)
