@@ -102,6 +102,22 @@ export function keywordMatchesLocale(keyword: string, locale: string | null | un
   return true;
 }
 
+/** Locale consistency gate for profile/article prose, not just short keywords. */
+export function textMatchesLocale(value: string, locale: string | null | undefined): boolean {
+  const code = (locale ?? "").slice(0, 2).toLowerCase();
+  const text = value.toLowerCase();
+  if (!text.trim()) return true;
+  if (code === "en") {
+    const frenchSignals = text.match(/\b(?:logiciel|outil|plateforme|visibilité|rédaction|automatisation|entreprises|agences|équipes|pour|avec|améliorer|génération)\b/g) ?? [];
+    return frenchSignals.length < 2;
+  }
+  if (code === "fr") {
+    const englishSignals = text.match(/\b(?:software|tool|platform|visibility|writing|automation|businesses|agencies|teams|for|with|improve|generation)\b/g) ?? [];
+    return englishSignals.length < 2;
+  }
+  return true;
+}
+
 function keepCandidateLanguage(keywords: string[], locale: string | null | undefined) {
   return keywords.filter((keyword) => keywordMatchesLocale(keyword, locale));
 }
@@ -300,6 +316,22 @@ Rules:
     console.error("[canonical-profile] first attempt failed", error instanceof Error ? error.message : error);
     const raw = await callOpenRouter({ json: true, maxTokens: 1800, system, user: buildPrompt() });
     p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(raw);
+  }
+  const profileLocale = landing?.lang ?? site.lang ?? null;
+  const profileLanguageText = () => [p.industry, p.description, p.audience, p.canonical, ...(p.products ?? []), ...(p.services ?? [])]
+    .filter(Boolean).join(" ");
+  if (!textMatchesLocale(profileLanguageText(), profileLocale)) {
+    console.warn("[canonical-profile] language mismatch; retrying", { expected: profileLocale });
+    const strictRaw = await callOpenRouter({
+      json: true,
+      maxTokens: 1800,
+      system,
+      user: `${buildPrompt()}\nCRITICAL RETRY: the previous response used the wrong language. Every human-readable value MUST use locale ${profileLocale}.`,
+    });
+    p = parseJsonLoose<Partial<CanonicalBusinessProfile>>(strictRaw);
+    if (!textMatchesLocale(profileLanguageText(), profileLocale)) {
+      throw new Error(`PROFILE_LANGUAGE_MISMATCH: generated profile does not match website locale ${profileLocale ?? "unknown"}.`);
+    }
   }
   const products = Array.isArray(p.products) ? p.products.map((s) => String(s).trim()).filter(Boolean).slice(0, 20) : [];
   const services = Array.isArray(p.services) ? p.services.map((s) => String(s).trim()).filter(Boolean).slice(0, 10) : [];

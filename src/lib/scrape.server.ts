@@ -244,6 +244,8 @@ const B2B_MARKERS =
 const STRONG_B2B_MARKERS =
   /grossiste?s?|demi[-\s]gros|en\s+gros|revendeurs?|wholesale[rs]?|bulk\s+(?:order|buy|purchas)|b2b|business[-\s]to[-\s]business|fournisseurs?|distributeurs?|mayorista|venta\s+al\s+por\s+mayor|gro[sÃŸ]handel|ingrosso|hurtown\w*|tarifs?\s+pro|prix\s+pro|compte\s+pro|trade\s+(?:account|price|customer)|reseller|dropshipp\w*/gi;
 
+const PROFESSIONAL_BUYER_MARKERS = /\b(?:agencies|agency|businesses|companies|teams|enterprise|enterprises|e-?commerce (?:brands|teams|businesses)|marketing teams|for business|for teams)\b/gi;
+
 function metaContent(html: string, attr: "name" | "property", key: string) {
   const re = new RegExp(
     `<meta[^>]+${attr}=["']${key}["'][^>]*content=["']([^"']*)["']|<meta[^>]+content=["']([^"']*)["'][^>]*${attr}=["']${key}["']`,
@@ -343,6 +345,8 @@ export function extractLandingProfile(html: string, pageUrl: string): LandingPro
   const b2bMentions = bodyHits.length;
   const b2bDistinct = new Set(bodyHits.map((m) => m.toLowerCase())).size;
   const strongBodyHits = bodyText.match(STRONG_B2B_MARKERS) ?? [];
+  const professionalBuyerHits = bodyText.match(PROFESSIONAL_BUYER_MARKERS) ?? [];
+  const professionalBuyerDistinct = new Set(professionalBuyerHits.map((m) => m.toLowerCase())).size;
 
   // Match markers only against copy the merchant wrote about itself, never the
   // full page text: a single "professionnels" in a footer link would otherwise
@@ -377,7 +381,7 @@ export function extractLandingProfile(html: string, pageUrl: string): LandingPro
     // and a variety floor: one word repeated by a menu template is not a
     // business model, whereas "grossiste" + "revendeurs" + "en gros" across
     // thirty mentions is unambiguous.
-    sellsToBusinesses: strongB2bMarkers.length > 0 || strongBodyHits.length >= 3,
+    sellsToBusinesses: strongB2bMarkers.length > 0 || strongBodyHits.length >= 3 || professionalBuyerDistinct >= 2,
     pageTitle: h1[0] ?? siteName ?? null,
     bodyExcerpt: bodyText.trim().slice(0, 4000),
     // og:site_name earns its place: sweet-deco.fr's is "Grossiste de Meubles en

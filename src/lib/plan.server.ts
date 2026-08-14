@@ -972,7 +972,7 @@ Return JSON: {"title":"...","excerpt":"max 160 chars","body_md":"markdown articl
     body_md: protect(body_md),
     faq: faq.length ? faq : null,
   };
-  const quality = validateArticleQuality(item, article, rivals);
+  const quality = validateArticleQuality(item, article, rivals, project.locale);
   if (!quality.ok && extras?.qualityMode !== "report") {
     throw new Error(`ARTICLE_QUALITY_FAILED: ${quality.failures.join("; ")}`);
   }
@@ -986,12 +986,26 @@ export function validateArticleQuality(
   item: { topic: string | null; angle?: EditorialAngle | null },
   article: { title: string; body_md: string },
   rivals: { domain: string }[],
+  locale?: string | null,
 ): ArticleQuality {
   const failures: string[] = [];
   const comparisonRequested =
     item.angle === "comparison" ||
     /\b(?:compar(?:e|ed|ison)|versus|vs\.?|which (?:one|tool|platform|software)|best (?:tool|platform|software))\b/i.test(item.topic ?? article.title);
   const title = article.title.trim();
+  const completeText = `${article.title}\n${article.body_md}`;
+  if (/\b(?:another supplier|another provider|another competitor|placeholder|lorem ipsum|tbd|undefined)\b/i.test(completeText) || /\{\{|\$\{|<%/.test(completeText)) {
+    failures.push("article contains an unresolved placeholder or generic supplier token");
+  }
+  const language = (locale ?? "").slice(0, 2).toLowerCase();
+  const frenchLanguageSignals = completeText.match(/\b(?:meilleur|logiciel|outil|visibilité|rédaction|automatisation|pour|avec|comment|entreprise)\b/gi) ?? [];
+  const englishLanguageSignals = completeText.match(/\b(?:best|software|tool|visibility|writing|automation|how to|for businesses)\b/gi) ?? [];
+  if (language === "en" && frenchLanguageSignals.length >= 2) {
+    failures.push("article language does not match the English project locale");
+  }
+  if (language === "fr" && englishLanguageSignals.length >= 2) {
+    failures.push("article language does not match the French project locale");
+  }
   if (title.length > 140) failures.push("article title exceeds 140 characters");
   if (/\b(?:and|or|with|for|to|of|the|a|an|perplex)$/i.test(title) || /[,:;\\/-]$/.test(title)) {
     failures.push("article title appears truncated or incomplete");
@@ -1010,6 +1024,13 @@ export function validateArticleQuality(
     const officialLinks = rivals.filter((rival) => text.includes(`https://${rival.domain.toLowerCase()}`));
     if (!/^##\s+Sources\b/im.test(article.body_md) || officialLinks.length < 2) {
       failures.push("comparison lacks a Sources section with two official competitor links");
+    }
+  }
+  const unsupportedClaim = /(?:increases? the likelihood of being cited|(?:ai |search )?engines? reward|dwell time.{0,50}citation|shopping articles? (?:are|is) unique)/i;
+  for (const paragraph of article.body_md.split(/\n\s*\n/)) {
+    if (unsupportedClaim.test(paragraph) && !/https?:\/\//i.test(paragraph)) {
+      failures.push("unsupported GEO claim has no source in the same paragraph");
+      break;
     }
   }
   return { ok: failures.length === 0, comparisonRequested, failures };

@@ -9,6 +9,7 @@ import type { CanonicalProfileFacts } from "./plan.server";
 import { angleFitsIntent, formatFitsKeyword, resolveSlotIntent, type CalendarSlot } from "./angles.server";
 
 type Sb = { from: (t: string) => any };
+export const MAX_ARTICLES_PER_KEYWORD = 3;
 
 export type RotationProject = {
   id: string;
@@ -68,6 +69,7 @@ export function assignKeywordsToSlots(
     let best = -1;
     for (let i = 0; i < normalised.length; i++) {
       const k = normalised[i]!;
+      if (useCount[i]! >= MAX_ARTICLES_PER_KEYWORD) continue;
       if (!formatFitsKeyword(k.intent, format) || angleFitsIntent(k.intent, format).length === 0) continue;
       if (best < 0 || useCount[i]! < useCount[best]!) best = i;
     }
@@ -172,6 +174,11 @@ export async function ensureWindow(
   const pool: { keyword: string; intent: string; origin: string }[] = picked.length
     ? picked.map((k) => ({ keyword: k.keyword, intent: (k.intent ?? "").toLowerCase(), origin: k.origin ?? "" }))
     : brief.keywords.map((keyword) => ({ keyword, intent: "", origin: "" }));
+  const distinctKeywordCount = new Set(pool.map((item) => item.keyword.trim().toLowerCase()).filter(Boolean)).size;
+  const requiredKeywordCount = Math.ceil(missing.length / MAX_ARTICLES_PER_KEYWORD);
+  if (distinctKeywordCount < requiredKeywordCount) {
+    throw new Error(`QUALITY_FAILED: ${distinctKeywordCount} distinct qualified keyword(s) cannot support ${missing.length} articles with the ${MAX_ARTICLES_PER_KEYWORD}-article reuse limit; need ${requiredKeywordCount}.`);
+  }
   const slots = assignKeywordsToSlots(
     pool,
     missing.map((m) => ({ date: m.date, type: m.type as ContentType })),

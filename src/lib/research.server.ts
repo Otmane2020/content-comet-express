@@ -868,23 +868,12 @@ export async function runLiveMarketResearch(
       `${withDemand.length} keyword(s) had real search-volume data, but none matched this business's buyer profile (relevance gate) — the AI's candidate queries may be off-topic.`,
     );
   }
-  // Below MIN_USABLE_KEYWORDS there's essentially no market signal to plan a
-  // month from — a genuine failure. Below the larger MIN_QUALIFIED_KEYWORDS
-  // "ideal" the scan still proceeds: FALLBACK_ANGLES/dedupeTopics in
-  // plan.server.ts exist specifically to keep 30 calendar topics unique even
-  // from a handful of keywords. It used to hard-fail here at 8, which turned
-  // "this business has a thin market" into an indistinguishable-from-broken
-  // FAIL every time DataForSEO's Google Ads data was sparse for a niche or
-  // new product category.
-  if (keywords.length < MIN_USABLE_KEYWORDS) {
+  if (keywords.length < MIN_QUALIFIED_KEYWORDS) {
     throw new Error(
-      `Only ${keywords.length} keyword${keywords.length === 1 ? "" : "s"} had real, measurable demand and passed the relevance gate — not enough reliable search data to plan from.`,
+      `QUALITY_FAILED: only ${keywords.length} keyword${keywords.length === 1 ? "" : "s"} had real, measurable demand and passed the relevance gate; at least ${MIN_QUALIFIED_KEYWORDS} are required.`,
     );
   }
-  const warning =
-    keywords.length < MIN_QUALIFIED_KEYWORDS
-      ? `Only ${keywords.length} qualified keyword${keywords.length === 1 ? "" : "s"} (ideal is ${MIN_QUALIFIED_KEYWORDS}+) — the 30-day calendar will diversify angles per keyword instead of drawing from a wide pool.`
-      : null;
+  const warning = null;
 
   // Seeded from only the top qualified keyword (landingProfileLimit=5),
   // matching /test's "serp" stage exactly — same reasoning as dropping the

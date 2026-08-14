@@ -217,14 +217,17 @@ function TestPage() {
     ? (s7.raw as { title?: string; excerpt?: string; body_md?: string; quality?: { ok: boolean; failures: string[] } } | null)
     : null;
   const qualityFailures = articlePreview?.quality?.failures ?? [];
+  const failedChecks = [s1, s2, s3, s4, s5, s6, s7].flatMap((stage) => stage.checks.filter((check) => !check.ok));
+  const allStagesFinished = [s1, s2, s3, s4, s5, s6, s7].every((stage) => stage.status === "done");
+  const hasQualityStageError = [s1, s2, s3, s4, s5, s6, s7].some((stage) => /QUALITY_FAILED|LANGUAGE_MISMATCH|ARTICLE_QUALITY_FAILED/i.test(stage.error ?? ""));
   const [reportCopied, setReportCopied] = useState(false);
   const [reportCopyError, setReportCopyError] = useState<string | null>(null);
   const [showManualCopy, setShowManualCopy] = useState(false);
   const diagnosticReport = {
     generatedAt: new Date().toISOString(),
     website,
-    status: qualityFailures.length || fallbackRate > 0.25
-      ? "completed_with_quality_failures"
+    status: hasQualityStageError || (allStagesFinished && (qualityFailures.length || fallbackRate > 0.25 || failedChecks.length))
+      ? "quality_failed"
       : allStagesGreen ? "complete" : "incomplete",
     stages: [
       ["landing", s1], ["profile", s2], ["keywords", s3], ["serp", s4],

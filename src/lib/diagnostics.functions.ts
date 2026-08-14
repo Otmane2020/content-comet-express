@@ -119,6 +119,12 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         const { buildCanonicalProfile } = await import("./relevance.server");
         const { getEligibleFormats } = await import("./geo");
         const profile = await buildCanonicalProfile(context.site, { website_url: data.website });
+        const { textMatchesLocale } = await import("./relevance.server");
+        const expectedLocale = context.site.landing?.lang ?? context.site.lang ?? null;
+        const profileText = [profile.industry, profile.description, profile.audience, profile.canonical, ...(profile.products ?? []), ...(profile.services ?? [])].filter(Boolean).join(" ");
+        if (!textMatchesLocale(profileText, expectedLocale)) {
+          throw new Error(`QUALITY_FAILED: profile language does not match website locale ${expectedLocale ?? "unknown"}.`);
+        }
         if (!profile.reliable) throw new Error("The canonical profile did not find enough verified business evidence.");
         const eligible = getEligibleFormats(profile);
         return finish(
@@ -171,10 +177,10 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
             `Only ${qualified.length} keyword(s) had real, measurable demand and passed the relevance gate — not enough reliable search data to plan from.`,
           );
         }
-        const warning =
-          qualified.length < MIN_QUALIFIED_KEYWORDS
-            ? `Only ${qualified.length} qualified keyword(s) (ideal is ${MIN_QUALIFIED_KEYWORDS}+) — the calendar will diversify angles per keyword instead of drawing from a wide pool.`
-            : null;
+        if (qualified.length < MIN_QUALIFIED_KEYWORDS) {
+          throw new Error(`QUALITY_FAILED: only ${qualified.length} qualified keyword(s); at least ${MIN_QUALIFIED_KEYWORDS} are required for a non-repetitive 30-day calendar.`);
+        }
+        const warning = null;
         // Every rejected candidate with why, so a thin scan is diagnosable
         // instead of a single opaque count: was it no market data at all
         // (no_volume) or genuinely off-topic (irrelevant)?
@@ -286,6 +292,31 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
         if (uniqueTitles.size !== calendar.length) {
           throw new Error(`Calendar completeness violation: ${calendar.length - uniqueTitles.size} duplicate title(s) among ${calendar.length} slots.`);
         }
+        const keywordUsage = new Map<string, number>();
+        for (const item of calendar) {
+          const key = (item.keyword ?? "").trim().toLowerCase();
+          keywordUsage.set(key, (keywordUsage.get(key) ?? 0) + 1);
+        }
+        const overused = [...keywordUsage.entries()].filter(([, count]) => count > 3);
+        if (overused.length) {
+          throw new Error(`QUALITY_FAILED: target keyword used more than 3 times (${overused.map(([key, count]) => `${key}=${count}`).join(", ")}).`);
+        }
+        const weakFallbacks = calendar.filter((item) => item.generationSource === "fallback" && /(?:how to compare your options|a buyer's guide)\s*$/i.test(item.topic));
+        if (weakFallbacks.length) throw new Error(`QUALITY_FAILED: ${weakFallbacks.length} weak mechanical fallback title(s) detected.`);
+        const comparisonCount = calendar.filter((item) => item.angle === "comparison" || /\b(?:vs\.?|versus|compared?|comparison|which (?:tool|platform|software|one))\b/i.test(item.topic)).length;
+        if (comparisonCount > 8) throw new Error(`QUALITY_FAILED: ${comparisonCount}/30 comparison titles; maximum is 8.`);
+        const titleTerms = (value: string) => new Set(value.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((word) => word.length > 3 && !["best", "guide", "tool", "tools", "software", "platform", "which", "your", "with", "from", "compared", "comparison"].includes(word)));
+        const nearDuplicates: string[] = [];
+        for (let i = 0; i < calendar.length; i++) {
+          const left = titleTerms(calendar[i]!.topic);
+          for (let j = i + 1; j < calendar.length; j++) {
+            const right = titleTerms(calendar[j]!.topic);
+            const union = new Set([...left, ...right]);
+            const intersection = [...left].filter((term) => right.has(term)).length;
+            if (union.size >= 4 && intersection / union.size >= 0.72) nearDuplicates.push(`${i + 1}/${j + 1}`);
+          }
+        }
+        if (nearDuplicates.length) throw new Error(`QUALITY_FAILED: ${nearDuplicates.length} semantically near-duplicate title pair(s) (${nearDuplicates.slice(0, 6).join(", ")}).`);
         // Diagnostic only, never fails the stage: a high fallback rate can be
         // legitimate (e.g. a marketing-topic AI title correctly rejected), but
         // making it visible is what lets a future domain's "templates in
