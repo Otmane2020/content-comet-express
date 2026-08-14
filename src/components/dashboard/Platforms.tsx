@@ -26,6 +26,7 @@ type Integration = {
   label: string;
   status: string;
   last_error: string | null;
+  config: { shop?: string } | null;
 };
 
 export function Platforms({ projectId, userId }: { projectId: string; userId: string }) {
@@ -43,7 +44,7 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
     queryFn: async () => {
       const { data, error } = await supabase
         .from("integrations")
-        .select("id, platform, label, status, last_error")
+        .select("id, platform, label, status, last_error, config")
         .eq("project_id", projectId)
         .order("created_at");
       if (error) throw error;
@@ -176,8 +177,28 @@ export function Platforms({ projectId, userId }: { projectId: string; userId: st
                   <p className="mt-0.5 text-[12.5px] text-muted-foreground">
                     {PLATFORM_META[i.platform as PlatformId]?.label ?? i.platform}
                   </p>
-                  {i.last_error && <p className="mt-1 text-[11.5px] text-destructive">{i.last_error}</p>}
+                  {i.last_error && (
+                    <div className="mt-1">
+                      <p className="text-[11.5px] font-medium text-destructive">
+                        {i.platform === "shopify"
+                          ? "Shopify connection expired. Reconnect your store to continue publishing articles."
+                          : i.last_error}
+                      </p>
+                    </div>
+                  )}
                 </div>
+                {i.platform === "shopify" && i.last_error && i.config?.shop && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={connectShopify.isPending}
+                    className="border-gold/50 text-[12px]"
+                    onClick={() => connectShopify.mutate(i.config!.shop!)}
+                  >
+                    <Plug className="mr-1.5 size-3.5" />
+                    {connectShopify.isPending ? "Reconnecting…" : "Reconnect Shopify"}
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="ghost"
