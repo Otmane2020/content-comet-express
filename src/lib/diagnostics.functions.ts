@@ -192,9 +192,9 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       if (data.batch === "serp") {
         if (!context.profile || !context.qualified?.length) missingBatchInput(data.batch);
         const { discoverCompetitorsFromSerp } = await import("./research.server");
-        const competitors = await discoverCompetitorsFromSerp(context.profile, context.writingLocale ?? "en", null, null, 8, context.qualified.slice(0, 1).map((row) => row.keyword), 5);
-        if (!competitors.length) throw new Error("No buyer-matched competitors were found in the representative SERP.");
-        return finish(`${competitors.length} buyer-matched competitors from Google, DataForSEO and SerpApi`, competitors, { ...context, competitors });
+        const competitors = await discoverCompetitorsFromSerp(context.profile, context.writingLocale ?? "en", null, null, 8, context.qualified.slice(0, 5).map((row) => row.keyword), 5);
+        if (!competitors.length) throw new Error("No SERP competitor candidates were found across the commercial queries.");
+        return finish(`${competitors.length} SERP candidate domains (confirmation happens after landing-page analysis)`, competitors, { ...context, competitors });
       }
       if (data.batch === "rivals") {
         if (!context.competitors?.length || !context.profile || !context.qualified?.length) missingBatchInput(data.batch);
@@ -313,8 +313,8 @@ export const runPipelineDiagnosticBatch = createServerFn({ method: "POST" })
       if (!context.profile || !context.calendar?.length || !context.rivals?.length) missingBatchInput(data.batch);
       const { writeArticle } = await import("./plan.server");
       const first = context.calendar[0]!;
-      const article = await writeArticle({ name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: [context.qualified?.[0]?.keyword ?? ""] }, { content_type: first.type, topic: first.topic }, { profile: context.profile, competitors: context.rivals });
-      return finish(`Article preview generated: ${article.title}`, article, context);
+      const article = await writeArticle({ name: context.profile.name ?? new URL(data.website).hostname, website_url: data.website, industry: context.profile.industry ?? null, audience: context.profile.audience ?? null, tone: "expert", locale: context.writingLocale ?? "en", keywords: [context.qualified?.[0]?.keyword ?? ""] }, { content_type: first.type, topic: first.topic, angle: first.angle }, { profile: context.profile, competitors: context.rivals, qualityMode: "report" });
+      return finish(article.quality.ok ? `Article preview generated: ${article.title}` : `Completed with quality failures: ${article.quality.failures.join("; ")}`, article, context);
     } catch (error) {
       const message = errorMessage(error);
       console.error("[pipeline-diagnostic] batch failed", { id: data.batch, website: data.website, error: message, stack: error instanceof Error ? error.stack : undefined });
