@@ -88,6 +88,47 @@ function profileBlock(profile: BusinessProfile) {
   return lines.join("\n");
 }
 
+/**
+ * Lets the model propose likely substitutes from the canonical business
+ * evidence. This is deliberately sector-agnostic: no brand, industry or
+ * software-specific query is embedded in the engine. The proposed domains are
+ * leads only; callers must read their landing pages and pass them through
+ * scoreCompetitorLandings before accepting them.
+ */
+export async function proposeCompetitorCandidates(
+  profile: BusinessProfile,
+  languageCode: string,
+  max = 15,
+): Promise<{ domains: string[]; queries: string[] }> {
+  const raw = await callOpenRouter({
+    temperature: 0,
+    json: true,
+    maxTokens: 1800,
+    system: "You identify purchasable business alternatives from verified company evidence. Return strict JSON only.",
+    user: `${profileBlock(profile)}
+
+Identify up to ${max} companies whose product or service a buyer could realistically choose INSTEAD of this business. This must work for any sector.
+
+Rules:
+- Same primary job, substantially similar offer, same buyer type and comparable delivery/sales model.
+- Do not return publishers, blogs, agencies, directories, marketplaces or broad adjacent tools unless that is also what the analysed business sells.
+- Do not include the analysed business itself.
+- Return the canonical commercial domain, without paths or protocols.
+- Also create 3-5 short commercial Google queries in language code ${languageCode} that describe the complete purchasable offer, not an editorial topic and not a brand name.
+- Never rely on shared keywords alone. These are candidate leads; their websites will be verified afterward.
+
+Return exactly:
+{"competitors":[{"domain":"example.com","reason":"short substitution reason"}],"queries":["..."]}`,
+  });
+  const parsed = parseJsonLoose<{ competitors?: { domain?: string }[]; queries?: string[] }>(raw);
+  const own = (profile.website_url ?? "").replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, "").toLowerCase();
+  const domains = Array.from(new Set((parsed.competitors ?? [])
+    .map((item) => (item.domain ?? "").trim().toLowerCase().replace(/^https?:\/\//i, "").replace(/^www\./i, "").replace(/\/.*$/, ""))
+    .filter((domain) => domain.includes(".") && domain !== own))).slice(0, max);
+  const queries = Array.from(new Set((parsed.queries ?? []).map((query) => query.trim()).filter(Boolean))).slice(0, 5);
+  return { domains, queries };
+}
+
 /** Hard language gate before any paid keyword measurement. */
 export function keywordMatchesLocale(keyword: string, locale: string | null | undefined): boolean {
   const code = (locale ?? "").slice(0, 2).toLowerCase();

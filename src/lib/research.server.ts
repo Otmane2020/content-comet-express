@@ -546,13 +546,13 @@ export async function discoverCompetitorsFromSerp(
 ): Promise<SerpCompetitor[]> {
   const { serpWithAiSignals, competitorDomains } = await import("./dataforseo.server");
   const { dedupeDomains, isRealCompetitor } = await import("./quotas");
-  const { scoreCompetitorLandings } = await import("./relevance.server");
+  const { proposeCompetitorCandidates, scoreCompetitorLandings } = await import("./relevance.server");
 
   const opts = localeOpts(locale, targetCountry);
   const country = opts.locationName;
   const category = (biz.industry ?? biz.name ?? "").trim();
   if (!category) throw new Error("Not enough business information to build competitor search queries.");
-  const primaryEntity = biz.primary_entity ?? "service";
+  const aiDiscovery = await proposeCompetitorCandidates(biz, opts.languageCode, 15);
 
   // Build queries from the canonical profile when available.
   const productQueries = (biz.products ?? []).slice(0, 3).map((p) => p);
@@ -616,31 +616,9 @@ export async function discoverCompetitorsFromSerp(
       ].filter((q): q is string => Boolean(q && q.trim())),
     ),
   ).slice(0, 9);
-  // Competitor discovery must describe the complete purchasable product, not
-  // reuse broad editorial keywords. A new GEO SaaS searched through terms like
-  // "generative engine optimization" mostly finds Semrush/Ahrefs articles;
-  // buyers comparing the actual product search for automation + creation +
-  // publishing. These queries work even when the new domain has no rankings.
-  const directProductQueries = primaryEntity === "software"
-    ? isFrench
-      ? [
-          "logiciel automatisation contenu SEO avec publication",
-          "plateforme IA création et publication de contenu SEO",
-          "logiciel GEO génération de contenu automatisée",
-          "plateforme visibilité IA calendrier éditorial automatique",
-          "outil SEO IA publication automatique CMS",
-        ]
-      : [
-          "AI SEO content automation software with publishing",
-          "AI content creation and CMS publishing platform",
-          "automated GEO content generation platform",
-          "AI search visibility content automation software",
-          "automated SEO editorial calendar and publishing tool",
-        ]
-    : [];
   const queries = Array.from(
-    new Set([...directProductQueries, ...(buyerQueries ?? []), ...generatedQueries].map((q) => q.trim()).filter(Boolean)),
-  ).slice(0, primaryEntity === "software" ? 5 : 9);
+    new Set([...aiDiscovery.queries, ...(buyerQueries ?? []), ...generatedQueries].map((q) => q.trim()).filter(Boolean)),
+  ).slice(0, 9);
 
   const selfDomain = (biz.website_url ?? "").replace(/^https?:\/\//, "").replace(/\/.*$/, "").toLowerCase();
 
@@ -691,6 +669,7 @@ export async function discoverCompetitorsFromSerp(
   // response, no extra request — it used to be filtered out and discarded.
   const aiCited = batches.flatMap((b) => b.ai.citedDomains);
   const aiCitedSet = new Set(aiCited.filter((domain) => isRealCompetitor(domain, selfDomain)));
+  const aiProposedSet = new Set(aiDiscovery.domains.filter((domain) => isRealCompetitor(domain, selfDomain)));
   const aiQueryCount = batches.filter((b) => b.ai.hasAiOverview).length;
   if (aiQueryCount) {
     console.info("[competitors] AI Overview present", {
@@ -699,8 +678,8 @@ export async function discoverCompetitorsFromSerp(
       citedDomains: Array.from(new Set(aiCited)).slice(0, 10),
     });
   }
-  if (!allResults.length && !overlapDomains.length && !aiCited.length) {
-    throw new Error("DataForSEO returned no organic SERP results for these queries.");
+  if (!allResults.length && !overlapDomains.length && !aiCited.length && !aiProposedSet.size) {
+    throw new Error("Neither AI discovery nor DataForSEO returned competitor candidates.");
   }
 
   const byDomain = new Map<string, { title: string | null; snippet: string | null; appearances: number; bestPosition: number }>();
@@ -741,8 +720,15 @@ export async function discoverCompetitorsFromSerp(
       byDomain.set(domain, { title: null, snippet: null, appearances: 2, bestPosition: 1 });
     }
   }
+  // AI proposals are discovery leads, never accepted facts. Add them to the
+  // landing-page shortlist; only the evidence scorer below can confirm them.
+  for (const domain of aiProposedSet) {
+    if (!byDomain.has(domain)) {
+      byDomain.set(domain, { title: null, snippet: null, appearances: 0, bestPosition: 999 });
+    }
+  }
 
-  const shortlist = dedupeDomains(Array.from(byDomain.keys()), selfDomain, 40);
+  const shortlist = dedupeDomains([...aiProposedSet, ...byDomain.keys()], selfDomain, 40);
   if (!shortlist.length) {
     throw new Error("No plausible competitor domains found in real Google SERP results.");
   }
@@ -771,6 +757,7 @@ export async function discoverCompetitorsFromSerp(
     relevance: compScores[domain] ?? 0,
     distinctQueryHits: queryHits.get(domain) ?? 0,
     citedByAiOverview: aiCitedSet.has(domain),
+    proposedByAi: aiProposedSet.has(domain),
     bestPosition: byDomain.get(domain)?.bestPosition ?? null,
   })).sort((a, b) => b.relevance - a.relevance).slice(0, 20));
   const kept = buyerMatched
@@ -784,6 +771,7 @@ export async function discoverCompetitorsFromSerp(
       return relevance >= 85 && (
         hits >= 2 ||
         aiCitedSet.has(d) ||
+        aiProposedSet.has(d) ||
         (relevance >= 85 && hits >= 1 && (info?.bestPosition ?? 999) <= 10)
       );
     })
