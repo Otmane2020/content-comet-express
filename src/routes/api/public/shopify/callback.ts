@@ -102,10 +102,19 @@ export const Route = createFileRoute("/api/public/shopify/callback")({ server: {
       const returnUrl = `${origin}/api/public/shopify/billing?state=${encodeURIComponent(mod.signState({ origin: "", shop, plan: state.plan ?? "monthly", flow: "dashboard", ts: Date.now() }))}`;
       const { confirmationUrl } = await mod.createAppSubscription(shop, access_token, returnUrl, state.plan ?? "monthly", info.isTestStore); return new Response(null, { status: 302, headers: { location: confirmationUrl } });
     }
-    const { data: existing } = await supabaseAdmin.from("integrations").select("user_id").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
+    const { data: existing } = await supabaseAdmin.from("integrations").select("id, user_id, config").eq("platform", "shopify").eq("config->>shop", shop).limit(1).maybeSingle();
     if (existing?.user_id) {
-      // An integration row for this shop already existed before this
-      // request — safe to register immediately, no write to wait for.
+      // Reinstall/reconnect: the OAuth exchange above already proved the new
+      // token can read the shop, blog, catalogue and pages. Replace the revoked
+      // token in the SAME destination before checking billing. Previously this
+      // branch never wrote the fresh token, so the UI kept showing the old
+      // disconnected row even after a successful reinstall.
+      const refreshedConfig = provision.buildShopifyConfig(shop, access_token, blogId, info, snapshot, content);
+      const { error: refreshError } = await supabaseAdmin
+        .from("integrations")
+        .update({ config: refreshedConfig, status: "connected", last_error: null })
+        .eq("id", existing.id);
+      if (refreshError) throw new Error(refreshError.message);
       void mod.registerShopifyWebhooks(shop, access_token, webhookUrl).catch(() => undefined);
       const active = await mod.activeAppSubscription(shop, access_token).catch(() => null);
       if (active) {
