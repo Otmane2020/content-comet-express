@@ -90,7 +90,7 @@ export const generateArticle = createServerFn({ method: "POST" })
       const target = (item as unknown as { target_keyword?: string | null }).target_keyword;
       const article = await writeArticle(
         { ...project, keywords: target ? [target] : (project.keywords ?? []) },
-        { content_type: item.content_type as ContentType, topic: item.topic, angle: (item as unknown as { angle?: import("./geo").EditorialAngle | null }).angle, targetKeyword: target ?? null },
+        { content_type: item.content_type as ContentType, topic: item.topic, angle: (item as unknown as { angle?: import("./angles.server").EditorialAngle | null }).angle, targetKeyword: target ?? null },
         { products, links, localInfo, profile: project.business_profile as never, competitors },
       );
       // faq isn't in the generated Supabase types yet (migration only) — cast, same as target_keyword elsewhere.
