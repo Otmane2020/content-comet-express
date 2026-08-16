@@ -181,8 +181,17 @@ const STEPS = [
   },
   {
     id: 3,
-    icon: Rocket,
+    icon: ShieldCheck,
     kicker: "Step 4",
+    title: "Plan & billing",
+    lead: "Activate your autopilot",
+    blurb:
+      "Choose your billing cycle and complete a secure Stripe checkout. Your progress is saved, so you return exactly where you left off.",
+  },
+  {
+    id: 4,
+    icon: Rocket,
+    kicker: "Step 5",
     title: "Generation & auto-publish",
     lead: "We write and publish daily",
     blurb:
@@ -768,7 +777,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
       setSigningUp(false);
     }
     setStep((s) => {
-      const next = Math.min(3, s + 1);
+      const next = Math.min(4, s + 1);
       void saveDraft(next);
       return next;
     });
@@ -1237,7 +1246,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
             />
             <div className="relative">
               <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gold">
-                Setup · {step + 1}/4
+                Setup · {step + 1}/5
               </p>
               <h2 className="mt-2 font-display text-[21px] font-bold leading-tight">
                 3 minutes to launch 30 days of content
@@ -1292,7 +1301,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
               <div className="mt-8 h-1 overflow-hidden rounded-full bg-background/15">
                 <motion.div
                   className="h-full rounded-full bg-gold"
-                  animate={{ width: `${((step + 1) / 4) * 100}%` }}
+                  animate={{ width: `${((step + 1) / 5) * 100}%` }}
                   transition={{ type: "spring", stiffness: 120, damping: 20 }}
                 />
               </div>
@@ -1785,6 +1794,73 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
 
                 {step === 3 && (
                   <div className="mt-6 space-y-5">
+                    <div className="relative overflow-hidden rounded-3xl border border-gold/35 bg-gradient-to-br from-gold-soft/70 via-background to-primary/5 p-6 shadow-[0_22px_65px_-38px_rgba(35,35,105,0.55)] sm:p-8">
+                      <div aria-hidden className="pointer-events-none absolute -right-16 -top-20 size-64 rounded-full bg-gold/25 blur-3xl" />
+                      <div className="relative">
+                        <div className="flex items-start gap-4">
+                          <span className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-deep text-gold shadow-lg shadow-deep/15">
+                            <ShieldCheck className="size-5" />
+                          </span>
+                          <div>
+                            <p className="font-display text-xl font-bold text-foreground">Start your 30-day autopilot</p>
+                            <p className="mt-1 max-w-xl text-[13px] leading-relaxed text-muted-foreground">
+                              Secure checkout powered by Stripe. Your onboarding progress and market research are saved before you leave.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                          {([
+                            { id: "monthly", price: "$9.99", per: "/month", note: "Flexible monthly billing", badge: "Cancel anytime" },
+                            { id: "annual", price: "$7.99", per: "/month", note: "$95.90 billed yearly", badge: "Save 20%" },
+                          ] as const).map((plan) => (
+                            <button
+                              key={plan.id}
+                              type="button"
+                              onClick={() => setCycle(plan.id)}
+                              disabled={subActive === true}
+                              className={`relative rounded-2xl border p-5 text-left transition ${
+                                cycle === plan.id
+                                  ? "border-gold bg-background shadow-md ring-2 ring-gold/15"
+                                  : "border-border bg-background/70 hover:border-gold/55"
+                              }`}
+                            >
+                              <span className={`absolute right-4 top-4 rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${
+                                cycle === plan.id ? "bg-gold text-gold-foreground" : "bg-muted text-muted-foreground"
+                              }`}>{plan.badge}</span>
+                              <div className="flex items-baseline gap-1">
+                                <span className="font-display text-2xl font-bold text-foreground">{plan.price}</span>
+                                <span className="text-[12px] text-muted-foreground">{plan.per}</span>
+                              </div>
+                              <p className="mt-2 text-[12px] text-muted-foreground">{plan.note}</p>
+                            </button>
+                          ))}
+                        </div>
+
+                        {subActive === true ? (
+                          <div className="mt-5 flex items-center gap-3 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-[13px] font-semibold text-emerald-800">
+                            <span className="flex size-7 items-center justify-center rounded-full bg-emerald-600 text-white"><Check className="size-4" /></span>
+                            Plan active. Continue to launch your autopilot.
+                          </div>
+                        ) : (
+                          <Button type="button" size="lg" onClick={() => void startCheckout()} disabled={busy || subActive !== true} className="mt-5 w-full bg-deep text-background hover:bg-deep/90 sm:w-auto">
+                            {busy ? "Opening secure checkout…" : "Continue to secure checkout"}
+                            {busy ? <Loader2 className="ml-2 size-4 animate-spin" /> : <ArrowRight className="ml-2 size-4" />}
+                          </Button>
+                        )}
+
+                        <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 border-t border-border/70 pt-4 text-[11.5px] text-muted-foreground">
+                          <span className="flex items-center gap-1.5"><ShieldCheck className="size-3.5 text-gold" /> Encrypted Stripe checkout</span>
+                          <span className="flex items-center gap-1.5"><Tag className="size-3.5 text-gold" /> Promo codes accepted</span>
+                          <span>No card details stored by Ranki</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {step === 4 && (
+                  <div className="mt-6 space-y-5">
                     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                       {FORMATS.map((f, i) => {
                         const styles = [
@@ -1849,43 +1925,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       {form.locale.toUpperCase()} · 30 articles planned.
                     </div>
 
-                    {subActive === false && (
-                      <div className="rounded-2xl border border-gold/40 bg-gold-soft/40 p-5">
-                        <div className="flex items-center gap-2 text-[13px] font-semibold text-foreground">
-                          <ShieldCheck className="size-4 text-gold" /> Activate your plan to launch
-                        </div>
-                        <p className="mt-1.5 text-[12.5px] leading-relaxed text-muted-foreground">
-                          The autopilot writes, illustrates and publishes daily. Pick a billing cycle —
-                          you can enter a promo code on the secure checkout page.
-                        </p>
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                          {([
-                            { id: "monthly", price: "$9.99", per: "/month", note: "Cancel anytime" },
-                            { id: "annual", price: "$7.99", per: "/month", note: "Billed yearly · save 20%" },
-                          ] as const).map((p) => (
-                            <button
-                              key={p.id}
-                              type="button"
-                              onClick={() => setCycle(p.id)}
-                              className={`rounded-xl border p-4 text-left transition ${
-                                cycle === p.id
-                                  ? "border-gold bg-background shadow-sm"
-                                  : "border-border bg-background/60 hover:border-gold/50"
-                              }`}
-                            >
-                              <div className="flex items-baseline gap-1">
-                                <span className="text-xl font-bold text-foreground">{p.price}</span>
-                                <span className="text-[12px] text-muted-foreground">{p.per}</span>
-                              </div>
-                              <p className="mt-1 text-[11.5px] text-muted-foreground">{p.note}</p>
-                            </button>
-                          ))}
-                        </div>
-                        <p className="mt-3 flex items-center gap-1.5 text-[11.5px] text-muted-foreground">
-                          <Tag className="size-3.5 text-gold" /> Got a promo code? Apply it at checkout.
-                        </p>
-                      </div>
-                    )}
                   </div>
                 )}
               </motion.div>
@@ -1903,7 +1942,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                 <ArrowLeft className="mr-1.5 size-4" /> Back
               </Button>
 
-              {step < 3 ? (
+              {step < 4 ? (
                 <Button
                   type="button"
                   onClick={() => {
@@ -1916,19 +1955,21 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                       return;
                     }
                     setStep((s) => {
-                      const next = Math.min(3, s + 1);
+                      const next = Math.min(4, s + 1);
                       void saveDraft(next);
                       return next;
                     });
                   }}
-                  disabled={!canNext || scanning || signingUp || (step === 1 && scanningMarket) || waitingForMarketScan}
+                  disabled={!canNext || scanning || signingUp || (step === 1 && scanningMarket) || waitingForMarketScan || (step === 3 && subActive !== true)}
                   className="bg-deep text-background hover:bg-deep/90"
                 >
                   {signingUp
                     ? "Creating your account…"
                     : (step === 1 && scanningMarket) || waitingForMarketScan
                       ? "Finishing your market scan…"
-                      : step === 0
+                      : step === 3
+                        ? "Continue to launch"
+                        : step === 0
                       ? shopContext
                         ? "Confirm URL & analyse"
                         : detected
@@ -1936,16 +1977,6 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                           : "Continue without analysis"
                       : "Continue"}{" "}
                   <ArrowRight className="ml-1.5 size-4" />
-                </Button>
-              ) : subActive === false ? (
-                <Button
-                  type="button"
-                  onClick={startCheckout}
-                  disabled={busy}
-                  className="bg-deep text-background hover:bg-deep/90"
-                >
-                  {busy ? "Opening checkout…" : "Subscribe & launch"}
-                  <Rocket className="ml-1.5 size-4" />
                 </Button>
               ) : (
                 <Button
