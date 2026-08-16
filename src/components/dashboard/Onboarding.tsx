@@ -1843,7 +1843,7 @@ export function Onboarding({ userId, onDone }: { userId: string | null; onDone: 
                             Plan active. Continue to launch your autopilot.
                           </div>
                         ) : (
-                          <Button type="button" size="lg" onClick={() => void startCheckout()} disabled={busy || subActive !== true} className="mt-5 w-full bg-deep text-background hover:bg-deep/90 sm:w-auto">
+                          <Button type="button" size="lg" onClick={() => void startCheckout()} disabled={busy || subActive === null} className="mt-5 w-full bg-deep text-background hover:bg-deep/90 sm:w-auto">
                             {busy ? "Opening secure checkout…" : "Continue to secure checkout"}
                             {busy ? <Loader2 className="ml-2 size-4 animate-spin" /> : <ArrowRight className="ml-2 size-4" />}
                           </Button>
