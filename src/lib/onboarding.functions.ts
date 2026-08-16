@@ -73,7 +73,7 @@ export const completeOnboarding = createServerFn({ method: "POST" })
         project_id: data.projectId,
         completed: true,
         completed_at: new Date().toISOString(),
-        current_step: 3,
+        current_step: 4,
       },
       { onConflict: "user_id" },
     );
