@@ -9,12 +9,13 @@ import {
   Image as ImageIcon,
   Loader2,
   PenLine,
+  RefreshCw,
   Send,
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { GoogleGlyph } from "@/components/GoogleGlyph";
-import { generateArticle, illustrateArticle, publishItem } from "@/lib/autopilot.functions";
+import { buildPlan, generateArticle, illustrateArticle, publishItem } from "@/lib/autopilot.functions";
 import { STATUS_META, TYPE_META, type ContentType } from "@/lib/geo";
 import { renderMarkdown } from "@/lib/markdown";
 import { Button } from "@/components/ui/button";
@@ -40,11 +41,13 @@ export function Calendar({ projectId }: { projectId: string }) {
   const generate = useServerFn(generateArticle);
   const publish = useServerFn(publishItem);
   const illustrate = useServerFn(illustrateArticle);
+  const syncPlan = useServerFn(buildPlan);
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState<{ title: string; body: string } | null>(null);
   const [editing, setEditing] = useState(false);
   const [page, setPage] = useState(0);
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null);
+  const [syncing, setSyncing] = useState(false);
   const PER_PAGE = 5;
 
   const { data: items = [], isLoading } = useQuery({
@@ -62,7 +65,6 @@ export function Calendar({ projectId }: { projectId: string }) {
 
   const open = useMemo(() => items.find((i) => i.id === openId) ?? null, [items, openId]);
 
-  // GMB is only relevant when the user connected a location AND kept sharing on.
   const { data: gmbSharing = false } = useQuery({
     queryKey: ["gmb-sharing", projectId],
     queryFn: async () => {
@@ -76,7 +78,6 @@ export function Calendar({ projectId }: { projectId: string }) {
     },
   });
 
-  // Items already shared on the listing keep the badge even if sharing is later turned off.
   const { data: gmbPostedIds = [] } = useQuery({
     queryKey: ["gmb-posted", projectId],
     queryFn: async () => {
@@ -124,14 +125,32 @@ export function Calendar({ projectId }: { projectId: string }) {
   });
 
   const imgMutation = useMutation({
-    mutationFn: (itemId: string) =>
-      illustrate({ data: { itemId, origin: window.location.origin } }),
+    mutationFn: (itemId: string) => illustrate({ data: { itemId, origin: window.location.origin } }),
     onSuccess: () => {
       toast.success("Images added to the article.");
       void qc.invalidateQueries({ queryKey: ["content", projectId] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
+
+  async function syncCalendar() {
+    if (syncing) return;
+    setSyncing(true);
+    try {
+      await qc.invalidateQueries({ queryKey: ["content", projectId] });
+      const res = await syncPlan({ data: { projectId, days: 30 } });
+      await qc.invalidateQueries({ queryKey: ["content", projectId] });
+      if (res.created > 0) {
+        toast.success(`Calendar synced — ${res.created} missing day${res.created > 1 ? "s" : ""} added.`);
+      } else {
+        toast.success("Calendar synced — your next 30 days are already complete.");
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not sync the 30-day calendar.");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   async function illustrateAll() {
     const targets = items.filter((i) => i.body_md && !i.cover_image_url);
@@ -187,15 +206,11 @@ export function Calendar({ projectId }: { projectId: string }) {
   return (
     <div>
       <div className="relative overflow-hidden rounded-2xl bg-deep p-6 text-background">
-        <div
-          className="pointer-events-none absolute -right-10 -top-24 size-56 rounded-full bg-gold/25 blur-3xl"
-          aria-hidden
-        />
+        <div className="pointer-events-none absolute -right-10 -top-24 size-56 rounded-full bg-gold/25 blur-3xl" aria-hidden />
         <div className="relative flex flex-wrap items-end justify-between gap-5">
           <div>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/20 px-3 py-1 font-mono text-[10.5px] font-bold uppercase tracking-[0.12em] text-gold">
-              <Sparkles className="size-3" />
-              Rolling 30 days
+              <Sparkles className="size-3" /> Rolling 30 days
             </span>
             <h2 className="mt-3 font-display text-[24px] font-bold leading-tight">Your content calendar</h2>
             <p className="mt-1.5 max-w-xl text-[13.5px] leading-relaxed text-background/70">
@@ -211,9 +226,7 @@ export function Calendar({ projectId }: { projectId: string }) {
             ].map((stat) => (
               <div key={stat.label}>
                 <p className="font-display text-[26px] font-bold leading-none text-gold">{stat.value}</p>
-                <p className="mt-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-background/60">
-                  {stat.label}
-                </p>
+                <p className="mt-1 font-mono text-[10.5px] uppercase tracking-[0.08em] text-background/60">{stat.label}</p>
               </div>
             ))}
           </div>
@@ -222,7 +235,18 @@ export function Calendar({ projectId }: { projectId: string }) {
 
       <div className="mt-5 flex items-center justify-between gap-3">
         <h3 className="font-display text-[15px] font-bold">Rolling schedule</h3>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => void syncCalendar()}
+            disabled={syncing || isLoading}
+            className="gap-1.5 text-[12.5px]"
+            title="Sync and refill the rolling 30-day calendar"
+          >
+            <RefreshCw className={`size-3.5 ${syncing ? "animate-spin" : ""}`} />
+            <span className="hidden sm:inline">Sync 30 days</span>
+          </Button>
           <Button
             size="sm"
             variant="outline"
@@ -231,13 +255,9 @@ export function Calendar({ projectId }: { projectId: string }) {
             className="gap-1.5 border-gold/50 text-[12.5px] hover:bg-gold-soft"
           >
             {bulk ? (
-              <>
-                <Loader2 className="size-3.5 animate-spin" /> Illustrating {bulk.done}/{bulk.total}
-              </>
+              <><Loader2 className="size-3.5 animate-spin" /> Illustrating {bulk.done}/{bulk.total}</>
             ) : (
-              <>
-                <ImageIcon className="size-3.5" /> Illustrate all articles
-              </>
+              <><ImageIcon className="size-3.5" /> Illustrate all articles</>
             )}
           </Button>
           <p className="font-mono text-[11px] uppercase tracking-wide text-muted-foreground">
@@ -247,12 +267,8 @@ export function Calendar({ projectId }: { projectId: string }) {
       </div>
 
       <div className="mt-3 space-y-3">
-        {isLoading && (
-          <p className="surface px-5 py-6 text-sm text-muted-foreground">Loading your calendar…</p>
-        )}
-        {!isLoading && items.length === 0 && (
-          <p className="surface px-5 py-6 text-sm text-muted-foreground">No content planned yet.</p>
-        )}
+        {isLoading && <p className="surface px-5 py-6 text-sm text-muted-foreground">Loading your calendar…</p>}
+        {!isLoading && items.length === 0 && <p className="surface px-5 py-6 text-sm text-muted-foreground">No content planned yet.</p>}
         {pageItems.map((item) => {
           const meta = TYPE_META[item.content_type as ContentType];
           const status = STATUS_META[item.status] ?? STATUS_META["planned"]!;
@@ -278,81 +294,36 @@ export function Calendar({ projectId }: { projectId: string }) {
               }}
               className="surface group relative flex cursor-pointer flex-wrap items-center gap-4 overflow-hidden px-4 py-4 pl-5 transition-all hover:border-primary/40 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
             >
-              <span
-                className="absolute inset-y-0 left-0 w-1 bg-transparent transition-colors group-hover:bg-gold"
-                aria-hidden
-              />
+              <span className="absolute inset-y-0 left-0 w-1 bg-transparent transition-colors group-hover:bg-gold" aria-hidden />
               <div className="flex size-14 shrink-0 flex-col items-center justify-center rounded-xl bg-primary/10 text-center text-primary">
-                <span className="font-mono text-[10px] uppercase tracking-wide opacity-70">
-                  {d.toLocaleDateString("en-US", { month: "short" })}
-                </span>
+                <span className="font-mono text-[10px] uppercase tracking-wide opacity-70">{d.toLocaleDateString("en-US", { month: "short" })}</span>
                 <span className="font-display text-lg font-bold leading-none">{d.getDate()}</span>
               </div>
-              {item.cover_image_url && (
-                <img
-                  src={item.cover_image_url}
-                  alt=""
-                  className="hidden size-14 shrink-0 rounded-xl object-cover sm:block"
-                />
-              )}
+              {item.cover_image_url && <img src={item.cover_image_url} alt="" className="hidden size-14 shrink-0 rounded-xl object-cover sm:block" />}
               <div className="min-w-40 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta?.tone ?? ""}`}>
-                    {meta?.short ?? item.content_type}
-                  </span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>
-                    {status.label}
-                  </span>
+                  <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${meta?.tone ?? ""}`}>{meta?.short ?? item.content_type}</span>
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ${status.className}`}>{status.label}</span>
                   {catalogConnected && item.content_type === "shopping" && (
                     <span className="flex items-center gap-1 rounded-full bg-secondary px-2 py-0.5 text-[10.5px] font-bold text-secondary-foreground">
-                      <span className="size-1.5 rounded-full bg-primary" aria-hidden />
-                      SHOPPING FEED
+                      <span className="size-1.5 rounded-full bg-primary" aria-hidden /> SHOPPING FEED
                     </span>
                   )}
-                  {(gmbPostedIds.includes(item.id) ||
-                    (gmbSharing && item.content_type === "local_aeo")) && (
-                    <span
-                      className="flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-bold"
-                      title="Shared as a Google Business Profile local post"
-                    >
-                      <GoogleGlyph className="size-3" />
-                      GMB
+                  {(gmbPostedIds.includes(item.id) || (gmbSharing && item.content_type === "local_aeo")) && (
+                    <span className="flex items-center gap-1 rounded-full border border-border bg-card px-2 py-0.5 text-[10.5px] font-bold" title="Shared as a Google Business Profile local post">
+                      <GoogleGlyph className="size-3" /> GMB
                     </span>
                   )}
                 </div>
-                <p className="mt-1.5 block w-full truncate text-left text-[14.5px] font-semibold transition-colors group-hover:text-primary">
-                  {item.title ?? item.topic ?? "Untitled slot"}
-                </p>
-                {item.excerpt && (
-                  <p className="mt-0.5 line-clamp-1 text-[12.5px] text-muted-foreground">{item.excerpt}</p>
-                )}
+                <p className="mt-1.5 block w-full truncate text-left text-[14.5px] font-semibold transition-colors group-hover:text-primary">{item.title ?? item.topic ?? "Untitled slot"}</p>
+                {item.excerpt && <p className="mt-0.5 line-clamp-1 text-[12.5px] text-muted-foreground">{item.excerpt}</p>}
               </div>
               <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy}
-                  onClick={() => genMutation.mutate(item.id)}
-                  title="Generate with DeepSeek"
-                >
-                  {busy && genMutation.variables === item.id ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Sparkles className="size-4" />
-                  )}
+                <Button size="sm" variant="ghost" disabled={busy} onClick={() => genMutation.mutate(item.id)} title="Generate with DeepSeek">
+                  {busy && genMutation.variables === item.id ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />}
                 </Button>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  disabled={busy || !item.body_md}
-                  onClick={() => pubMutation.mutate(item.id)}
-                  title="Publish everywhere"
-                >
-                  {busy && pubMutation.variables === item.id ? (
-                    <Loader2 className="size-4 animate-spin" />
-                  ) : (
-                    <Send className="size-4" />
-                  )}
+                <Button size="sm" variant="ghost" disabled={busy || !item.body_md} onClick={() => pubMutation.mutate(item.id)} title="Publish everywhere">
+                  {busy && pubMutation.variables === item.id ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
                 </Button>
                 {item.published_url && (
                   <a href={item.published_url} target="_blank" rel="noopener" className="p-2 text-muted-foreground hover:text-primary">
@@ -367,29 +338,18 @@ export function Calendar({ projectId }: { projectId: string }) {
 
       {pageCount > 1 && (
         <div className="mt-4 flex items-center justify-center gap-2">
-          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}>
-            <ChevronLeft className="size-4" />
-          </Button>
+          <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((p) => p - 1)}><ChevronLeft className="size-4" /></Button>
           {Array.from({ length: pageCount }).map((_, i) => (
             <button
               key={i}
               type="button"
               onClick={() => setPage(i)}
-              className={`size-8 rounded-lg font-mono text-[12px] font-semibold transition-colors ${
-                i === page ? "bg-deep text-background" : "bg-secondary text-muted-foreground hover:text-foreground"
-              }`}
+              className={`size-8 rounded-lg font-mono text-[12px] font-semibold transition-colors ${i === page ? "bg-deep text-background" : "bg-secondary text-muted-foreground hover:text-foreground"}`}
             >
               {i + 1}
             </button>
           ))}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={page >= pageCount - 1}
-            onClick={() => setPage((p) => p + 1)}
-          >
-            <ChevronRight className="size-4" />
-          </Button>
+          <Button variant="outline" size="sm" disabled={page >= pageCount - 1} onClick={() => setPage((p) => p + 1)}><ChevronRight className="size-4" /></Button>
         </div>
       )}
 
@@ -402,18 +362,12 @@ export function Calendar({ projectId }: { projectId: string }) {
           }
         }}
       >
-        <DialogContent
-          className="max-h-[92vh] w-[96vw] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl"
-        >
+        <DialogContent className="max-h-[92vh] w-[96vw] max-w-3xl overflow-y-auto p-0 sm:max-w-3xl">
           {open && draft && (
             <article className="pb-10">
               <div className="relative">
                 {open.cover_image_url ? (
-                  <img
-                    src={open.cover_image_url}
-                    alt={open.title ?? "Article cover"}
-                    className="h-56 w-full object-cover sm:h-72"
-                  />
+                  <img src={open.cover_image_url} alt={open.title ?? "Article cover"} className="h-56 w-full object-cover sm:h-72" />
                 ) : (
                   <div className="paper-grid h-32 w-full bg-secondary sm:h-40" />
                 )}
@@ -421,61 +375,29 @@ export function Calendar({ projectId }: { projectId: string }) {
 
               <div className="px-6 sm:px-10">
                 <div className="-mt-6 flex flex-wrap items-center gap-2">
-                  <span
-                    className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${
-                      TYPE_META[open.content_type as ContentType]?.tone ?? ""
-                    }`}
-                  >
+                  <span className={`rounded-md px-2 py-0.5 font-mono text-[10px] font-semibold ${TYPE_META[open.content_type as ContentType]?.tone ?? ""}`}>
                     {TYPE_META[open.content_type as ContentType]?.label ?? open.content_type}
                   </span>
-                  <span className="rounded-full bg-background/90 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur">
-                    {open.scheduled_date}
-                  </span>
+                  <span className="rounded-full bg-background/90 px-2.5 py-0.5 font-mono text-[10px] uppercase tracking-wide text-muted-foreground backdrop-blur">{open.scheduled_date}</span>
                 </div>
 
                 <DialogTitle asChild>
-                  <h1 className="mt-4 font-display text-[28px] font-extrabold leading-tight tracking-tight sm:text-[34px]">
-                    {draft.title || "Untitled slot"}
-                  </h1>
+                  <h1 className="mt-4 font-display text-[28px] font-extrabold leading-tight tracking-tight sm:text-[34px]">{draft.title || "Untitled slot"}</h1>
                 </DialogTitle>
-                {open.excerpt && (
-                  <p className="mt-3 border-l-2 border-primary pl-4 text-[15px] italic text-muted-foreground">
-                    {open.excerpt}
-                  </p>
-                )}
+                {open.excerpt && <p className="mt-3 border-l-2 border-primary pl-4 text-[15px] italic text-muted-foreground">{open.excerpt}</p>}
 
                 <div className="mt-5 flex flex-wrap items-center gap-2 border-y border-border py-3">
                   <Button size="sm" variant="outline" onClick={() => setEditing((e) => !e)}>
                     <PenLine className="size-4" /> {editing ? "Reading view" : "Edit"}
                   </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    disabled={imgMutation.isPending || !open.body_md}
-                    onClick={() => imgMutation.mutate(open.id)}
-                  >
-                    {imgMutation.isPending ? (
-                      <Loader2 className="size-4 animate-spin" />
-                    ) : (
-                      <ImageIcon className="size-4" />
-                    )}
-                    Illustrate
+                  <Button size="sm" variant="outline" disabled={imgMutation.isPending || !open.body_md} onClick={() => imgMutation.mutate(open.id)}>
+                    {imgMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <ImageIcon className="size-4" />} Illustrate
                   </Button>
-                  <Button
-                    size="sm"
-                    className="bg-deep text-background hover:bg-deep/90"
-                    disabled={!open.body_md}
-                    onClick={() => pubMutation.mutate(open.id)}
-                  >
+                  <Button size="sm" className="bg-deep text-background hover:bg-deep/90" disabled={!open.body_md} onClick={() => pubMutation.mutate(open.id)}>
                     <Send className="size-4" /> Publish
                   </Button>
                   {open.published_url && (
-                    <a
-                      href={open.published_url}
-                      target="_blank"
-                      rel="noopener"
-                      className="ml-auto inline-flex items-center gap-1 text-[12px] font-semibold text-primary"
-                    >
+                    <a href={open.published_url} target="_blank" rel="noopener" className="ml-auto inline-flex items-center gap-1 text-[12px] font-semibold text-primary">
                       Live <ExternalLink className="size-3.5" />
                     </a>
                   )}
@@ -484,40 +406,18 @@ export function Calendar({ projectId }: { projectId: string }) {
                 {open.body_md ? (
                   editing ? (
                     <div className="mt-5 space-y-3">
-                      <Input
-                        value={draft.title}
-                        onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                      />
-                      <Textarea
-                        rows={20}
-                        value={draft.body}
-                        onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-                        className="font-mono text-[12.5px]"
-                      />
-                      <Button onClick={saveDraft} variant="outline" size="sm">
-                        <PenLine className="size-4" /> Save draft
-                      </Button>
+                      <Input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} />
+                      <Textarea rows={20} value={draft.body} onChange={(e) => setDraft({ ...draft, body: e.target.value })} className="font-mono text-[12.5px]" />
+                      <Button onClick={saveDraft} variant="outline" size="sm"><PenLine className="size-4" /> Save draft</Button>
                     </div>
                   ) : (
-                    <div
-                      className="prose-magazine mt-6"
-                      dangerouslySetInnerHTML={{ __html: renderMarkdown(draft.body) }}
-                    />
+                    <div className="prose-magazine mt-6" dangerouslySetInnerHTML={{ __html: renderMarkdown(draft.body) }} />
                   )
                 ) : (
                   <div className="mt-8 rounded-xl border border-dashed border-border p-8 text-center">
                     <p className="text-sm text-muted-foreground">{open.topic}</p>
-                    <Button
-                      className="mt-4 bg-deep text-background hover:bg-deep/90"
-                      disabled={genMutation.isPending}
-                      onClick={() => genMutation.mutate(open.id)}
-                    >
-                      {genMutation.isPending ? (
-                        <Loader2 className="size-4 animate-spin" />
-                      ) : (
-                        <Sparkles className="size-4" />
-                      )}
-                      Write this article
+                    <Button className="mt-4 bg-deep text-background hover:bg-deep/90" disabled={genMutation.isPending} onClick={() => genMutation.mutate(open.id)}>
+                      {genMutation.isPending ? <Loader2 className="size-4 animate-spin" /> : <Sparkles className="size-4" />} Write this article
                     </Button>
                   </div>
                 )}
